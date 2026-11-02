@@ -23,6 +23,8 @@ Update `installer/version.json` through reviewed source changes; packing generat
 
 Generate revision/tree fields during packing from the verified source checkout. Do not check a commit's own future SHA into itself. Verify the selected source belongs to the reviewed main history and its version matches the intended release before obtaining publishing authority. An installer package always selects its embedded immutable revision; consumers do not install through moving `main`, `latest` or an unchecked tag.
 
+The workflow pins publication tools to its own reviewed commit separately from the selected package source. This lets a reviewed tooling correction publish an already tagged candidate without moving its tag or changing its payload. The tools verify the original clean source/tag and pass that source's manifest explicitly; `release-orchestration.json` records both revisions. The workflow attestation identifies the workflow/tools commit, while the embedded release manifest identifies the package source. Neither identity substitutes for the other.
+
 Pack npm and NuGet from the same staged core/manifest. Inspect actual tarball/nupkg inventories, including hidden files and executable/line-ending behavior. Allow only the launcher/core, generated manifest, package metadata/readme and required notices. Exclude host `.cache`, recordings, credentials, local Git configuration, model weights, native binaries, `node_modules` and build/test output not needed by the tool. Neither root MIT metadata nor a successful archive build grants redistribution rights for third-party components.
 
 Keep the exact packed artifacts, checksums and build provenance for the release. Unsigned NuGet container timestamps are normalized without changing entry bytes, and a two-pack test checks same-source/same-SDK byte identity for npm, NuGet and the setup ZIP. Signed packages refuse normalization. This does not claim compiler equivalence across different SDK versions or operating systems. Pin Actions to verified official commit identities. Use artifact attestations where supported; npmjs provenance flags are not proof of GitHub npm-registry provenance. Both artifacts must be demonstrably linked to the same reviewed manifest/core before either is announced.
@@ -44,7 +46,7 @@ node installer/scripts/pack.cjs --output .local/package-release-01
 
 Before dispatch, the maintainer deliberately creates the matching unprefixed source tag and draft GitHub Release under the applicable review/authorization. The verifier checks version, tag, exact source identity and reviewed-main ancestry. A draft is not an announced completed paired release. A retry may select an already published release only when every expected asset is present with identical bytes; otherwise preflight refuses before registry writes.
 
-The manual `publish-packages.yml` workflow takes `version` and full `source_sha`, uses the `package-release` environment and never releases from an arbitrary main push. Its publication helper consumes the frozen artifact directory:
+The manual `publish-packages.yml` workflow takes `version`, full `source_sha` and the exact approved draft's numeric `release_id`, uses the `package-release` environment and never releases from an arbitrary main push. Obtain that ID with authenticated `gh release view VERSION --json databaseId`. The tools pin and recheck that ID before asset operations and registry writes; a replacement draft requires explicit reconciliation. Its publication helper consumes the frozen artifact directory:
 
 ```bash
 node installer/lib/publish.cjs ARTIFACT_DIRECTORY --execute
@@ -55,6 +57,8 @@ Before either feed is written, the workflow compares the downloaded receipt and 
 ```bash
 node installer/lib/release-assets.cjs ARTIFACT_DIRECTORY --check
 ```
+
+GitHub's REST lookup by tag returns published releases. Draft discovery therefore runs inside the protected publishing job, which has the required contents permission, and pins the authenticated release ID before checking assets. This check still precedes attestation and every registry write; read-only build/test jobs do not receive broader permissions to discover drafts. The workflow uses its pinned tools runner for this check and both publication steps, preserving the selected source identity even when the tools are newer.
 
 This stages local checksum/manifest files and reads GitHub release metadata; it does not publish. After both registry digests are confirmed, `release-assets.cjs ... --execute` uploads only missing matching assets and publishes the draft, with a separate recoverable journal.
 
