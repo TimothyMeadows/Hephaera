@@ -10,7 +10,7 @@ const execute = (root, args) => {
   const result = cp.spawnSync('git', ['-C', root, '-c', 'user.name=Installer Fixture', '-c', 'user.email=fixture@example.invalid', ...args], { encoding: 'utf8', windowsHide: true, timeout: 60000 });
   assert.equal(result.status, 0, result.stderr); return result.stdout.trim();
 };
-function fixture(label) {
+function fixture(label, { buboFixture = false } = {}) {
   const root = path.join(area, label); fs.mkdirSync(root);
   const source = path.join(root, 'source'), host = path.join(root, 'host'); fs.mkdirSync(source); fs.mkdirSync(host);
   execute(source, ['init', '-q']); execute(host, ['init', '-q']);
@@ -18,7 +18,23 @@ function fixture(label) {
     const output = path.join(source, name); fs.mkdirSync(path.dirname(output), { recursive: true }); fs.copyFileSync(path.join(baseline, name), output);
   }
   fs.writeFileSync(path.join(source, 'AGENTS.md'), '# Shared baseline\n');
-  const lock = JSON.parse(fs.readFileSync(path.join(baseline, 'runtime/bubo.lock.json')));
+  let lock = JSON.parse(fs.readFileSync(path.join(baseline, 'runtime/bubo.lock.json'))), buboRepository;
+  if (buboFixture) {
+    // Source-admission coverage needs a real Git repository, not an initialized
+    // production submodule. Keep this fixture offline and hash-bound on every OS.
+    buboRepository = path.join(root, 'bubo-source'); fs.mkdirSync(buboRepository); execute(buboRepository, ['init', '-q']);
+    fs.writeFileSync(path.join(buboRepository, '.gitattributes'), '* -text\n');
+    fs.writeFileSync(path.join(buboRepository, 'Bubo.slnx'), '<Solution />\n');
+    fs.writeFileSync(path.join(buboRepository, 'README.md'), '# Bubo source-admission fixture\n');
+    const resource = path.join(buboRepository, 'resources/proof-to-model/manifest.schema.json');
+    fs.mkdirSync(path.dirname(resource), { recursive: true }); fs.writeFileSync(resource, '{"schemaVersion":1,"fixture":true}\n');
+    const catalog = path.join(buboRepository, 'resources/catalog.json');
+    fs.writeFileSync(catalog, JSON.stringify({ schemaVersion: 1, files: { 'resources/proof-to-model/manifest.schema.json': files.hash(resource) } }) + '\n');
+    execute(buboRepository, ['add', '.']); execute(buboRepository, ['commit', '-qm', 'Fixture Bubo source and audited resource']);
+    fs.appendFileSync(path.join(buboRepository, 'README.md'), 'Second reviewed fixture revision for stale-source checks.\n');
+    execute(buboRepository, ['add', 'README.md']); execute(buboRepository, ['commit', '-qm', 'Fixture Bubo second revision']);
+    lock = { schemaVersion: 1, repository: 'https://github.com/TimothyMeadows/Bubo.git', path: 'runtime/bubo', revision: execute(buboRepository, ['rev-parse', 'HEAD']), apiVersion: 2, resourceCatalogSha256: files.hash(catalog), buildReceipt: 'artifacts/bubo/build-info.json' };
+  }
   fs.mkdirSync(path.join(source, 'runtime')); fs.writeFileSync(path.join(source, 'runtime/bubo.lock.json'), JSON.stringify(lock));
   fs.writeFileSync(path.join(source, '.gitmodules'), '[submodule "runtime/bubo"]\n\tpath = runtime/bubo\n\turl = https://github.com/TimothyMeadows/Bubo.git\n');
   execute(source, ['add', '.']); execute(source, ['update-index', '--add', '--cacheinfo', '160000,' + lock.revision + ',runtime/bubo']); execute(source, ['commit', '-qm', 'Fixture source']);
@@ -28,7 +44,7 @@ function fixture(label) {
   }
   const first = manifest('1.0.0');
   const make = (selected = first, extra = {}) => createInstaller({ manifest: selected, coreDirectory: core, transport: { local: true, repository: source }, ...extra });
-  return { root, source, host, first, manifest, make };
+  return { root, source, host, first, manifest, make, buboRepository };
 }
 test('fresh managed install automatically runs real canonical scaffold and repeat preserves durable bytes', () => {
   const x = fixture('install'); const agents = Buffer.from('Host rules with CRLF\r\n'); fs.writeFileSync(path.join(x.host, 'AGENTS.md'), agents);
@@ -167,12 +183,13 @@ test('linked durable cache is refused without touching its target', () => {
   assert.throws(() => x.make().install(x.host), /symbolic links|junctions/);
   assert.deepEqual(fs.readdirSync(outside), []);
 });
-test('explicit source opt-in admits only the existing pinned Bubo source without a native build', () => {
-  const x = fixture('source-opt-in');
-  const installer = x.make(x.first, { transport: { local: true, repository: x.source, buboRepository: path.join(baseline, 'runtime/bubo') } });
+test('explicit source opt-in admits the exact local Bubo Git fixture without a native build', () => {
+  const x = fixture('source-opt-in', { buboFixture: true });
+  const installer = x.make(x.first, { transport: { local: true, repository: x.source, buboRepository: x.buboRepository } });
   assert.equal(installer.install(x.host, { withBuboSource: true }).scaffold, 'complete');
   assert.equal(execute(path.join(x.host, '.hephaera/runtime/bubo'), ['rev-parse', 'HEAD']), x.first.bubo.revision);
   assert.equal(fs.existsSync(path.join(x.host, '.hephaera/runtime/bubo/artifacts/bubo/build-info.json')), false);
+  assert.equal(files.hash(path.join(x.host, '.hephaera/runtime/bubo/resources/catalog.json')), x.first.bubo.resourceCatalogSha256);
   assert.equal(installer.doctor(x.host).nativeReadiness, 'initialized-unbuilt');
   const nested = path.join(x.host, '.hephaera/runtime/bubo');
   execute(nested, ['checkout', '--detach', 'HEAD^']);

@@ -185,7 +185,7 @@ function restoreNative() { cp.spawn = originals.spawn; cp.spawnSync = originals.
   // relative path assumptions. This is an installed-module fixture, not Git clone QA.
   const installedRoot = host('installed');
   const baseline = path.join(installedRoot, '.hephaera'); fs.mkdirSync(baseline);
-  for (const rel of ['commands/lib/web-game-package.cjs', 'commands/lib/engine-contract.cjs', '.engine/registry.json']) {
+  for (const rel of ['commands/lib/web-game-package.cjs', 'commands/lib/engine-contract.cjs', 'commands/lib/installation-maintenance.cjs', '.engine/registry.json']) {
     write(baseline, rel, fs.readFileSync(path.join(base, rel)));
   }
   for (const id of ['THREEJS', 'BABYLONJS', 'PHASERJS', 'UNITY', 'UNREAL', 'GODOT']) write(baseline, `.engine/${id}.md`, fs.readFileSync(path.join(base, `.engine/${id}.md`)));
