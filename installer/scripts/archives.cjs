@@ -1,6 +1,8 @@
 'use strict';
 const zlib = require('node:zlib');
-function readZip(bytes) {
+function readZip(bytes, { maxExpandedBytes = 67108864 } = {}) {
+  if (!Number.isSafeInteger(maxExpandedBytes) || maxExpandedBytes < 1) throw new Error('Invalid ZIP expansion limit.');
+  let expanded = 0;
   let end = -1;
   for (let i = bytes.length - 22; i >= Math.max(0, bytes.length - 65557); i--) if (bytes.readUInt32LE(i) === 0x06054b50) { end = i; break; }
   if (end < 0) throw new Error('ZIP end record missing.');
@@ -8,13 +10,15 @@ function readZip(bytes) {
   for (let index = 0; index < count; index++) {
     if (bytes.readUInt32LE(cursor) !== 0x02014b50) throw new Error('Invalid ZIP directory.');
     const method = bytes.readUInt16LE(cursor + 10), compressed = bytes.readUInt32LE(cursor + 20), size = bytes.readUInt32LE(cursor + 24);
+    if (size > maxExpandedBytes - expanded) throw new Error('ZIP expansion limit exceeded.');
+    expanded += size;
     const names = bytes.readUInt16LE(cursor + 28), extra = bytes.readUInt16LE(cursor + 30), comment = bytes.readUInt16LE(cursor + 32), local = bytes.readUInt32LE(cursor + 42);
     const name = bytes.subarray(cursor + 46, cursor + 46 + names).toString('utf8');
     if (result.has(name) || name.includes('..') || name.startsWith('/') || name.includes('\\')) throw new Error('Unsafe or duplicate ZIP entry.');
     if (bytes.readUInt32LE(local) !== 0x04034b50) throw new Error('Invalid ZIP local header.');
     const start = local + 30 + bytes.readUInt16LE(local + 26) + bytes.readUInt16LE(local + 28);
     const body = bytes.subarray(start, start + compressed);
-    const output = method === 0 ? body : method === 8 ? zlib.inflateRawSync(body) : null;
+    const output = method === 0 ? body : method === 8 ? zlib.inflateRawSync(body, { maxOutputLength: Math.max(1, size) }) : null;
     if (!output || output.length !== size || zlib.crc32(output) !== bytes.readUInt32LE(cursor + 16)) throw new Error('ZIP entry integrity mismatch.');
     result.set(name, output); cursor += 46 + names + extra + comment;
   }

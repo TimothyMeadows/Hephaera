@@ -14,6 +14,11 @@ on:
         description: Exact approved draft GitHub release ID
         required: true
         type: string
+      publish_public:
+        description: Launch public npmjs/NuGet.org distribution after verified GitHub publication
+        required: true
+        type: boolean
+        default: true
 permissions:
   contents: read
 concurrency:
@@ -158,5 +163,39 @@ jobs:
             .local/installer-packages/publication.json
             .local/installer-packages/release-assets.json
             .local/installer-packages/release-orchestration.json
+          include-hidden-files: true
+          retention-days: 90
+  public-dispatch:
+    needs: publish
+    if: inputs.publish_public && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.workflow_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24.15.0'
+      - name: Dispatch the canonical public publishing workflow once
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUBLIC_VERSION: ${{ inputs.version }}
+          PUBLIC_SOURCE_SHA: ${{ inputs.source_sha }}
+          PUBLIC_RELEASE_ID: ${{ inputs.release_id }}
+          PUBLIC_REGISTRY_SELECTION: ${{ vars.PUBLIC_PACKAGE_REGISTRIES || 'both' }}
+          PUBLIC_NPM_AUTH_MODE: ${{ vars.PUBLIC_NPM_AUTH_MODE || 'trusted' }}
+          HEPHAERA_PUBLIC_TOOLS_SHA: ${{ github.workflow_sha }}
+        run: node installer/scripts/dispatch-public-release.cjs .local/public-dispatch --execute
+      - name: Preserve public dispatch intent and result
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: public-registry-dispatch-attempt-${{ github.run_attempt }}
+          path: .local/public-dispatch/*.json
           include-hidden-files: true
           retention-days: 90

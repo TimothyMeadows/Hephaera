@@ -1,6 +1,6 @@
 # Installation and layout
 
-Hephaera's versioned installer is the primary setup interface: npm first, then the NuGet .NET tool. **Both packages are upcoming and not yet published.** `5.1.0-rc.1` is a proposed candidate, not an available stable version. Use package commands only after the exact release and authenticated downloads are verified. The [manual fallback](#advanced-manual-installation) remains usable at the end of this page.
+Hephaera's versioned installer is the primary setup interface: npm first, then the NuGet .NET tool. [`5.1.0-rc.1` is published on GitHub](https://github.com/TimothyMeadows/Hephaera/releases/tag/5.1.0-rc.1), including both GitHub packages and the setup ZIP. **npmjs.com and NuGet.org mirrors are pending.** Public-route examples apply only after that exact destination/version is verified; the authenticated GitHub alternative is available now. The [manual Git route](#advanced-manual-installation) remains last.
 
 All modes place a real baseline at `<project-root>/.hephaera`. The [installer reference](https://github.com/TimothyMeadows/Hephaera/blob/main/docs/INSTALLER.md), [README](https://github.com/TimothyMeadows/Hephaera/blob/main/README.md#install) and [layering contract](https://github.com/TimothyMeadows/Hephaera/blob/main/AGENTS.md#layering-contract) define ownership. An npm cache, NuGet tool cache, symlink or arbitrary directory name is not a host installation.
 
@@ -14,12 +14,12 @@ Package setup requires PATH to be the canonical root of an existing host Git rep
 | npm | npm package acquisition/execution |
 | .NET 10 SDK/tool runtime | NuGet tool acquisition/execution; not the npm installer |
 | Git and existing Bash | Exact source transport and canonical scaffold; Git Bash is preferred on Windows |
-| GitHub Packages read access | Authenticated acquisition from both selected feeds, even for public packages |
+| GitHub Packages read access | Only the GitHub alternative; npmjs/NuGet.org public reads need no publisher token |
 | Network access | Thin packages fetch the recorded public baseline Git revision; no offline bundle is claimed |
 | Python 3.9+ named `python3` | Existing task/issue/checkpoint helpers |
 | Authenticated `gh` | CLI-backed GitHub issue/PR work, without bypassing readiness approval |
 
-The installer reports unavailable prerequisites before project mutation and installs no SDK, provider, model or interpreter alias. A usable PowerShell interpreter may have a different name/PATH in Git Bash or WSL. The existing [task wrapper](https://github.com/TimothyMeadows/Hephaera/blob/main/commands/create-task-file.sh) and [task implementation](https://github.com/TimothyMeadows/Hephaera/blob/main/commands/lib/task-execution.py) require Python as `python3`.
+The installer reports unavailable prerequisites before project mutation and installs no SDK, provider, model or interpreter alias. A Python command available in PowerShell may have a different name/PATH in Git Bash or WSL. The existing [task wrapper](https://github.com/TimothyMeadows/Hephaera/blob/main/commands/create-task-file.sh) and [task implementation](https://github.com/TimothyMeadows/Hephaera/blob/main/commands/lib/task-execution.py) require Python as `python3`.
 
 If Windows exposes only the intended Python 3.9+ as `python`, a separately chosen session-local executable launcher can bridge that command name; a shell alias alone does not satisfy `exec python3`:
 
@@ -34,56 +34,79 @@ python3 --version
 
 Create this only when a correct `python3` is absent. After dependent helpers stop, remove only the owned launcher with `rm -- "$hephaera_launcher_dir/python3"` and its empty directory with `rmdir -- "$hephaera_launcher_dir"`. This does not provision Python or modify system PATH.
 
-## npm authentication and setup
+## Registry selection and availability
 
-GitHub Packages is independent of npmjs.com and nuget.org accounts. Use the consumer's GitHub identity and an expiring PAT **classic** with `read:packages` and package read access. Enter the token through an interactive prompt; do not copy it into Git, command arguments, receipts or screenshots.
+| Registry | Package identity | Current status |
+| --- | --- | --- |
+| GitHub npm | `@timothymeadows/hephaera` | Published `5.1.0-rc.1`, authenticated read |
+| GitHub NuGet | `Hephaera` | Published `5.1.0-rc.1`, authenticated read |
+| npmjs.com | `@timothymeadows/hephaera` | Public mirror pending |
+| NuGet.org | `Hephaera` | Public mirror pending |
 
-Add this token-free project `.npmrc` scope mapping while preserving unrelated settings:
+An npmjs or NuGet.org search is not a GitHub Packages search. GitHub's full [release listing](https://github.com/TimothyMeadows/Hephaera/releases) includes the prerelease; `releases/latest` can still select an older full release. Public package search may also filter prereleases. Installer behavior and source identity are shared across feeds; the feed choice does not create another baseline.
+
+## npm setup
+
+After npmjs publication is verified, explicitly select this token-free host `.npmrc` scope mapping, preserving unrelated settings:
 
 ```ini
-@timothymeadows:registry=https://npm.pkg.github.com
+@timothymeadows:registry=https://registry.npmjs.org
 ```
 
-Authenticate, storing credentials at user level outside the project:
+An older scoped GitHub mapping must be replaced deliberately. Public acquisition needs no login:
+
+```bash
+npm exec --yes --registry=https://registry.npmjs.org --package=@timothymeadows/hephaera@5.1.0-rc.1 -- hephaera install --project .
+```
+
+For the **currently published GitHub alternative**, select `@timothymeadows:registry=https://npm.pkg.github.com` instead. Use the consumer's GitHub identity and expiring PAT classic with `read:packages`; enter it interactively and keep credentials outside the project:
 
 ```bash
 npm login --scope=@timothymeadows --auth-type=legacy --registry=https://npm.pkg.github.com
+npm exec --yes --registry=https://npm.pkg.github.com --package=@timothymeadows/hephaera@5.1.0-rc.1 -- hephaera install --project .
 ```
 
-After an actual release, substitute its verified exact `<VERSION>`:
+[GitHub npm package](https://github.com/users/TimothyMeadows/packages/npm/package/hephaera). The explicit command runs setup even when dependency lifecycle hooks are disabled. A dev-dependency acquisition alone does not scaffold the host; record its exact version and separately invoke setup.
 
-```bash
-npm exec --yes --package=@timothymeadows/hephaera@<VERSION> -- hephaera install --project .
+## NuGet setup
+
+The `Hephaera` .NET tool retains the Node 24 requirement. After its **pending NuGet.org publication** is verified, create a separate host `NuGet.Hephaera.Public.config`:
+
+```xml
+<configuration>
+  <packageSources>
+    <clear />
+    <add key="nuget.org" value="https://api.nuget.org/v3/index.json" />
+  </packageSources>
+  <packageSourceMapping>
+    <packageSource key="nuget.org"><package pattern="Hephaera" /></packageSource>
+  </packageSourceMapping>
+</configuration>
 ```
 
-The explicit installer runs even when dependency lifecycle scripts are disabled. It installs/scaffolds the host; raw npm acquisition or adding a dev dependency alone does not. An exact dev-dependency path can be recorded in host package manifests, but still needs explicit setup. The selected installer/core/manifest identity must match the requested release.
+The original [setup ZIP](https://github.com/TimothyMeadows/Hephaera/releases/download/5.1.0-rc.1/hephaera-setup-5.1.0-rc.1.zip) is already published. Verify its [release checksum](https://github.com/TimothyMeadows/Hephaera/releases/download/5.1.0-rc.1/CHECKSUMS-5.1.0-rc.1.txt), extract it and keep every bundled file unchanged. The helper verifies `setup-release.json` file hashes, including the supplied GitHub config. Put the new public config at the host root, outside the bundle, and pass it explicitly; the existing helper accepts any valid regular config path.
 
-## NuGet authentication and setup
-
-`Hephaera` uses `https://nuget.pkg.github.com/TimothyMeadows/index.json`. It embeds the same Node core and does not fetch npm or eliminate Node 24. Use an explicit, credential-free `NuGet.Hephaera.config` with `<clear />`, the GitHub feed under source key `HephaeraGitHub`, and nuget.org for public dependencies. Map exact `Hephaera` to GitHub and `*` to nuget.org. See the [complete configuration](https://github.com/TimothyMeadows/Hephaera/blob/main/docs/INSTALLER.md#authenticate-for-nuget).
-
-Supply credentials via a supported provider or session-only `NuGetPackageSourceCredentials_HephaeraGitHub`, assembled with a hidden prompt. Its documented value shape is `Username=YOUR_GITHUB_USERNAME;Password=YOUR_CLASSIC_PAT;ValidAuthenticationTypes=Basic`. Match source-key case, do not echo credentials, and clear the session value afterward. Expired environment credentials can override newer stored ones. `--add-source` does not establish feed priority; package queries can run concurrently. Cached global packages can bypass source mapping, so cold-cache acquisition and actual package/core/manifest verification remain separate evidence.
-
-After publication, use the release's reviewed, versioned acquisition-and-invoke wrapper. It must not run setup after failed acquisition.
-
-After publication, obtain the matching `hephaera-setup-<VERSION>.zip` from the verified release, check its recorded checksum and extract it. Keep its `setup-nuget.sh`, `setup-nuget.ps1`, `setup-local-tool.cjs` and `setup-release.json` together. The helper checks bundle files, selected version and acquired core/manifest identity before setup. The complete reviewed `installer/setup/` source directory is an alternative for maintainers who verify that exact source revision. Copy its token-free `NuGet.Hephaera.config` to the host without overwriting existing configuration. These files are not obtained by running an unpinned remote script. Set `SETUP_DIR` (Bash) or `SetupDir` (PowerShell) to that reviewed local directory. After release, one explicit command acquires, verifies and invokes setup:
+Point `SETUP_DIR` (Bash) or `SetupDir` (PowerShell) at the reviewed extracted directory:
 
 ```bash
-bash "$SETUP_DIR/setup-nuget.sh" --version <VERSION> --project . --configfile ./NuGet.Hephaera.config
+bash "$SETUP_DIR/setup-nuget.sh" --version 5.1.0-rc.1 --project . --configfile ./NuGet.Hephaera.Public.config
 ```
 
 ```powershell
-& "$SetupDir/setup-nuget.ps1" --version <VERSION> --project . --configfile ./NuGet.Hephaera.config
+& "$SetupDir/setup-nuget.ps1" --version 5.1.0-rc.1 --project . --configfile ./NuGet.Hephaera.Public.config
 ```
 
-The wrapper verifies the selected local tool/core/manifest, stops on acquisition failure and forwards only the explicit optional `-- --with-bubo-source` request. The acquisition wrapper does not forward `--dry-run`, because tool acquisition can write its manifest/cache. After acquisition, core `install/init --dry-run` and `update --dry-run` provide project-read-only preflight; target staging is not run.
-With the host `.config/dotnet-tools.json` explicitly created/validated, the transparent Bash equivalent is:
+For the **currently published GitHub alternative**, use the [token-free GitHub configuration](https://github.com/TimothyMeadows/Hephaera/blob/main/docs/INSTALLER.md#authenticate-for-nuget) and pass `--configfile ./NuGet.Hephaera.config` to those wrappers. It maps exact `Hephaera` to source key `HephaeraGitHub` at `https://nuget.pkg.github.com/TimothyMeadows/index.json`. Supply a supported credential provider or session-only `NuGetPackageSourceCredentials_HephaeraGitHub`, assembled using a hidden prompt. Its shape is `Username=YOUR_GITHUB_USERNAME;Password=YOUR_CLASSIC_PAT;ValidAuthenticationTypes=Basic`; match source-key case and never store a literal token in project files. [GitHub NuGet package](https://github.com/users/TimothyMeadows/packages/nuget/package/Hephaera).
 
-```bash
-dotnet tool install --local Hephaera --version <VERSION> --tool-manifest .config/dotnet-tools.json --configfile ./NuGet.Hephaera.config && dotnet tool run hephaera -- install --project .
-```
+Acquisition uses the explicit root `.config/dotnet-tools.json`, preserves unrelated entries, verifies exact tool/core/manifest identity, then invokes setup. A conflicting version or command stops. An existing manifest restore can need mappings for its other tools; review those rather than silently broadening feeds. Cached packages may bypass lookup/mapping, so cold-cache origin verification remains separate; preserve the user's global cache. `--add-source` does not establish feed priority.
 
-Run from the host root, preserve other tool entries and verify local manifest/version resolution. Restore an existing matching declaration or explicitly select its update instead of overwriting it. PowerShell 5.1 requires separate commands and `$LASTEXITCODE` checks; use the release's PowerShell wrapper. Raw `dotnet tool install` acquires a tool, not a project scaffold. [Publisher/account controls](https://github.com/TimothyMeadows/Hephaera/blob/main/docs/INSTALLER_RELEASE.md) distinguish Actions tokens, account visibility and consumer access.
+Raw `dotnet tool install` only acquires tooling. PowerShell 5.1 needs explicit exit-code checks for manual command sequences; the wrapper handles them. The wrapper forwards only explicit `-- --with-bubo-source`, not `--dry-run`. After acquisition, core `install/init --dry-run` and `update --dry-run` provide project-read-only previews without candidate staging/target admission. See [installer ownership/reference](https://github.com/TimothyMeadows/Hephaera/blob/main/docs/INSTALLER.md).
+
+## Public publishing reference
+
+GitHub publication is primary; a canonical standalone `publish-public-packages.yml` provides automatic dispatch after GitHub success and manual catch-up. It verifies original source/release/run/signer/files before the protected publisher, then reconciles only selected `npm`, `nuget` or `both`. An unselected destination is not freshly checked; retain any historical confirmation and leave it pending when no confirmation exists. Account-blocked new publication stays pending. Maintainer account variables, first npm bootstrap, trusted policies and the exact current catch-up inputs are in [Public registry setup](https://github.com/TimothyMeadows/Hephaera/blob/main/docs/PUBLIC_REGISTRY_SETUP.md).
+
+NuGet.org adds a root `.signature.p7s`; its served archive hash differs from the original unsigned GitHub artifact. Public confirmation requires both trusted repository-signature verification and identical original non-signature entry names/bytes. Separate input/download hashes and immutable per-channel history prevent a signing wrapper from hiding a payload change. npm keeps the exact original tarball/SRI. These checks do not authorize promotion, model installation or a different source version.
 
 ## Layout and automatic scaffold
 
@@ -128,7 +151,7 @@ Read [state transition](https://github.com/TimothyMeadows/Hephaera/blob/main/doc
 
 ## Advanced manual installation
 
-This is the working fallback while packages are unreleased. Choose one form at the host root without overwriting an existing installation:
+Use this advanced route when deliberately managing the baseline through Git. Choose one form at the host root without overwriting an existing installation:
 
 ```bash
 git submodule add https://github.com/TimothyMeadows/Hephaera.git .hephaera
