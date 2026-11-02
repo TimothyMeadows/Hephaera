@@ -95,9 +95,14 @@ async function lookup(channel,version) {
   if(r.status!==0){ if(/E404|"code"\s*:\s*"E404"/.test(r.stderr+r.stdout))return null; throw new Error('npm package readback failed; check registry access.'); }
   const integrity=JSON.parse(r.stdout);if(typeof integrity!=='string'||!integrity.startsWith('sha512-'))throw new Error('Invalid npm integrity readback.');return integrity;
 }
-async function upload(channel,file) {
+/** @param {string} version @returns {'next'|'latest'} */
+function npmDistTag(version) {
+  if(typeof version!=='string'||!/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[a-z0-9]+(?:\.[a-z0-9]+)*)?$/.test(version)||version.split('-')[1]?.split('.').some(label=>/^0\d+$/.test(label)))throw new Error('Invalid release version for npm dist-tag.');
+  return version.includes('-')?'next':'latest';
+}
+async function upload(channel,file,version) {
   if(channel==='npm') {
-    const r=npmCommand(['publish',file,'--ignore-scripts','--registry=https://npm.pkg.github.com']);
+    const r=npmCommand(['publish',file,'--ignore-scripts','--registry=https://npm.pkg.github.com','--tag',npmDistTag(version)]);
     if(r.status!==0)throw new Error('npm publication failed or is uncertain; reconcile the recorded operation.');
   } else {
     const token=process.env.GITHUB_TOKEN;if(!token)throw new Error('Missing workflow token.');
@@ -114,7 +119,7 @@ async function publish(directory,{execute=false,io={lookup,upload},expectedManif
   const {directory:root,receipt,files}=input(directory);
   verifyPayload(receipt,files,expectedManifest);
   const expected={npm:'sha512-'+crypto.createHash('sha512').update(fs.readFileSync(files.npm)).digest('base64'),nuget:receipt.artifacts.nuget.sha256};
-  const plan={schemaVersion:1,version:receipt.version,revision:receipt.manifest.revision,expected,channels:{},status:execute?'reconciling':'dry-run'};
+  const plan={schemaVersion:1,version:receipt.version,revision:receipt.manifest.revision,npmDistTag:npmDistTag(receipt.version),expected,channels:{},status:execute?'reconciling':'dry-run'};
   if(!execute)return plan;
   const journal=path.join(root,'publication.json');
   if(fs.existsSync(journal)){
@@ -134,7 +139,7 @@ async function publish(directory,{execute=false,io={lookup,upload},expectedManif
     if(plan.channels[channel].status==='confirmed')continue;
     plan.channels[channel].status='write-intent';write();
     try{
-      await io.upload(channel,files[channel]);
+      await io.upload(channel,files[channel],plan.version);
       const observed=await io.lookup(channel,plan.version);
       if(observed!==expected[channel])throw new Error('Published digest is not yet confirmed.');
       plan.channels[channel]={status:'confirmed',digest:observed};write();
@@ -147,4 +152,4 @@ if(require.main===module){
   if(args.length<1||args.length>2||args[1]&&args[1]!=='--execute'){console.error('Usage: node installer/lib/publish.cjs ARTIFACT_DIRECTORY [--execute]');process.exitCode=1;}
   else publish(args[0],{execute:args[1]==='--execute'}).then(x=>console.log(JSON.stringify(x,null,2))).catch(e=>{console.error(e.message);process.exitCode=1;});
 }
-module.exports={input,publish,ownedUrl,artifactPath,verifyPayload};
+module.exports={input,publish,ownedUrl,artifactPath,verifyPayload,npmDistTag};
