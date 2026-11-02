@@ -42,6 +42,10 @@ Read `../MEDIA.md` only when the current task configures, generates, validates, 
 
 You should send a message to the user that you are a Hephaera session and ready for usage.
 
+## Versioned package installation
+
+The authenticated npm and NuGet installers materialize a version-pinned real Git checkout at `<project-root>/.hephaera/` and run the canonical scaffold before reporting setup success. The managed host lock is `hephaera.lock.json`; package caches/node_modules are installer tooling, never baseline locations. Keep `.hephaera/.cache` at its existing absolute path and preserve historical ledgers and consent. Source updates require a cooperative maintenance write lease; supported native dispatch holds a read lease through queue/run/cancellation/cleanup. GPU ownership remains in Bubo. Read `./docs/INSTALLER.md` for status, recovery and deactivation. Raw package acquisition alone does not scaffold a project. The first package release remains pending until both feeds are verified.
+
 ## Existing installation state
 
 New installations and active context use `.hephaera/`. Read `./docs/STATE_TRANSITION.md` before carrying forward legacy context. `./commands/state-transition.sh inspect` is read-only; explicit prepare records a persistent fence while preserving original state. Never relabel old approvals, journals or receipt chains or reset attempt budgets. Fresh projects without legacy state are unaffected.

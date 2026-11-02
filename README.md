@@ -13,7 +13,7 @@ Hephaera brings game-design methods, engine-specific skills, art and audio workf
 
 Hephaera's wordmark pairs Bubo's robotic owl with matching [charcoal, slate and gold branding](docs/BRANDING.md).
 
-The [project website](https://timothymeadows.github.io/Hephaera/) introduces Hephaera and its installation. The [practical guides](https://timothymeadows.github.io/Hephaera/docs/) explain everyday use in plain language; the [reference wiki](https://github.com/TimothyMeadows/Hephaera/wiki) holds the detailed contracts and commands. Website and wiki source is reviewed here; see [documentation maintenance](docs/DOCUMENTATION_SITE.md) for local preview and explicit publication.
+The [project website](https://hephaera.com/) introduces Hephaera and its installation. The [practical guides](https://hephaera.com/docs/) explain everyday use in plain language; the [reference wiki](https://github.com/TimothyMeadows/Hephaera/wiki) holds the detailed contracts and commands. Website and wiki source is reviewed here; see [documentation maintenance](docs/DOCUMENTATION_SITE.md) for local preview and explicit publication.
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"primaryColor":"#202A32","primaryTextColor":"#FFF4D6","primaryBorderColor":"#C69A52","lineColor":"#C69A52","secondaryColor":"#46535E","tertiaryColor":"#202A32","edgeLabelBackground":"#FFF4D6"}}}%%
@@ -50,13 +50,15 @@ Each game project installs Hephaera in `.hephaera/`. Durable project memory, tas
   - [Natural-Language Examples](#natural-language-examples)
   - [When Explicit Controls Help](#when-explicit-controls-help)
 - [Install](#install)
-  - [Fork Hephaera First](#fork-hephaera-first)
+  - [Package Availability](#package-availability)
   - [Fixed Installation Layout](#fixed-installation-layout)
-  - [Existing installation state](#existing-installation-state)
-  - [Windows Bash Prerequisite](#windows-bash-prerequisite)
-  - [Option 1 — Git Submodule](#option-1--git-submodule)
-  - [Option 2 — Clone](#option-2--clone)
+  - [npm Setup](#npm-setup)
+  - [NuGet Setup](#nuget-setup)
   - [Start the First Session](#start-the-first-session)
+  - [Managed Updates and Recovery](#managed-updates-and-recovery)
+  - [Existing installation state](#existing-installation-state)
+  - [Native Runtime Prerequisites](#native-runtime-prerequisites)
+  - [Advanced Manual Installation](#advanced-manual-installation)
 - [Technical Reference](#technical-reference)
   - [Runtime Model](#runtime-model)
   - [Session Startup and Context Resolution](#session-startup-and-context-resolution)
@@ -414,137 +416,178 @@ Brainstorm is explicit because it creates persistent pre-planning state and susp
 
 # Install
 
-Install Hephaera directly at `<project-root>/.hephaera/` in an existing project. Both automated setup and manual installation require this exact directory.
+Hephaera belongs directly at `<project-root>/.hephaera/` in an existing host Git repository. Durable project memory, tasks and evidence remain under the ignored `.hephaera/.cache/`; engine, architecture, style and media contracts stay at the host root.
 
-The installation contains reusable baseline files plus an ignored `.cache/` child for durable project memory, tasks, rules, and evidence. Project contracts such as `ENGINE.md`, `ARCHITECTURE.md`, and `STYLE.md` stay at the project root. This is a fresh-install layout; earlier install locations are not supported or migrated.
+## Package Availability
 
-## Fork Hephaera First
+**The npm and NuGet installers are upcoming and not published.** `5.1.0-rc.1` is the proposed first candidate, not an available stable release. The package-first examples below describe setup after the selected exact release is verified in both GitHub feeds. For installation today, use [Advanced Manual Installation](#advanced-manual-installation) last in this section.
 
-Fork the repository before installing it into production or team projects. A fork gives your team control over updates, custom roles and skills, security policy, and the exact version each repository consumes.
-
-Upstream repository:
-
-https://github.com/TimothyMeadows/Hephaera
-
-Example fork:
-
-```text
-https://github.com/<your-org>/Hephaera
-```
-
-Use your fork URL in the installation commands below.
+Both package routes use the same installer core, pin the exact baseline Git revision and automatically run the canonical scaffold before reporting success. Package acquisition alone is not host setup. No first agent run of `AGENTS.md` is required to finish a successful package install.
 
 ## Fixed Installation Layout
 
-Use `.hephaera` for Codex, Cursor, Claude, and every other supported agent. Do not rename the installation or select a tool-specific directory. The scaffold maintains a block in the host root `AGENTS.md` that reads only `./.hephaera/AGENTS.md`, while preserving other host instructions.
+Use `.hephaera` for Codex, Claude, Cursor and every other supported agent. Do not mount a package cache, rename the baseline or link it into the project. Setup requires the canonical root of an existing host Git repository; it does not initialize Git implicitly or install into a child of another repository.
 
-Commands shown in this install section run from the project root. Technical-reference examples using `./commands/` run from inside `.hephaera/`; the equivalent project-root prefix is `./.hephaera/commands/`.
+| Prerequisite | Needed for |
+| --- | --- |
+| Node.js 24+ | The common installer, including the NuGet route |
+| npm | Acquiring the npm installer |
+| .NET 10 SDK/tool runtime | Acquiring and running the NuGet launcher |
+| Git and existing Bash | Exact source checkout and canonical scaffold; Git Bash is preferred on Windows |
+| Authenticated GitHub Packages access | Both feeds, even for public packages |
+
+The thin packages also fetch the recorded public Git source; they are not offline bundles. Python 3.9+ specifically exposed as `python3` is needed for task/issue/checkpoint helpers, and authenticated `gh` for their GitHub operations. SDKs, Bash providers, Python environments and models are never installed implicitly. See the [full installer reference](docs/INSTALLER.md).
+
+## npm Setup
+
+Use your own expiring GitHub personal access token **classic** with `read:packages` and package access. Add the token-free scope mapping to the host `.npmrc`, preserving unrelated settings:
+
+```ini
+@timothymeadows:registry=https://npm.pkg.github.com
+```
+
+Authenticate interactively with your GitHub username and token at the password prompt; keep credentials in user-level storage outside the project:
+
+```bash
+npm login --scope=@timothymeadows --auth-type=legacy --registry=https://npm.pkg.github.com
+```
+
+After publication, replace `<VERSION>` with the exact verified release and run at the host root:
+
+```bash
+npm exec --yes --package=@timothymeadows/hephaera@<VERSION> -- hephaera install --project .
+```
+
+This explicit command acquires tooling, installs the baseline and creates the canonical scaffold. It does not rely on dependency lifecycle hooks. An exact dev-dependency installation is also possible, but downloading it alone does not initialize the host.
+
+## NuGet Setup
+
+The `Hephaera` NuGet tool uses `https://nuget.pkg.github.com/TimothyMeadows/index.json` and embeds the same Node core; Node 24 remains required. Follow the [NuGet authentication/configuration instructions](docs/INSTALLER.md#authenticate-for-nuget): use a token-free feed config, exact-ID source mapping and credentials outside tracked files. npmjs.com and nuget.org credentials are separate from GitHub Packages.
+
+After publication, the reviewed release wrapper acquires the selected local tool and invokes setup only after successful acquisition.
+
+After publication, obtain and checksum-verify the matching `hephaera-setup-<VERSION>.zip`. Keep its wrappers, adjacent Node helper and release identity together; copy its token-free feed config without overwriting existing settings. Point `SETUP_DIR` (Bash) or `SetupDir` (PowerShell) at that reviewed local directory:
+
+```bash
+bash "$SETUP_DIR/setup-nuget.sh" --version <VERSION> --project . --configfile ./NuGet.Hephaera.config
+```
+
+```powershell
+& "$SetupDir/setup-nuget.ps1" --version <VERSION> --project . --configfile ./NuGet.Hephaera.config
+```
+The transparent Bash equivalent, with the host `.config/dotnet-tools.json` explicitly created or validated, is:
+
+```bash
+dotnet tool install --local Hephaera --version <VERSION> --tool-manifest .config/dotnet-tools.json --configfile ./NuGet.Hephaera.config && dotnet tool run hephaera -- install --project .
+```
+
+Run from the host root and preserve other tool entries. PowerShell 5.1 needs explicit exit-code checks rather than Bash's `&&`; use the release's PowerShell wrapper. `dotnet tool install` alone does not scaffold a project. See [publisher/consumer setup](docs/INSTALLER_RELEASE.md) for release and account boundaries.
+
+## Start the First Session
+
+Successful package setup already creates the managed host `AGENTS.md` bootstrap and missing durable context. It records `hephaera.lock.json` and an owned `/.hephaera/` ignore entry; review host changes normally. It never commits them. For a selected npm release, inspect readiness with:
+
+```bash
+npm exec --yes --package=@timothymeadows/hephaera@<VERSION> -- hephaera doctor --project .
+```
+
+Then ask the agent to read the installed baseline:
+
+```text
+Read ./.hephaera/AGENTS.md and this project's saved context. Explain which choices and prerequisites are already recorded, then help me plan the first task. Do not change application code yet.
+```
+
+Setup does not choose or generate engine, architecture, style or media contracts. The first session resolves those decisions when relevant. Manual users run the explicit scaffold shown in the fallback below; a partial package failure instead follows its verified repair/recovery instructions.
+
+## Managed Updates and Recovery
+
+Invoke `restore --project PATH` through the exact locked release. For an update, acquire the selected target package version, inspect `update --project PATH --dry-run`, then explicitly run its update. Updating launcher tooling alone does not update an installed project. Switching npm/NuGet channels does not create a second baseline.
+
+Keep `.hephaera/.cache`, historical receipts, consent and consumed attempts. Repair/recovery retains partial-operation evidence and refuses unknown/changed ownership. Supported production entrypoints hold cooperative read leases through queued/running work and cleanup; an updater needs exclusive ownership. This preserves baseline identity without replacing Bubo's GPU ownership or claiming an OS sandbox.
+
+Deactivation retains baseline, exclusion, inactive ownership and private state; `--remove-bootstrap` explicitly selects removal of the unchanged owned bootstrap. Removing npm/NuGet tooling removes tooling only. Never recursively delete `.hephaera` or its cache to reset an installation.
 
 ## Existing installation state
 
-New installations use `.hephaera/`. Before carrying forward an existing installation, use `bash .hephaera/commands/state-transition.sh inspect`; follow the [state-transition guide](docs/STATE_TRANSITION.md). Explicit preparation preserves historical receipts, consent, journals and attempt accounting and records a persistent production fence. It does not relabel approvals or make relocated tools executable. Fresh projects without legacy state use the normal setup path.
+Do not run package setup over an existing manual clone/submodule or unsupported legacy installation. It does not silently adopt, relocate or relabel that state. Read [state transition](docs/STATE_TRANSITION.md), and inspect from an existing supported installation:
 
+```bash
+bash .hephaera/commands/state-transition.sh inspect
+```
 
-## Windows Bash Prerequisite
+Inspection is read-only. Do not delete old evidence, reset attempt budgets or borrow another project's memory to get past a fence.
 
-Hephaera commands use Bash. Linux and macOS normally already provide the expected runtime.
+## Native Runtime Prerequisites
 
-On Windows, Git Bash is recommended for native Windows filesystem performance. After Hephaera is mounted, inspect available providers from PowerShell:
+Default package setup leaves Bubo source uninitialized. Explicit `install --project PATH --with-bubo-source` initializes recorded source only. Session startup, memory and scaffolding work before a native build. When a selected native workflow requires it, use an existing .NET 10 SDK:
+
+```bash
+bash .hephaera/commands/initialize-bubo-runtime.sh
+bash .hephaera/commands/build-bubo-runtime.sh
+```
+
+The baseline's real parent gitlink, exact Bubo revision, build receipt, API and audited resources remain mandatory. These commands do not install SDKs, Blender, Python environments, models or packages, accept licenses, generate assets or grant promotion. Rebuild and refresh affected evidence when inputs change; old manifests remain historical.
+
+## Advanced Manual Installation
+
+These remain usable while package distribution is unreleased. Choose one method from the host root and never write over an existing `.hephaera`. Manual installation needs an explicit scaffold; it is not automatically converted to package-managed ownership.
+
+### Windows Bash Prerequisite
+
+Linux/macOS use existing Bash. On Windows, make a provider available explicitly. After manual checkout, inspect it from PowerShell:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File ".\.hephaera\commands\install-windows-bash.ps1"
 ```
 
-Install Git Bash explicitly when needed:
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File ".\.hephaera\commands\install-windows-bash.ps1" -Provider GitBash -Install
-```
-
-Or explicitly install WSL when Linux tooling compatibility is preferred:
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File ".\.hephaera\commands\install-windows-bash.ps1" -Provider WSL -Install
-```
-
-Hephaera never installs Bash implicitly. Use `-WhatIf` to preview installation or scaffold execution.
-
-Run the canonical scaffold through the selected provider:
+Explicit provider installation uses `-Provider GitBash -Install` or `-Provider WSL -Install`; `-WhatIf` previews. No ordinary scaffold installs software. To run the scaffold through existing Git Bash:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File ".\.hephaera\commands\install-windows-bash.ps1" -Provider GitBash -RunScaffold -ProjectRoot .
 ```
 
-## Option 1 — Git Submodule
+### Manual Git Submodule
 
-Recommended for teams that want centralized Hephaera updates while pinning each host repository to a reviewed revision:
+Use a submodule when the host should track one reviewed baseline commit:
 
 ```bash
-git submodule add https://github.com/<your-org>/Hephaera .hephaera
+git submodule add https://github.com/TimothyMeadows/Hephaera.git .hephaera
 git submodule update --init --recursive --checkout -- .hephaera
+bash .hephaera/commands/create-host-ai-scaffold.sh
 ```
 
-Update the Hephaera submodule when your team is ready, then initialize its recorded nested dependencies:
+For an explicitly selected manual update:
 
 ```bash
 git submodule update --remote --checkout -- .hephaera
 git -C .hephaera submodule update --init --recursive --checkout -- runtime/bubo
 ```
 
-Review and commit the resulting `.hephaera` gitlink in the host repository. The first command deliberately updates only Hephaera; the second checks out Bubo at the commit recorded by that Hephaera revision. Do not run `--remote` against `runtime/bubo` or recursively against nested dependencies.
+Review and commit the resulting host gitlink through the normal process. Do not use `--remote` for Bubo or recursively advance nested dependencies.
 
-## Option 2 — Clone
+### Manual Clone
 
-Use a direct clone when the host repository needs an independent, customized copy:
+For an independent baseline checkout:
 
 ```bash
-git clone --recurse-submodules https://github.com/<your-org>/Hephaera .hephaera
+git clone --recurse-submodules https://github.com/TimothyMeadows/Hephaera.git .hephaera
+bash .hephaera/commands/create-host-ai-scaffold.sh
 ```
 
-For an existing clone, update Hephaera first and then initialize the nested dependencies at their recorded commits:
+Update an existing manual clone deliberately:
 
 ```bash
 git -C .hephaera pull --ff-only
 git -C .hephaera submodule update --init --recursive --checkout -- runtime/bubo
 ```
 
-### Native runtime prerequisites
+Both recursive manual forms initialize Bubo source without building it. Agree on host exclusion/index ownership so later staging does not create an unintended embedded-repository gitlink.
 
-Both installation forms pin the standalone Bubo runtime at `.hephaera/runtime/bubo`. Its revision, execution API and resource catalog are recorded in `runtime/bubo.lock.json`. Session startup, memory, engine selection and scaffold creation work before this submodule is initialized or built.
+### Fork Customizations
 
-Before using proof-to-model, model-to-animation, model-to-action or read-only Blender scene inspection, initialize and explicitly build the recorded runtime with an existing .NET 10 SDK:
-
-```bash
-bash ./.hephaera/commands/initialize-bubo-runtime.sh
-bash ./.hephaera/commands/build-bubo-runtime.sh
-```
-
-Rebuild after a Hephaera update changes the Bubo pin. Production commands verify the recorded revision, build identity, API and audited resources before launching the prebuilt CLI. A missing dependency or build gives initialization/build instructions. These commands do not install the SDK, Blender, Python environments, models or packages, accept licenses, generate assets or grant promotion approval; applicable production prerequisites remain separate.
-
-Pre-extraction manifests and review receipts remain historical evidence. Start a new asset version bound to the current runtime and refresh approvals affected by changed execution inputs; preserve the original manifests and receipts.
-
-## Start the First Session
-
-Initialize the durable context files and managed root `AGENTS.md` bootstrap before the first session:
-
-```bash
-bash ./.hephaera/commands/create-host-ai-scaffold.sh
-```
-
-Use the PowerShell `-RunScaffold` command above when Bash is not yet available to the current shell. Compatible agents read the host bootstrap to load the baseline. If discovery has not happened yet, use a natural request:
-
-```text
-Read ./.hephaera/AGENTS.md, initialize the repository-local .hephaera/.cache scaffold, and explain what project context is available before we start.
-```
-
-After initialization, begin with the work itself:
-
-```text
-I want to improve the first playable tutorial. Inspect the selected engine, current scene, controls, and player feedback, then help me create a scoped plan. Do not edit yet.
-```
+A fork is an advanced choice for teams changing shared roles, skills or policies. Substitute the reviewed fork URL in the manual examples and own its pinning/release policy. Official package consumers do not need to fork first. Preserve private host state while reviewing any baseline update.
 
 ---
-
 # Technical Reference
 
 The rest of this README describes the machinery behind the conversational experience. You do not need to invoke each layer manually; this section exists for teams that want to inspect, extend, or govern the system.

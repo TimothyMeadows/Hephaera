@@ -12,6 +12,10 @@ Bash commands use strict mode and fail on errors. The Windows Bash bootstrap is 
 
 Production manifests and receipts bind exact current input, policy and tool identities. Use returned paths rather than constructing hashed state directories. Placeholders in this Wiki are not valid evidence files. A command that records a receipt consumes an actual assertion; it cannot manufacture human acceptance.
 
+## Versioned installer entry point
+
+The upcoming npm and NuGet packages expose the same Hephaera installer and are not published yet. After a verified exact release, explicit `install/init --project PATH` installs the pinned baseline and always completes the canonical scaffold; acquisition alone does not. `doctor/status` reports readiness. Exact locked restore, target-version update/dry-run, journal-aware repair/recover and non-destructive deactivation remain distinct operations. See [Installation and layout](Installation-and-Layout) for authentication, invocation and the usable manual fallback. Installer tooling does not replace the baseline's workflow commands or provision native tools/models.
+
 ## Resolution and contract families
 
 | Family | Commands | Key boundary |

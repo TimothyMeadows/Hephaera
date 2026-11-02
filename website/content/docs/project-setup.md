@@ -2,7 +2,7 @@
 
 Hephaera works best when the agent can read your project's important decisions instead of guessing them again. The main choices are software architecture, game engine where relevant, visual style, and any media workflows you actually use.
 
-Keep these contracts in the host project root, beside its `AGENTS.md`. The shared templates and commands live inside `.hephaera`. Project-specific learned state stays in `.hephaera/.cache`; changing a host project's preferences does not require changing the shared baseline.
+Package setup creates the bootstrap and missing context, not these choices. It does not automatically create engine, architecture, style or media contracts. Keep these contracts in the host project root, beside its `AGENTS.md`. The shared templates and commands live inside `.hephaera`. Project-specific learned state stays in `.hephaera/.cache`; changing a host project's preferences does not require changing the shared baseline.
 
 ## Describe the software first
 

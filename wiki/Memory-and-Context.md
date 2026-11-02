@@ -28,7 +28,7 @@ bash .hephaera/commands/resolve-hephaera-paths.sh
 bash .hephaera/commands/create-host-ai-scaffold.sh
 ```
 
-Run scaffold creation automatically when required files are missing. Load all system memory, check Brainstorm status, and restore active discovery before planning or selecting Task, Goal or Gauntlet. Review project rules, engine, architecture, style, relevant active tasks and open issues. Read DEBUG for debugging and MEDIA only when applicable media work is in scope.
+Successful package setup already runs the canonical scaffold; the first agent read is not its setup trigger. Startup can repair missing scaffold files through the supported ownership/recovery path, and manual installations use the explicit scaffold command. Preserve existing memory bytes except the declared canonical missing-default appends; never recreate historical ledgers as defaults. Load all system memory, check Brainstorm status, and restore active discovery before planning or selecting Task, Goal or Gauntlet. Review project rules, engine, architecture, style, relevant active tasks and open issues. Read DEBUG for debugging and MEDIA only when applicable media work is in scope.
 
 Validate current memory formats before relying on them. Never load an old installation's memory as an automatic fallback. Legacy state may contain historically important approvals while remaining unavailable as current execution authority; see [Maintenance and troubleshooting](Maintenance-and-Troubleshooting).
 

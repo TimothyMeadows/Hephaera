@@ -186,12 +186,18 @@ function contextFor(workflow, operation, options, info) {
   return { root, task, stateRoot, context, options };
 }
 async function invoke(workflow, operation, options) {
+  return require('./installation-maintenance.cjs').run(path.resolve(runtime.native(options.get('root') || process.cwd())), () => invokeOwned(workflow, operation, options));
+}
+async function invokeOwned(workflow, operation, options) {
   const started = performance.now(), info = runtime.verified(), admitted = performance.now();
   const prepared = contextFor(workflow, operation, options, info);
   prepared.timings = { runtimeAdmissionMilliseconds: admitted - started, hostPolicyMilliseconds: performance.now() - admitted };
   return execute(workflow, operation, options, prepared, info);
 }
 async function execute(workflow, operation, options, prepared, info, emit = true) {
+  return require('./installation-maintenance.cjs').run(prepared.root, () => executeOwned(workflow, operation, options, prepared, info, emit));
+}
+async function executeOwned(workflow, operation, options, prepared, info, emit = true) {
   const readOnlyInspection=workflow==='blender-inspection'&&operation==='inspect'&&prepared.context?.policy?.purpose==='read-only-blender-inspection';
   if(!readOnlyInspection)transition.assertProductionAllowed(prepared.root,workflow+' '+operation);
   const folder = runtime.projectPath(prepared.root, prepared.stateRoot + '/bubo-host/' + crypto.randomUUID());

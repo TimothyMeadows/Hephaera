@@ -8,7 +8,7 @@ The recorded identity lives in [runtime/bubo.lock.json](https://github.com/Timot
 
 The dependency belongs at `.hephaera/runtime/bubo` in an installed host. Its parent gitlink records the required commit; the lock records repository, revision, API, resource-catalog hash and build-receipt location. A sibling checkout, current upstream branch or renamed directory is not a substitute.
 
-Ordinary scaffold, memory, engine selection and policy startup work before Bubo is initialized or built. Native asset production and read-only Blender scene inspection require it. Explicit initialization and build use:
+Default package setup installs/scaffolds the core baseline and leaves Bubo source uninitialized. Its explicit `--with-bubo-source` option initializes recorded source only. Ordinary scaffold, memory, engine selection and policy startup work before Bubo is initialized or built. Native asset production and read-only Blender scene inspection require it. Explicit initialization and build use:
 
 ```bash
 bash .hephaera/commands/initialize-bubo-runtime.sh

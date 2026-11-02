@@ -24,6 +24,9 @@ async function main(args) {
   const rootArg = values.get('--root');
   if (!rootArg) fail('Explicit --root is required.');
   const root = path.resolve(runtime.native(rootArg)); runtime.components(root);
+  return require('./installation-maintenance.cjs').run(root, () => inspectOwned(sceneArg, values, root));
+}
+async function inspectOwned(sceneArg, values, root) {
   runtime.syntax(root);
   if (!fs.statSync(root).isDirectory()) fail('Root must be an existing directory.');
   // Legacy paths are relative to the invocation cwd, then confined to the root.

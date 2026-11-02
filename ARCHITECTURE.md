@@ -59,3 +59,7 @@ EffectiveTHREEJS selects pmndrs postprocessing independently of Quarks, MAUI and
 ## Name-transition boundary
 
 The canonical installation is `.hephaera`. Shared Node/Python/Bash transition guards distinguish a fresh project from retained legacy context before state creation or production/external writes. Explicit inspection/preparation preserves original bytes and identities; it is not adoption or approval renewal. Historical installation records stay separate until reviewed reconciliation. See `docs/STATE_TRANSITION.md`.
+
+## Versioned installer distribution
+
+`installer/core/` owns one Node24 installation/lifecycle implementation, embedded unchanged by the npm package and .NET10 NuGet tool launcher. `installer/lib/release.cjs` generates immutable release identity from reviewed source and the existing Bubo lock. Packages materialize a real pinned `.hephaera` checkout; they do not replace Git/Bubo verification with archive trust. The canonical scaffold remains the only bootstrap writer, with declared create/append deltas and preserved host content. Managed source updates serialize against supported dispatch through cooperative cache-local maintenance leases; these do not replace native GPU/process ownership or provide an OS sandbox. Package release, native provisioning, generation and asset promotion remain separate operations.

@@ -391,6 +391,9 @@ function exportProvenance(prepared,result,info,dispatchDirectory) {
 }
 
 async function invoke(operation,options,{emit=true,policyReferences=[]}={}) {
+  return require('./installation-maintenance.cjs').run(path.resolve(runtime.native(options.get('root') || process.cwd())), () => invokeOwned(operation,options,{emit,policyReferences}));
+}
+async function invokeOwned(operation,options,{emit=true,policyReferences=[]}={}) {
   if (typeof emit!=='boolean') fail('Media result emission must be explicitly boolean.');
   const started=performance.now(), info=runtime.verified(), admitted=performance.now();
   const prepared=contextFor(operation,options,info,{policyReferences});

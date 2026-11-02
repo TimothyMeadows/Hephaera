@@ -1,6 +1,6 @@
 # Project contracts
 
-Host contracts record decisions that should remain consistent across tasks and sessions. They live at the game project's root, above `.hephaera/`. Shared templates live inside the installation. These contracts cooperate: selecting a game engine does not choose an art pipeline, and configuring a media domain does not replace software architecture.
+Host contracts record decisions that should remain consistent across tasks and sessions. Successful package setup creates the bootstrap and missing durable context; it does not select or generate these architecture, engine, style or media choices. They live at the game project's root, above `.hephaera/`. Shared templates live inside the installation. These contracts cooperate: selecting a game engine does not choose an art pipeline, and configuring a media domain does not replace software architecture.
 
 The authoritative policy is [AGENTS.md](https://github.com/TimothyMeadows/Hephaera/blob/main/AGENTS.md); the [README contract table](https://github.com/TimothyMeadows/Hephaera/blob/main/README.md#engine-architecture-style-and-media-contracts) provides the source overview.
 

@@ -2,13 +2,15 @@
 
 Hephaera is a shared AI production baseline for video game development. It gives a compatible coding agent project contracts, specialist workflows, repeatable commands, durable context and delivery rules. The game, its dependencies and its production decisions remain in the host project.
 
-Use the [practical documentation](https://timothymeadows.github.io/Hephaera/docs/) for a guided first installation or an everyday task. This Wiki explains the contracts, command families, evidence requirements and failure boundaries behind those guides. The [repository README](https://github.com/TimothyMeadows/Hephaera/blob/main/README.md) is the source overview; [AGENTS.md](https://github.com/TimothyMeadows/Hephaera/blob/main/AGENTS.md) is the shared operating contract.
+Use the [practical documentation](https://hephaera.com/docs/) for a guided first installation or an everyday task. This Wiki explains the contracts, command families, evidence requirements and failure boundaries behind those guides. The [repository README](https://github.com/TimothyMeadows/Hephaera/blob/main/README.md) is the source overview; [AGENTS.md](https://github.com/TimothyMeadows/Hephaera/blob/main/AGENTS.md) is the shared operating contract.
+
+Package-first setup is upcoming: the npm and NuGet packages are not yet published. The installation page labels preview commands and keeps working manual installation last.
 
 ## Start and configure
 
 | Reference | What it answers |
 | --- | --- |
-| [Installation and layout](Installation-and-Layout) | Where Hephaera belongs, clone versus submodule, Windows Bash, updates and the first scaffold |
+| [Installation and layout](Installation-and-Layout) | Upcoming npm/NuGet setup and auth, automatic scaffold, managed updates, then manual clone/submodule fallback |
 | [Project contracts](Project-Contracts) | Which files select architecture, engine, visual style and media policy |
 | [Work modes and delivery](Work-Modes-and-Delivery) | Brainstorm, planning, Task, Goal, Gauntlet, PR readiness and post-PR QA |
 | [Roles and skills](Roles-and-Skills) | How to find a specialist, resolve aliases and filter workflows by engine |

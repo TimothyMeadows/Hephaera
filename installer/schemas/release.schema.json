@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Hephaera immutable installer release",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "version",
+    "repository",
+    "revision",
+    "tree",
+    "tag",
+    "sourceDirty",
+    "bubo",
+    "coreFiles"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "version": {
+      "type": "string"
+    },
+    "repository": {
+      "const": "https://github.com/TimothyMeadows/Hephaera.git"
+    },
+    "revision": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{40}$"
+    },
+    "tree": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{40}$"
+    },
+    "tag": {
+      "type": "string"
+    },
+    "sourceDirty": {
+      "type": "boolean"
+    },
+    "bubo": {
+      "type": "object"
+    },
+    "coreFiles": {
+      "type": "object",
+      "minProperties": 2,
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[a-f0-9]{64}$"
+      }
+    }
+  }
+}

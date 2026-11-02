@@ -1,0 +1,141 @@
+name: Publish installer packages
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Existing immutable version tag and draft release (for example 5.1.0-rc.1)
+        required: true
+        type: string
+      source_sha:
+        description: Exact reviewed main-ancestor commit at that tag
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: installer-release-${{ inputs.version }}
+  cancel-in-progress: false
+jobs:
+  prepare:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate explicit selection
+        env:
+          VERSION: ${{ inputs.version }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          node -e "if(!/^[a-f0-9]{40}$/.test(process.env.SOURCE_SHA)||!/^[0-9]+\.[0-9]+\.[0-9]+(?:-[a-z0-9.]+)?$/.test(process.env.VERSION))process.exit(1)"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24.15.0'
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
+        with:
+          dotnet-version: '10.0.400'
+      - name: Verify exact immutable reviewed release source
+        env:
+          VERSION: ${{ inputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node installer/lib/release.cjs --verify "$VERSION"
+          gh release view "$VERSION" --repo "$GITHUB_REPOSITORY" --json tagName,isDraft
+      - run: node tests/test-installer-release.cjs
+      - run: node tests/test-installer-publication.cjs
+      - run: node tests/test-installer-packages-reproducible.cjs
+      - run: node installer/scripts/pack.cjs --output .local/installer-packages
+      - name: Reconcile existing draft or exact published release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node installer/lib/release-assets.cjs .local/installer-packages --check
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: installer-release-candidate
+          path: |
+            .local/installer-packages/artifacts/*
+            .local/installer-packages/package-build.json
+          include-hidden-files: true
+          retention-days: 14
+  validate:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.source_sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24.15.0'
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
+        with:
+          dotnet-version: '10.0.400'
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: installer-release-candidate
+          path: .local/installer-packages
+      - run: node tests/test-installer-core.cjs
+      - run: node tests/test-installer-maintenance.cjs
+      - run: node tests/test-installer-packages.cjs --artifacts .local/installer-packages
+  publish:
+    needs: [prepare, validate]
+    runs-on: ubuntu-latest
+    environment: package-release
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24.15.0'
+          registry-url: https://npm.pkg.github.com
+          scope: '@timothymeadows'
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
+        with:
+          dotnet-version: '10.0.400'
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: installer-release-candidate
+          path: .local/installer-packages
+      - name: Revalidate source before the external writes
+        env:
+          VERSION: ${{ inputs.version }}
+        run: node installer/lib/release.cjs --verify "$VERSION"
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8
+        with:
+          subject-path: .local/installer-packages/artifacts/*
+      - name: Reconcile and publish both registries
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node installer/lib/publish.cjs .local/installer-packages --execute
+      - name: Attach exact artifacts and publish the reviewed draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node installer/lib/release-assets.cjs .local/installer-packages --execute
+      - name: Preserve publication outcome, including uncertain writes
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: installer-publication-receipt
+          path: |
+            .local/installer-packages/package-build.json
+            .local/installer-packages/publication.json
+            .local/installer-packages/release-assets.json
+          include-hidden-files: true
+          retention-days: 90

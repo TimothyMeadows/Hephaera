@@ -12,7 +12,7 @@ Hephaera supplies guidance and workflows. Your project still supplies its engine
 
 ## Start here
 
-If Hephaera is not in your project yet, follow [installation](install.md). Fork the repository first, install it at `.hephaera`, and create the small host-project scaffold.
+If Hephaera is not in your project yet, follow [installation](install.md). Versioned npm and NuGet setup is upcoming and automatically scaffolds the host when complete. Until those packages are published, the guide ends with a working manual clone/submodule fallback at `.hephaera`.
 
 Then walk through [your first session](first-session.md). Start with a narrow request so you can see the agent inspect the project, propose a plan, and report its evidence.
 
