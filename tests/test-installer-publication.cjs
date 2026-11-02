@@ -34,16 +34,22 @@ test('npm dist-tag selection rejects invalid release version types and spellings
  for(const version of [undefined,null,5,{},'','v5.1.0','5.1.0+local','05.1.0','5.1.0-01'])assert.throws(()=>npmDistTag(version),/Invalid release version/);
 });
 
-for(const [version,tag] of [['5.1.0-rc.1','next'],['5.1.0','latest']])test('default npm publisher explicitly tags '+version+' as '+tag,()=>{
+for(const [version,tag,serviceBase,preexisting,label] of [
+ ['5.1.0-rc.1','next','https://nuget.pkg.github.com/TimothyMeadows/download/',false,'default npm publisher explicitly tags 5.1.0-rc.1 as next'],
+ ['5.1.0','latest','https://nuget.pkg.github.com/TimothyMeadows/download/',false,'default npm publisher explicitly tags 5.1.0 as latest'],
+ ['5.1.0-rc.1','next','https://nuget.pkg.github.com/TimothyMeadows/download',false,'default publisher resolves slashless NuGet base before and after uploads'],
+ ['5.1.0-rc.1','next','https://nuget.pkg.github.com/TimothyMeadows/download',true,'default publisher reconciles identical packages with slashless NuGet base without uploads'],
+ ['5.1.0-rc.1','next','https://nuget.pkg.github.com/TimothyMeadows/download?ignored=fixture#ignored',true,'default publisher resolves NuGet base pathname without inherited query or fragment']
+])test(label,()=>{
  const f=fixture(false,version),cp=require('node:child_process');
  // Run the actual default lookup/upload path in an isolated child. Only the
  // process/network boundary is replaced; no registry command or request runs.
  const script=String.raw`
   const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto'),cp=require('node:child_process');
-  const directory=process.argv[1],receipt=JSON.parse(fs.readFileSync(path.join(directory,'package-build.json')));
+  const directory=process.argv[1],receipt=JSON.parse(fs.readFileSync(path.join(directory,'package-build.json'))),scenario=JSON.parse(process.argv[3]);
   const files=Object.fromEntries(Object.entries(receipt.artifacts).map(([key,value])=>[key,path.join(directory,value.file)]));
   const integrity='sha512-'+crypto.createHash('sha512').update(fs.readFileSync(files.npm)).digest('base64');
-  let npmPresent=false,nugetPresent=false;const calls=[];
+  let npmPresent=scenario.preexisting,nugetPresent=scenario.preexisting;const calls=[],requests=[];
   Object.defineProperty(process,'platform',{value:'linux'});
   process.env.GITHUB_TOKEN='owned-test-token';process.env.GITHUB_ACTOR='owned-test-actor';
   cp.spawnSync=(command,args)=>{
@@ -54,19 +60,24 @@ for(const [version,tag] of [['5.1.0-rc.1','next'],['5.1.0','latest']])test('defa
    throw new Error('Unexpected process boundary');
   };
   globalThis.fetch=async value=>{
-   const url=String(value);
-   if(url==='https://nuget.pkg.github.com/TimothyMeadows/index.json')return {ok:true,json:async()=>({resources:[{'@type':'PackageBaseAddress/3.0.0','@id':'https://nuget.pkg.github.com/TimothyMeadows/download/'}]})};
+   const url=String(value);requests.push(url);
+   if(url==='https://nuget.pkg.github.com/TimothyMeadows/index.json')return {ok:true,json:async()=>({resources:[{'@type':'PackageBaseAddress/3.0.0','@id':scenario.serviceBase}]})};
    assert.equal(url,'https://nuget.pkg.github.com/TimothyMeadows/download/hephaera/'+receipt.version+'/hephaera.'+receipt.version+'.nupkg');
    return nugetPresent?{ok:true,status:200,headers:{get:()=>String(fs.statSync(files.nuget).size)},arrayBuffer:async()=>fs.readFileSync(files.nuget)}:{ok:false,status:404};
   };
   require(process.argv[2]).publish(directory,{execute:true,expectedManifest:receipt.manifest}).then(plan=>{
    assert.equal(plan.status,'confirmed');
-   console.log(JSON.stringify({npmDistTag:plan.npmDistTag,publish:calls.filter(call=>call.command==='npm'&&call.args[0]==='publish')}));
-  }).catch(error=>{console.error(error);process.exitCode=1;});
+   console.log(JSON.stringify({ok:true,npmDistTag:plan.npmDistTag,publish:calls.filter(call=>call.command==='npm'&&call.args[0]==='publish'),nugetUploads:calls.filter(call=>call.command==='dotnet'),requests}));
+  }).catch(()=>console.log(JSON.stringify({ok:false,error:'Default publisher boundary fixture failed.',requests})));
  `;
- const result=JSON.parse(cp.execFileSync(process.execPath,['-e',script,f.directory,path.resolve(__dirname,'../installer/lib/publish.cjs')],{encoding:'utf8',windowsHide:true,env:{SystemRoot:process.env.SystemRoot||''}}));
+ const result=JSON.parse(cp.execFileSync(process.execPath,['-e',script,f.directory,path.resolve(__dirname,'../installer/lib/publish.cjs'),JSON.stringify({serviceBase,preexisting})],{encoding:'utf8',windowsHide:true,env:{SystemRoot:process.env.SystemRoot||''}}));
+ const expectedRequest='https://nuget.pkg.github.com/TimothyMeadows/download/hephaera/'+version+'/hephaera.'+version+'.nupkg';
+ assert.deepEqual(result.requests.filter(url=>!url.endsWith('/index.json')),Array(preexisting?1:2).fill(expectedRequest));
+ assert.equal(result.ok,true,result.error);
  assert.equal(result.npmDistTag,tag);
- assert.deepEqual(result.publish,[{command:'npm',args:['publish',path.join(f.directory,f.receipt.artifacts.npm.file),'--ignore-scripts','--registry=https://npm.pkg.github.com','--tag',tag]}]);
+ assert.deepEqual(result.publish,preexisting?[]:[{command:'npm',args:['publish',path.join(f.directory,f.receipt.artifacts.npm.file),'--ignore-scripts','--registry=https://npm.pkg.github.com','--tag',tag]}]);
+ assert.equal(result.nugetUploads.length,preexisting?0:1);
+ const journal=JSON.parse(fs.readFileSync(path.join(f.directory,'publication.json')));assert.equal(journal.status,'confirmed');assert.equal(journal.channels.npm.status,'confirmed');assert.equal(journal.channels.nuget.status,'confirmed');
 });
 
 function defaultReleaseAssets(f,scenario={}){

@@ -79,7 +79,9 @@ async function getNuget(version) {
   const base=services.resources?.find(r=>r['@type']==='PackageBaseAddress/3.0.0')?.['@id'];
   if (!base) throw new Error('NuGet feed has no verified package-download resource.');
   const id='hephaera',v=version.toLowerCase();
-  const url=ownedUrl(new URL(`${id}/${v}/${id}.${v}.nupkg`,ownedUrl(base)).href);
+  const directory=new URL(ownedUrl(base));
+  if(!directory.pathname.endsWith('/'))directory.pathname+='/';
+  const url=ownedUrl(new URL(`${id}/${v}/${id}.${v}.nupkg`,directory).href);
   const response=await fetch(url,{headers,signal:AbortSignal.timeout(60000)});
   if(response.status===404)return null;
   if(!response.ok)throw new Error('NuGet package readback failed.');
