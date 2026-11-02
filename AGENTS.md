@@ -44,7 +44,7 @@ You should send a message to the user that you are a Hephaera session and ready 
 
 ## Versioned package installation
 
-The authenticated npm and NuGet installers materialize a version-pinned real Git checkout at `<project-root>/.hephaera/` and run the canonical scaffold before reporting setup success. The managed host lock is `hephaera.lock.json`; package caches/node_modules are installer tooling, never baseline locations. Keep `.hephaera/.cache` at its existing absolute path and preserve historical ledgers and consent. Source updates require a cooperative maintenance write lease; supported native dispatch holds a read lease through queue/run/cancellation/cleanup. GPU ownership remains in Bubo. Read `./docs/INSTALLER.md` for status, recovery and deactivation. Raw package acquisition alone does not scaffold a project. The first package release remains pending until both feeds are verified.
+The authenticated npm and NuGet installers materialize a version-pinned real Git checkout at `<project-root>/.hephaera/` and run the canonical scaffold before reporting setup success. The managed host lock is `hephaera.lock.json`; package caches/node_modules are installer tooling, never baseline locations. Keep `.hephaera/.cache` at its existing absolute path and preserve historical ledgers and consent. Source updates require a cooperative maintenance write lease; supported native dispatch holds a read lease through queue/run/cancellation/cleanup. GPU ownership remains in Bubo. Read `./docs/INSTALLER.md` for status, recovery and deactivation. Raw package acquisition alone does not scaffold a project. The first prerelease is published on GitHub Packages; npmjs.com and NuGet.org availability must be verified separately.
 
 ## Existing installation state
 

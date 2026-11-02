@@ -1,0 +1,164 @@
+name: Publish public package registries
+run-name: Public registries ${{ inputs.version }} release ${{ inputs.release_id }} from ${{ inputs.upstream_run_id }} ${{ inputs.registry_selection }}
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Exact already-published GitHub release version
+        required: true
+        type: string
+      source_sha:
+        description: Original immutable package source commit
+        required: true
+        type: string
+      release_id:
+        description: Exact published GitHub release database ID
+        required: true
+        type: string
+      upstream_run_id:
+        description: Successful GitHub package publishing run
+        required: true
+        type: string
+      upstream_tools_sha:
+        description: Reviewed signer commit of the upstream publication
+        required: true
+        type: string
+      registry_selection:
+        description: Public destinations to publish; choose nuget while npm account recovery is pending
+        required: true
+        type: choice
+        options: [both, npm, nuget]
+        default: both
+      npm_auth_mode:
+        description: Trusted OIDC or explicit first-package bootstrap token
+        required: true
+        type: choice
+        options: [trusted, bootstrap]
+        default: trusted
+permissions:
+  contents: read
+concurrency:
+  group: public-package-release-${{ inputs.version }}
+  cancel-in-progress: false
+env:
+  PUBLIC_VERSION: ${{ inputs.version }}
+  PUBLIC_SOURCE_SHA: ${{ inputs.source_sha }}
+  PUBLIC_RELEASE_ID: ${{ inputs.release_id }}
+  PUBLIC_UPSTREAM_RUN_ID: ${{ inputs.upstream_run_id }}
+  PUBLIC_UPSTREAM_TOOLS_SHA: ${{ inputs.upstream_tools_sha }}
+  PUBLIC_REGISTRY_SELECTION: ${{ inputs.registry_selection }}
+  PUBLIC_NPM_AUTH_MODE: ${{ inputs.npm_auth_mode }}
+  HEPHAERA_PUBLIC_TOOLS_SHA: ${{ github.workflow_sha }}
+jobs:
+  prepare:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      need_npm: ${{ steps.prepare.outputs.need_npm }}
+      need_nuget: ${{ steps.prepare.outputs.need_nuget }}
+    steps:
+      - name: Validate closed inputs before checkout
+        run: |
+          node -e "for(const k of ['PUBLIC_SOURCE_SHA','PUBLIC_UPSTREAM_TOOLS_SHA'])if(!/^[a-f0-9]{40}$/.test(process.env[k]))process.exit(1);for(const k of ['PUBLIC_RELEASE_ID','PUBLIC_UPSTREAM_RUN_ID'])if(!/^[1-9][0-9]*$/.test(process.env[k])||!Number.isSafeInteger(Number(process.env[k])))process.exit(1);if(!/^[0-9]+\.[0-9]+\.[0-9]+(?:-[a-z0-9.]+)?$/.test(process.env.PUBLIC_VERSION))process.exit(1)"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .local/public-tools
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24.15.0'
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
+        with:
+          dotnet-version: '10.0.400'
+      - name: Admit exact upstream artifacts and inspect selected public registries
+        id: prepare
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node .local/public-tools/installer/scripts/public-release-runner.cjs prepare .local/public-candidate --source-root .
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: public-registry-candidate
+          path: |
+            .local/public-candidate/artifacts/*
+            .local/public-candidate/package-build.json
+            .local/public-candidate/public-admission.json
+            .local/public-candidate/public-plan.json
+            .local/public-candidate/public-recovery.json
+            .local/public-candidate/public-publication.json
+          include-hidden-files: true
+          retention-days: 90
+  publish:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: package-release
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .local/public-tools
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24.15.0'
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
+        with:
+          dotnet-version: '10.0.400'
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: public-registry-candidate
+          path: .local/public-candidate
+      - name: Check selected public credentials before any publishing step
+        env:
+          NEED_NPM: ${{ needs.prepare.outputs.need_npm }}
+          NEED_NUGET: ${{ needs.prepare.outputs.need_nuget }}
+          NUGET_PUBLIC_USER: ${{ vars.NUGET_PUBLIC_USER }}
+          NPM_BOOTSTRAP_TOKEN: ${{ inputs.npm_auth_mode == 'bootstrap' && secrets.NPM_BOOTSTRAP_TOKEN || '' }}
+        run: |
+          node -e "if(process.env.NEED_NUGET==='true'&&!process.env.NUGET_PUBLIC_USER)throw Error('Set the nonsecret NUGET_PUBLIC_USER repository variable.');if(process.env.NEED_NPM==='true'&&process.env.PUBLIC_NPM_AUTH_MODE==='bootstrap'&&!process.env.NPM_BOOTSTRAP_TOKEN)throw Error('Set the protected NPM_BOOTSTRAP_TOKEN secret only after npm account access is restored.');"
+      - name: Obtain short-lived NuGet.org publishing authority
+        if: needs.prepare.outputs.need_nuget == 'true'
+        id: nuget-login
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841
+        with:
+          user: ${{ vars.NUGET_PUBLIC_USER }}
+      - name: Publish selected public registries
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NPM_BOOTSTRAP_TOKEN: ${{ inputs.npm_auth_mode == 'bootstrap' && secrets.NPM_BOOTSTRAP_TOKEN || '' }}
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+        run: node .local/public-tools/installer/scripts/public-release-runner.cjs publish .local/public-candidate --source-root . --execute
+      - name: Preserve public outcomes including pending and uncertain writes
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: public-registry-receipt-attempt-${{ github.run_attempt }}
+          path: |
+            .local/public-candidate/public-publication.json
+            .local/public-candidate/public-admission.json
+            .local/public-candidate/package-build.json
+            .local/public-candidate/public-plan.json
+            .local/public-candidate/public-recovery.json
+          include-hidden-files: true
+          retention-days: 90
