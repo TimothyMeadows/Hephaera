@@ -13,6 +13,8 @@ Hephaera brings game-design methods, engine-specific skills, art and audio workf
 
 Hephaera's wordmark pairs Bubo's robotic owl with matching [charcoal, slate and gold branding](docs/BRANDING.md).
 
+The [project website](https://timothymeadows.github.io/Hephaera/) introduces Hephaera and its installation. The [practical guides](https://timothymeadows.github.io/Hephaera/docs/) explain everyday use in plain language; the [reference wiki](https://github.com/TimothyMeadows/Hephaera/wiki) holds the detailed contracts and commands. Website and wiki source is reviewed here; see [documentation maintenance](docs/DOCUMENTATION_SITE.md) for local preview and explicit publication.
+
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"primaryColor":"#202A32","primaryTextColor":"#FFF4D6","primaryBorderColor":"#C69A52","lineColor":"#C69A52","secondaryColor":"#46535E","tertiaryColor":"#202A32","edgeLabelBackground":"#FFF4D6"}}}%%
 flowchart TB

@@ -1,0 +1,10 @@
+[
+  { "slug": "", "file": "index.md", "title": "Start here", "summary": "A quick tour of Hephaera and where to go next." },
+  { "slug": "install", "file": "install.md", "title": "Install Hephaera", "summary": "Add Hephaera to a project and check the setup." },
+  { "slug": "first-session", "file": "first-session.md", "title": "Your first session", "summary": "Turn an idea into a useful first conversation." },
+  { "slug": "everyday-work", "file": "everyday-work.md", "title": "Everyday work", "summary": "Plan a feature, fix a bug and pick up where you left off." },
+  { "slug": "project-setup", "file": "project-setup.md", "title": "Set up your project", "summary": "Choose an engine, architecture and visual direction." },
+  { "slug": "art-and-assets", "file": "art-and-assets.md", "title": "Art and assets", "summary": "Take a prop or character from a brief to a reviewed asset." },
+  { "slug": "audio-music-voice", "file": "audio-music-voice.md", "title": "Audio, music and voice", "summary": "Find the right workflow for the sound your game needs." },
+  { "slug": "delivery-and-troubleshooting", "file": "delivery-and-troubleshooting.md", "title": "Review, deliver and troubleshoot", "summary": "Check the result, prepare delivery and handle missing tools." }
+]
