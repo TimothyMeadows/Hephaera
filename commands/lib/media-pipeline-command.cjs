@@ -125,6 +125,12 @@ function referenceMapper(spec,root,brief,document) {
   return typeof spec.mapReference==='function'?(ref,trail)=>spec.mapReference(ref,trail,{document,root,brief}):undefined;
 }
 async function run(spec,values) {
+  const raw = values.indexOf('--root');
+  const selectedRoot = raw >= 0 && typeof values[raw + 1] === 'string' ? values[raw + 1] : process.cwd();
+  const nativeRoot = process.platform === 'win32' ? selectedRoot.replace(/^\/(?:mnt\/)?([a-zA-Z])\//, (_, d) => d.toUpperCase() + ':/') : selectedRoot;
+  return require('./installation-maintenance.cjs').run(path.resolve(nativeRoot), () => runOwned(spec,values));
+}
+async function runOwned(spec,values) {
   checkSpec(spec);
   const {operation,options}=parse(values);
   if(operation==='help')return help(spec.domain);

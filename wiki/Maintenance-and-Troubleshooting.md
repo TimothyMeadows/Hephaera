@@ -4,24 +4,23 @@ Diagnose the failing layer before changing configuration. A missing tool, stale 
 
 The primary sources are [AGENTS.md](https://github.com/TimothyMeadows/Hephaera/blob/main/AGENTS.md), the [installation/update instructions](https://github.com/TimothyMeadows/Hephaera/blob/main/README.md#install), [state transition](https://github.com/TimothyMeadows/Hephaera/blob/main/docs/STATE_TRANSITION.md) and the selected production workflow. Run examples from the host root unless noted.
 
-## Safe update sequence
+## Safe managed update sequence
 
-Review active workers and operations before updating the baseline. Preserve durable `.hephaera/.cache/` and staged sources, manifests, approvals and attempt history. Update the baseline using its chosen clone/submodule workflow, then restore Bubo at the revision recorded by that baseline:
+The npm/NuGet installer is upcoming and not published yet. After release, invoke it through the selected exact package version or selected local tool. Inspect `doctor --project PATH` first. Restore uses the exact host lock; updating uses the target release's verified manifest/core, not an old launcher guessing a new baseline.
 
-```bash
-git -C .hephaera submodule update --init --recursive --checkout -- runtime/bubo
-```
+Review `update --project PATH --dry-run` before an explicit update. Dirty tracked source, unsafe ownership, path collisions, legacy state and active readers stop the operation. Supported production/dispatch entrypoints retain cooperative read leases through queue waits, execution, cancellation and cleanup; the updater needs exclusive baseline maintenance ownership through postconditions. This is separate from Bubo GPU scheduling and is not an operating-system sandbox against unmanaged processes.
 
-Do not use `--remote` on Bubo or recursively advance nested dependencies. Review the host gitlink or clone changes. If the runtime pin changed, explicitly rebuild before native work; ordinary memory/scaffold use does not need that build. Read-directive contracts inherit shared definitions. Stale inline definitions require explicit regeneration under their normal selection rules.
+Keep `.hephaera/.cache` at its absolute path. Existing history, approvals, consent and consumed attempts remain unchanged. Repair/update can create only declared missing scaffold files and append declared protected defaults while preserving existing bytes. Keep pending journals and reconcile interrupted operations with the matching `repair/recover --project PATH`; never delete the state root or remove a lock simply because an operation failed.
 
-Historical manifests and grants remain unchanged. Start new asset versions when runtime or policy changes affect execution and refresh dependent reviews. Replacing a hash in an old approval is not renewed approval.
+Deactivation preserves baseline, private cache, exclusion and inactive ownership. Explicit `--remove-bootstrap` may remove only the unchanged managed host block. Removing npm/NuGet tooling removes tooling alone. Manual clone/submodule installations are not silently adopted; their update procedure is at the end of this page.
 
+A changed Bubo pin requires explicit recorded source initialization and build before native execution. Default package install is core-only; `--with-bubo-source` initializes source without building it. Do not use `--remote` on Bubo or relabel stale native receipts. Read-directive contracts inherit definitions; inline contracts need explicit regeneration when affected. Historical manifests and grants stay historical; changed runtime/policy inputs can require a new asset version and refreshed reviews.
 ## Startup and layout failures
 
 | Symptom | Inspect | Correct response |
 | --- | --- | --- |
 | Root resolution fails | Exact `.hephaera/` location and selected root | Fix supported layout/root; do not search a broad workspace parent |
-| Missing context files | Resolver and scaffold output | Run idempotent scaffold without importing another cache |
+| Missing context files | Managed installer journal/status, resolver and scaffold output | Use verified managed repair/recovery; manual installs use canonical scaffold without importing another cache |
 | Bash unavailable on Windows | PowerShell provider discovery | Select existing Git Bash/WSL; install only when explicitly requested |
 | Legacy bootstrap found | Root managed block and transition guide | Review migration; do not append a second bootstrap |
 | Historical state/fence blocks production | `state-transition.sh inspect` | Preserve source and persistent marker; prepare/migrate only through reviewed scope |
@@ -75,3 +74,24 @@ After a verified fix, record stable tagged memory and debug patterns, update rel
 ## Publication is a separate operation
 
 A local documentation build, accepted asset or compiled native package does not deploy a website, initialize GitHub Wiki, submit a store package or open a PR automatically. Apply the selected delivery mode's readiness gate and exact release authorization. GitHub Wiki uses a separate repository and may require initial creation through GitHub's UI before Git access works; report that prerequisite rather than inventing a successful publish. Review the [documentation-site maintenance guide](https://github.com/TimothyMeadows/Hephaera/blob/main/docs/DOCUMENTATION_SITE.md) for the repository's explicit website/Wiki procedure.
+
+## Advanced manual baseline updates
+
+This is the Git fallback for existing manual installations while package distribution remains unreleased. It is not the managed installer's update/recovery path. Review and stop active work first, preserve `.hephaera/.cache` and check local source changes.
+
+For a manual submodule, explicitly select the baseline update and review the changed host gitlink:
+
+```bash
+git submodule update --remote --checkout -- .hephaera
+git -C .hephaera submodule update --init --recursive --checkout -- runtime/bubo
+```
+
+For an independent manual clone:
+
+```bash
+git -C .hephaera pull --ff-only
+git -C .hephaera submodule update --init --recursive --checkout -- runtime/bubo
+```
+
+Only the first command advances the baseline. The second checks out Bubo's recorded revision; never recursively update nested dependencies to their latest branches. Rebuild explicitly if its pin changes. A fork remains an advanced customization choice; official package users do not need one. See [Installation and layout](Installation-and-Layout) for first setup and manual scaffold commands.
+For the upcoming managed installer, a crashed owner or interrupted process may leave descendants alive. Retain its receipts, stop remaining owned work and inspect ownership before `recover --project PATH --confirm-quiescent` through the exact package. The flag is an operator assertion, not an OS process scan; active/foreign/malformed owners remain blocked. Ordinary caught-failure recovery with released leases needs no assertion.

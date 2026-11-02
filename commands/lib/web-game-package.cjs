@@ -298,6 +298,9 @@ function transact(c, directory, operation, pairs, validate) {
   return journal;
 }
 function init(root, opt) {
+  return require('./installation-maintenance.cjs').sync(root, () => initOwned(root, opt));
+}
+function initOwned(root, opt) {
   root = fs.realpathSync(root); const selected = selection(root, opt);
   const configRelative = relative(opt.config || CONFIG, 'Configuration');
   const configPath = pathTypes(root, configRelative, 'file', 'Configuration');
@@ -335,6 +338,9 @@ function init(root, opt) {
   } finally { release(); }
 }
 async function sync(root, opt) {
+  return require('./installation-maintenance.cjs').run(root, () => syncOwned(root, opt));
+}
+async function syncOwned(root, opt) {
   const c = context(root, opt);
   return locked(c, async () => {
     regular(path.join(c.host, 'GameHost.csproj'), 'Native project');
@@ -370,6 +376,9 @@ async function sync(root, opt) {
   });
 }
 async function recover(root, opt = {}) {
+  return require('./installation-maintenance.cjs').run(root, () => recoverOwned(root, opt));
+}
+async function recoverOwned(root, opt = {}) {
   if (opt.engineEvidence) fail('recover does not accept engine-evidence; it restores only the original hash-owned transaction journal.');
   root = fs.realpathSync(root);
   const configRelative = relative(opt.config || CONFIG, 'Configuration');
@@ -414,6 +423,9 @@ function doctor(root, opt) {
   return { schemaVersion: 1, profile: selected.packaging.profile, target, hostCompatible, sdkAvailable, sdkVersion, installedWorkloads: installed, workloadDetected: installed.length > 0, buildEligible: missing.length === 0, missing, nativeReadiness: 'unverified', signing: 'unverified', deviceQa: 'not-run', installationPerformed: false, notes: target === 'ANDROID' ? ['JDK/Android SDK and actual compiler checks remain required.'] : ['Platform SDK/WebView, signing and actual target execution remain separate checks.'] };
 }
 function plan(root, opt = {}) {
+  return require('./installation-maintenance.cjs').sync(root, () => planOwned(root, opt));
+}
+function planOwned(root, opt = {}) {
   const c = context(root, opt), { target, def, rid, format } = targetOptions(opt);
   if (/[;$%@]/.test(c.root)) fail('Project root contains MSBuild metacharacters; use a portable project location.');
   const operation = opt.operation || 'package';
@@ -430,6 +442,9 @@ function plan(root, opt = {}) {
   return { schemaVersion: 1, profile: 'MAUI', engine: c.selected.effectiveEngine, operation, target, rid, format, command: 'dotnet', args, snapshot: snapshot.snapshot.id, config: c.configRelative, prerequisites: doctor(root, opt), signingProperties: opt.signingProperties || null, externalSubmission: false, releaseReady: false };
 }
 async function execute(root, opt) {
+  return require('./installation-maintenance.cjs').run(root, () => executeOwned(root, opt));
+}
+async function executeOwned(root, opt) {
   const timeout = opt.timeoutSeconds === undefined ? 1200 : Number(opt.timeoutSeconds);
   if (!Number.isSafeInteger(timeout) || timeout < 1 || timeout > 3600) fail('timeout-seconds must be an integer from 1 to 3600.');
   const c = context(root, opt);

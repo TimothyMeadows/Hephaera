@@ -1,3 +1,4 @@
 *.sh text eol=lf
 .styles/.workflows/model-to-animation/blender/*.py text eol=lf
 .styles/.workflows/model-to-action/blender/*.py text eol=lf
+installer/**/*.cjs text eol=lf

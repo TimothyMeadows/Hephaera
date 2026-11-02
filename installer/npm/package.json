@@ -1,0 +1,12 @@
+{
+  "name": "@timothymeadows/hephaera",
+  "version": "0.0.0-development",
+  "description": "Versioned Hephaera installer with explicit project setup and automatic scaffolding.",
+  "license": "MIT",
+  "repository": { "type": "git", "url": "https://github.com/TimothyMeadows/Hephaera.git" },
+  "homepage": "https://github.com/TimothyMeadows/Hephaera",
+  "bin": { "hephaera": "core/cli.cjs" },
+  "engines": { "node": ">=24" },
+  "files": ["core/", "README.md", "LICENSE"],
+  "publishConfig": { "registry": "https://npm.pkg.github.com" }
+}

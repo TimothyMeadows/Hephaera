@@ -2,13 +2,9 @@
 
 Open your host project in your coding agent after [installing Hephaera](install.md). Begin with one small piece of work. A clear first task lets you check that the agent found the right repository, understood the project, and knows what evidence you expect.
 
-If you have not created the scaffold, run this from the host project root in Bash:
+Package setup completes the canonical scaffold before reporting success. You do not need to run AGENTS once to initialize it. If setup reported a partial failure, finish the selected installer's repair/recovery first; manual clone/submodule users run the explicit scaffold in [installation](install.md).
 
-```bash
-bash .hephaera/commands/create-host-ai-scaffold.sh
-```
-
-Then ask the agent to read the installation:
+Ask the agent to read the installed baseline and saved context:
 
 ```text
 Read ./.hephaera/AGENTS.md and review this project's saved context. Tell me what you found, which project choices are already recorded, and what is missing. Do not change application code yet.
