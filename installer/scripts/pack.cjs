@@ -26,7 +26,10 @@ function packPackages({ repoRoot = path.resolve(__dirname, '../..'), output, all
     let cursor = repoRoot;
     for (const part of path.relative(repoRoot, absolute).split(path.sep)) { cursor = path.join(cursor, part); if (fs.lstatSync(cursor).isSymbolicLink()) throw new Error('Linked package inputs are unsupported.'); }
     if (!fs.statSync(absolute).isFile()) throw new Error('Package input is not a regular file.');
-    return fs.readFileSync(absolute);
+    // Clean releases carry the selected commit's bytes, including on CRLF
+    // checkouts. Dirty previews intentionally retain working-copy edits.
+    if (manifest.sourceDirty) return fs.readFileSync(absolute);
+    return cp.execFileSync('git', ['-C', repoRoot, 'show', manifest.revision + ':' + relative], { windowsHide: true, maxBuffer: 16 * 1024 * 1024 });
   }
   output = path.resolve(repoRoot, output || '.local/installer-packages');
   const relative = path.relative(repoRoot, output);
