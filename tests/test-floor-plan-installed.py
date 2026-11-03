@@ -58,9 +58,11 @@ def main():
     def git(folder, *values):
         return command(['git', '-C', folder, *values], BASE).stdout.strip()
 
+    source_head = git(BASE, 'rev-parse', 'HEAD')
+
     def save(status):
         summary = json.dumps({'status': status, 'checks': checks, 'forms': forms,
-            'baselineHead': git(BASE, 'rev-parse', 'HEAD'), 'nativeForm': args.native_form,
+            'baselineHead': source_head, 'nativeForm': args.native_form,
             'fixture': str(run), 'scope': 'Real pinned native dispatch and optional actual Blender; design decisions are synthetic QA only, no human/model/engine acceptance or promotion.'}, indent=2)+'\n'
         (run/'SUMMARY.json').write_text(summary)
         (evidence/('installed-'+run.name+'-SUMMARY.json')).write_text(summary)
@@ -81,6 +83,10 @@ def main():
                 command(['git', 'clone', '-q', '--no-hardlinks', BASE, baseline], host)
             else:
                 git(host, 'submodule', 'add', '-q', str(BASE), '.hephaera')
+            git(baseline, 'checkout', '-q', '--detach', source_head)
+            if form == 'submodule':
+                git(host, 'add', '.hephaera')
+            check(git(baseline, 'rev-parse', 'HEAD') == source_head, form+': exact starting Hephaera commit is retained')
             git(baseline, '-c', 'submodule.runtime/bubo.url='+str(dependency), 'submodule', 'update', '--init', '--checkout', '--', 'runtime/bubo')
             built = baseline/'runtime/bubo/artifacts/bubo'
             for file in (dependency/'artifacts/bubo').rglob('*'):
