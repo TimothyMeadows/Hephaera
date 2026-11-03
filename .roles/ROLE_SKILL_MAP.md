@@ -101,6 +101,7 @@ Skills:
 - `unity-configure-rendering`
 - `threejs-build-particles`
 - `threejs-build-postprocessing`
+- `build-floor-plan-models`
 
 Commands:
 
@@ -127,6 +128,7 @@ Commands:
 - `commands/proof-to-model.sh`
 - `commands/threejs-particles.sh`
 - `commands/threejs-postprocessing.sh`
+- `commands/floor-plan-to-model.sh`
 
 ### arts/blender-production-artist
 
@@ -153,6 +155,7 @@ Skills:
 - `prepare-rigged-runtime-actors`
 - `create-game-vfx`
 - `build-proof-to-model-assets`
+- `build-floor-plan-models`
 
 Commands:
 
@@ -170,6 +173,7 @@ Commands:
 - `commands/validate-rigged-actor-manifest.sh`
 - `commands/print-game-art-handoff-template.sh`
 - `commands/proof-to-model.sh`
+- `commands/floor-plan-to-model.sh`
 
 ### arts/board-ui-artist
 
@@ -568,6 +572,7 @@ Skills:
 - `unity-optimize-web`
 - `threejs-build-particles`
 - `threejs-build-postprocessing`
+- `build-floor-plan-models`
 
 Commands:
 
@@ -596,6 +601,7 @@ Commands:
 - `commands/proof-to-model.sh`
 - `commands/threejs-particles.sh`
 - `commands/threejs-postprocessing.sh`
+- `commands/floor-plan-to-model.sh`
 
 ### arts/tile-set-artist
 

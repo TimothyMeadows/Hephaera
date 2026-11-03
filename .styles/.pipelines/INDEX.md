@@ -9,6 +9,7 @@ Primary art pipelines selectable in `STYLE.md`:
 - `PROOF_TO_MODEL` - original-only anatomy/structure classification, reviewed six-view proofs, pinned native multi-view reconstruction, Blender finishing and reviewed runtime packages.
 - `CODE` - authored procedural Three.js models, with linked character profiles, isolated visual review, and calibrated runtime evidence for characters and creatures.
 - `BLENDER` - authored Blender 4.5 LTS scenes, assets, renders, and exports with immutable-source and review controls.
+- `FLOOR_PLAN_TO_MODEL` - dimensioned building plans, one complete architectural-package approval, detailed unfurnished construction and independently verified portable model exports.
 
 Pipeline contracts:
 
@@ -17,6 +18,7 @@ Pipeline contracts:
 - `proof-to-model/PIPELINE.md`
 - `code/PIPELINE.md`
 - `blender/PIPELINE.md`
+- `floor-plan-to-model/PIPELINE.md`
 
 Shared generated-media provenance lives under `_shared/`. LOCAL host policy remains under `local/`; exact model/tool pins, platform locks and execution resources belong only to the pinned `runtime/bubo` dependency. Other pipeline-specific schemas, manifests and reusable assets remain beside their owner.
 

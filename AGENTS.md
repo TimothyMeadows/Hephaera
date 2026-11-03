@@ -117,7 +117,7 @@ Art pipeline contracts live in:
 
 - `./.styles/.pipelines/`
 
-Registered pipelines are `CLOUD`, `LOCAL`, `PROOF_TO_MODEL`, `CODE`, and `BLENDER`. Every generated `STYLE.md` contains at least one art style, exactly one primary pipeline, allowed alternatives, task-local prompt-override scope, and an explicit no-silent-fallback rule.
+Registered pipelines are `CLOUD`, `LOCAL`, `PROOF_TO_MODEL`, `CODE`, `BLENDER`, and `FLOOR_PLAN_TO_MODEL`. Every generated `STYLE.md` contains at least one art style, exactly one primary pipeline, allowed alternatives, task-local prompt-override scope, and an explicit no-silent-fallback rule.
 
 ### When `../STYLE.md` exists
 - Read it and follow it as the authoritative art style and pipeline contract for visual, game-art, generated-image, UI-art, code-model, and asset-production work.
@@ -127,7 +127,7 @@ Registered pipelines are `CLOUD`, `LOCAL`, `PROOF_TO_MODEL`, `CODE`, and `BLENDE
 ### When `../STYLE.md` is missing
 - Ask the user which style templates in `./.styles/` apply to the repository, unless the user already named the desired style.
 - Support selecting multiple templates for mixed-style repositories.
-- Default the primary art pipeline to `PROOF_TO_MODEL` unless the user explicitly selects `CLOUD`, `LOCAL`, `CODE`, or `BLENDER`.
+- Default the primary art pipeline to `PROOF_TO_MODEL` unless the user explicitly selects `CLOUD`, `LOCAL`, `CODE`, `BLENDER`, or `FLOOR_PLAN_TO_MODEL`.
 - After the user answers, generate `../STYLE.md` with `./commands/generate-style.sh [--pipeline PIPELINE] [--allow-pipeline PIPELINE ...] [--asset-library ID=ABSOLUTE_PATH ...] "<STYLE1>" ["STYLE2" ...]`.
 - External asset libraries are optional. Never ask for or probe a library during startup or initial setup unless the user explicitly requests one.
 - Default generation must use concise read directives (for example `Read \`./.hephaera/.styles/ISOMETRIC_2_5D.md\` instructions`) instead of inlining template text.
@@ -149,6 +149,7 @@ Registered pipelines are `CLOUD`, `LOCAL`, `PROOF_TO_MODEL`, `CODE`, and `BLENDE
 - `PROOF_TO_MODEL`: classify/research immutable original sources first, prepare and obtain human approval of six consistent views, then run native per-view preprocessing, pinned Pixal3D multi-view reconstruction and Blender 4.5 LTS finishing with immutable ancestry, independent review and separate human promotion; use `build-proof-to-model-assets`.
 - `CODE`: author host-native Three.js TypeScript/JavaScript models; do not use downloaded/generated mesh assets or a model library as the primary implementation.
 - `BLENDER`: author Blender 4.5 LTS scenes, assets, renders, and runtime exports through immutable working-copy, validation, staging, and human-review controls.
+- `FLOOR_PLAN_TO_MODEL`: author dimensioned building plans floor by floor, approve one complete architectural package, then construct and independently verify detailed unfurnished models and separate visual/collision exports through `build-floor-plan-models` and `floor-plan-to-model.sh`. Read `.styles/.pipelines/floor-plan-to-model/PIPELINE.md`.
 
 PROOF_TO_MODEL classifies only registered original images; generated proofs and model renders cannot establish source anatomy, structure or material. Separate observation, supported inference and uncertainty. Preserve distinct entities, intentional anatomy and attachment ownership. One usable canonical source supplies one angle and needs five additional proofs; an oblique/cropped source remains an anchor and may need all six canonical views. Show originals and front/right/back/left/top/bottom together, allow targeted revisions and require approval of the exact complete set. `classify` and `prepare-proofs` register real assistant/provider artifacts; they do not run vision or image generation. Generated views require separately authorized CLOUD/LOCAL production under MEDIA.md and explicit candidate/revision budgets. A set revision invalidates whole-set approval. Six separate prepared images and camera matrices must reach MV inference; contact sheets and single-view diagnostics cannot satisfy production.
 
@@ -169,6 +170,18 @@ If a selected pipeline is unavailable or fails, stop and request direction. Neve
 - Use only the repository-local copy as-is or as a modifiable template. Record task-local copy evidence when a task exists, and verify asset-level provenance, license, modification rights, format, budgets, selected pipeline, and architecture compatibility.
 - Do not follow symbolic links, overwrite an existing project asset, or allow source/destination path overlap. If a configured library is unavailable, stop and request direction instead of silently skipping the required search.
 - An external library never relaxes pipeline boundaries: `PROOF_TO_MODEL` validates copied-model ancestry, rights and recipe evidence, and `CODE` may use a copied model only as template/reference evidence rather than its primary runtime mesh.
+
+## Floor-plan-to-model workflow
+
+`FLOOR_PLAN_TO_MODEL` is a selectable visual pipeline for dimension-driven building architecture. Preserve the existing default `PROOF_TO_MODEL`, current `STYLE.md`, engine selection and independent media domains. Use `build-floor-plan-models` and `floor-plan-to-model.sh` for init, doctor, preview, validate, build, export, review, record and status.
+
+- Capture dimensions, floor elevations, materials, circulation, player clearances, detail profiles, tolerances and budgets explicitly. The versioned structured plan is the dimensional source of truth; reference images do not establish dimensions automatically.
+- Review every dimensioned floor plan, roof plan, exterior elevation and section through vertical connections before obtaining approval of the exact whole-building package. Preserve stable element IDs and shared coordinates. A revision invalidates affected design approval and dependent models; retain parent ancestry and prior attempts.
+- Hephaera supplies exact rights, style/selection, finite process budgets and review evidence. Bubo owns dimensional validation, drawings, construction and export verification through the pinned execution boundary. Pure design steps require no Blender or MEDIA contract. Existing compatible Blender is explicitly selected for native work; declared capability is not verified readiness, and unsupported native memory enforcement remains unavailable.
+- Author only through Bubo's dedicated fixed, audited, hash-bound floor-plan Blender bundle on declared repository-local working copies. This exception does not permit arbitrary scripts, add-ons, source execution or a change to standalone BLENDER connected-authoring policy.
+- Preserve detailed editable source, visual GLB, separate collision GLB, semantic metadata, approved drawings and provenance in non-runtime staging. Preserve per-floor hierarchy, door pivots, openings, stairs and courtyard voids; never use a whole-building convex collider or remesh away architectural openings.
+- Require independent re-import checks and complete model views, then independent review and separate human model acceptance. Geometry/clearance evidence describes traversal preparation; actual engine collision and movement tests remain separate. This command has no promotion operation and copies no asset into a game.
+- Rooms remain unfurnished. Curved forms, automatic CAD/raster conversion, interaction/gameplay and engine adapters are deferred. Installation, generated references and license acceptance need their own applicable authorization; no silent fallback is allowed.
 
 ## Model-to-animation workflow
 
@@ -228,7 +241,7 @@ MEDIA.md remains the shared provider, authorization and provenance authority. Au
 - Read it only for image, music, sound-effect, voice, or media-pipeline work.
 - Treat it as the execution and provenance authority for `CLOUD` and `LOCAL`: versions, staging, runtime destinations, budgets, rights, consent, review, and promotion policy.
 - For image generation, obey both the resolved art pipeline and `MEDIA.md`. Music, sound effects, and voice use `MEDIA.md` without depending on visual style.
-- All-original six-view `PROOF_TO_MODEL`, `CODE`, and `BLENDER` work do not require `MEDIA.md`; read it whenever cloud/local generated inputs are in scope. Selecting PROOF_TO_MODEL never implicitly authorizes proof generation or creates a media contract.
+- All-original six-view `PROOF_TO_MODEL`, `CODE`, `BLENDER`, and dimension-driven `FLOOR_PLAN_TO_MODEL` work do not require `MEDIA.md`; read it whenever cloud/local generated inputs are in scope. Selecting a visual pipeline never implicitly authorizes reference generation or creates a media contract.
 
 ### When `../MEDIA.md` is missing
 

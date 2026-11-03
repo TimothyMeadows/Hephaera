@@ -105,6 +105,7 @@ Curated reusable skills included in Hephaera. Install the baseline at `<project-
 
 ## Art Production
 
+- `build-floor-plan-models` - Design and approve complete dimensioned buildings, then construct and review detailed unfurnished Blender/GLB packages with separate collision geometry.
 - `build-proof-to-model-assets` - Classify original anatomy/structure, prepare a reviewed six-view proof set, and produce staged 3D assets through native multi-view reconstruction and Blender finishing.
 - `build-model-animations` - Prepare skinned, articulated and rigid models, author or retarget reviewed motions, and hand them to compatible engine animation and effects owners.
 - `build-model-actions` - Compose reviewed animation clips into ordered actions, with transitions, model-attached effects, fixed-target presentation and sequence-level review.
