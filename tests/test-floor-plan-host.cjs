@@ -166,7 +166,13 @@ check(hostDoctor.nativeReadiness === 'unverified' && hostDoctor.export.nativeRea
   && hostDoctor.unavailable.some(item => item.includes('no Blender version/SDK probe was run'))
   && hostDoctor.export.unavailable.some(item => item.includes('shorter project path')), 'Host doctor reports the precise limit and withheld probe honestly');
 if (process.platform === 'win32') {
-  const longRoot = fs.mkdtempSync(path.join(evidence, 'long-'));
+  // Make the rejection fixture independent of the checkout's own path length.
+  // Node supports these metadata paths; the selected Win32 Blender profile does not.
+  let longParent = evidence;
+  while (longParent.length < 200) longParent = path.join(longParent, 'long-project-name');
+  fs.mkdirSync(longParent, { recursive: true });
+  const longRoot = fs.mkdtempSync(path.join(longParent, 'long-'));
+  check(longRoot.length >= 200, 'Deliberate long-path fixture is long on both short CI and maintainer checkouts');
   for (const name of ['STYLE.md', 'MEDIA.md', 'inputs/plan.json', 'inputs/rights.json', 'inputs/budget.json', stateRoot + '/selection.json', '.hephaera/runtime/bubo/artifacts/bubo/build-info.json', planOriginal]) {
     const destination = path.join(longRoot, name); fs.mkdirSync(path.dirname(destination), { recursive: true }); fs.writeFileSync(destination, read(name));
   }
