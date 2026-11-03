@@ -40,6 +40,8 @@ jobs:
       - name: Host policy, clone/submodule installations and admission
         shell: bash
         run: |
+          node tests/test-floor-plan-selection.cjs
+          node tests/test-floor-plan-host.cjs
           node tests/test-bubo-host-context.cjs
           node tests/test-bubo-media-context.cjs
           node tests/test-media-pipeline-contract.cjs
@@ -74,6 +76,11 @@ jobs:
           node tests/test-threejs-postprocessing-runtime.mjs
           node tests/test-web-game-packaging.cjs
           node tests/test-web-game-package-transactions.cjs
+      - name: Real floor-plan clone and submodule dispatch
+        shell: bash
+        run: |
+          mkdir -p .local/floor-plan-installed-ci
+          python3 tests/test-floor-plan-installed.py --evidence .local/floor-plan-installed-ci
       - name: Actual managed Linux cancellation and native group cleanup
         if: runner.os == 'Linux'
         run: python3 tests/test-bubo-cancellation.py

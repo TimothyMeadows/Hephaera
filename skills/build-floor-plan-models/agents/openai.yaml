@@ -1,0 +1,4 @@
+interface:
+  display_name: "Build Floor Plan Models"
+  short_description: "Design and review dimensioned building model packages"
+  default_prompt: "Use $build-floor-plan-models to design this building floor by floor, approve the complete architectural package, and produce reviewed editable and portable models."

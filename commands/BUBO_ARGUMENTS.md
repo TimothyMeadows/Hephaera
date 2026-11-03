@@ -2,7 +2,7 @@
 
 These host commands use the Bubo execution API version recorded in [the runtime lock](../runtime/bubo.lock.json), currently v2. Run them from the project root through `./.hephaera/commands/`. Maintainer checkouts use `./commands/`. Initialize the recorded dependency and explicitly build with `initialize-bubo-runtime.sh` and `build-bubo-runtime.sh` before native work; production never builds or installs software.
 
-All three asset commands accept `--root PROJECT` (otherwise the shell wrapper resolves the installed host). Every operation except `init` requires `--manifest FILE`. `init` requires `--task ID --asset ID --version ID --actor ID` and defaults to `.hephaera/.cache/tasks/<task>/<workflow>/<asset>/<version>/manifest.json`. Proof and motion may select another manifest beneath that active task cache; action init requires its exact canonical path. Inputs must be repository-local and rights, selection, review and tool identities must be current. Hephaera supplies protected execution context internally.
+The proof, animation and action commands accept `--root PROJECT` (otherwise the shell wrapper resolves the installed host). Every operation except `init` requires `--manifest FILE`. Their `init` requires `--task ID --asset ID --version ID --actor ID` and defaults to `.hephaera/.cache/tasks/<task>/<workflow>/<asset>/<version>/manifest.json`. Proof and motion may select another manifest beneath that active task cache; action init requires its exact canonical path. Inputs must be repository-local and rights, selection, review and tool identities must be current. Hephaera supplies protected execution context internally. The floor-plan command has its own smaller input contract below.
 
 ## Proof to model
 
@@ -53,6 +53,32 @@ Use `model-to-action.sh OPERATION` with common arguments.
 | `promote` | `--destination assets/models/NAME`; separate action, independent and human runtime acceptance must be current. |
 
 Action resources live under `.hephaera/runtime/bubo/resources/model-to-action/`. Initial composition requires in-place clips; missing clips/anchors or unsupported root extraction stop execution. Presentation cues never own authoritative targeting, movement or damage.
+
+## Floor plan to model
+
+Use `floor-plan-to-model.sh OPERATION [--root PROJECT]`. The wrapper resolves the installed host when `--root` is omitted. Resolve `FLOOR_PLAN_TO_MODEL` through the active `STYLE.md` or supply exact task-scoped prompt selection evidence. This leaves the default pipeline and engine selection unchanged.
+
+| Operation | Arguments |
+| --- | --- |
+| `init` | Required `--task ID --asset ID --version ID --plan JSON --rights JSON --budget JSON`; optional `--selection JSON --parent-manifest JSON`. No actor, recipe or toolchain flag. |
+| `preview`, `validate`, `status` | `--manifest JSON`. These operations do not discover or install Blender. |
+| `doctor` | `--manifest JSON`; optional `--blender EXECUTABLE` selects an existing tool for prerequisite inspection. Declared capability does not prove readiness. |
+| `build` | `--manifest JSON --blender EXECUTABLE`; requires the exact approved whole-building design and construction-capable v2 plan. |
+| `export` | `--manifest JSON --blender EXECUTABLE --author ID`; requires the current successful construction and seals the model author's identity. |
+| `review` | `--manifest JSON --blender EXECUTABLE`; renders complete views of the current independently verified package. |
+| `record` | `--manifest JSON --kind whole-building-design\|independent-model\|human-model --reviewer ID --evidence JSON`; consumes an actual current review receipt. |
+
+The canonical manifest is `.hephaera/.cache/tasks/<task>/floor-plan-to-model/<asset>/<version>/manifest.json`. Native outputs stay in task-scoped non-runtime `.art-staging/`; state, policy and dispatch evidence stay in the canonical task cache. There is no setup, generation, engine-integration or promotion operation. Caller-provided execution context, runtime identities, output roots and unknown flags are rejected.
+
+`--rights` is a bounded project-local JSON document with schema `hephaera-floor-plan-rights/v1`. Required fields are `planSha256` (the exact original plan hash), `status` (`owned` or `licensed`), nonblank `rightsHolder`, `scope: "floor-plan-to-model"`, `evidence` and `referenceInputs`. Each evidence entry contains a local `path` and exact `sha256`. Each optional inspiration reference is explicitly listed in `referenceInputs` with its `path`, `sha256`, `status`, `rightsHolder` and evidence array. Both arrays are required; use `[]` for an owned procedural plan without external references. A licensed plan or reference requires local license/permission evidence. Declaring inspiration inputs never performs automatic dimension extraction.
+
+`--budget` is a separate bounded JSON document with exactly `schemaVersion: "hephaera-floor-plan-budget/v1"`, `timeoutSeconds` (1–86400), `maxLogBytes` (1024–1073741824) and `maxPrivateBytes` (67108864–68719476736). Values must be finite safe integers. These explicit process ceilings supplement the approved plan's dimensional/geometry/output budgets. They are retained per version; continuation cannot widen or silently replace them. Current native committed-memory enforcement requires supported 64-bit Windows; other native hosts remain unavailable rather than running unbounded.
+
+On Windows, use short project, task, asset and version paths. Before native modeling, the adapter checks the known fixed bundle/output/temporary paths against Blender's Windows file and directory limits. A failed prerequisite stops the operation before a child starts; `doctor` reports it as unavailable. This necessary path check does not certify every Blender internal path or actual execution readiness. Planning remains available without the native tool.
+
+Hephaera snapshots the exact rights, references, budget, STYLE and selection identities into an immutable policy envelope before native initialization. Continuation checks those retained hashes instead of adopting changed files. New plan/style/rights/budget or runtime identity requires a fresh version with retained ancestry and refreshed affected approval. Preserve previous failures and source/review evidence.
+
+The plan schemas, owned examples and fixed audited Blender bundle live in `.hephaera/runtime/bubo/resources/floor-plan-to-model/`. Read `CONSTRUCTION.md` and `EXPORT.md` there for modeling and package/review details. The export package contains editable Blender source, separate visual/collision GLBs, semantic metadata, the plan, approved drawings and provenance. Independent re-import checks and complete views precede independent review and separate human model acceptance. These gates grant no runtime acceptance or asset promotion; actual engine collision/movement testing belongs to later integration.
 
 ## Review receipts and continuation
 
