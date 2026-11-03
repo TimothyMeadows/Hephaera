@@ -4,7 +4,7 @@
 
 ## Select style and method separately
 
-Every generated style contract contains one or more styles, exactly one primary pipeline, allowed alternatives, prompt-override scope and an explicit no-silent-fallback rule. Missing style choices require the user's selection unless the prompt already names the style. The default primary is PROOF_TO_MODEL; CLOUD, LOCAL, CODE and BLENDER require explicit selection.
+Every generated style contract contains one or more styles, exactly one primary pipeline, allowed alternatives, prompt-override scope and an explicit no-silent-fallback rule. Missing style choices require the user's selection unless the prompt already names the style. The default primary is PROOF_TO_MODEL; CLOUD, LOCAL, FLOOR_PLAN_TO_MODEL, CODE and BLENDER require explicit selection.
 
 ```bash
 bash .hephaera/commands/generate-style.sh --pipeline BLENDER "CEL_SHADED_COMIC"
@@ -21,6 +21,7 @@ The generator normally writes concise read directives. Use `--inline` only for a
 | CLOUD | Compatible session-provided image generation | Explicit capability, budget, provenance, staged candidates and human review |
 | LOCAL | Direct offline Bubo generation | Verified pinned installation, bounded native execution and shared attempt/GPU ownership |
 | PROOF_TO_MODEL | Approved six-view reconstruction and Blender finishing | Original-only classification, exact set approval, measured stages and separate promotion |
+| FLOOR_PLAN_TO_MODEL | Dimension-driven architecture through pinned Bubo | Exact whole-building drawing approval, detailed empty-room models, independent imports and separate human model acceptance |
 | CODE | Authored Three.js TypeScript/JavaScript models | THREEJS required; source-native primary geometry |
 | BLENDER | Blender 4.5 LTS authoring and export | Connected authoring, immutable source/working-copy separation and staged review |
 
@@ -42,6 +43,12 @@ Prepare front, subject-right, back, subject-left, top and bottom as six consiste
 
 After approved preprocessing, pinned native MV inference consumes six distinct frames and camera matrices. Blender finishing uses fixed audited batch scripts, preserves the high source, measures retopology/bakes/LODs/collision and independently re-imports the GLB. Actual likeness, anatomy, material fidelity and human runtime acceptance remain separate. Read [Proof to model](Proof-to-Model) before execution.
 
+## FLOOR_PLAN_TO_MODEL
+
+Use dimensioned structured plans to create detailed unfurnished architecture. Design each floor, then approve every floor, roof, exterior elevation and vertical section as one exact package before modeling. Bubo validates dimensions/connectivity/clearances, constructs the approved architecture and exports editable Blender source, separate visual/collision GLBs, semantics and drawings. Independent imports, complete delivered-model views and separate human model acceptance follow.
+
+The engine-agnostic `build-floor-plan-models` skill and `floor-plan-to-model.sh` coordinate this path. Pure design works without Blender; native construction/export/review currently require supported 64-bit Windows ownership and an explicitly selected existing Blender 4.5 LTS. No MEDIA contract, engine adapter, installation or promotion is selected implicitly. Read [Floor plan to model](Floor-Plan-to-Model) for source/version/rights/budget and review details.
+
 ## CODE models and characters
 
 The [CODE contract](https://github.com/TimothyMeadows/Hephaera/blob/main/.styles/.pipelines/code/PIPELINE.md) requires THREEJS. Author primary runtime geometry in host-native source; do not replace it with a downloaded/generated mesh or model library. A copied external model may serve as a template or reference, subject to rights, rather than becoming the primary CODE mesh.
@@ -56,7 +63,7 @@ The [BLENDER contract](https://github.com/TimothyMeadows/Hephaera/blob/main/.sty
 
 Use `direct-blender-production` and the applicable modeling, UV, material, procedural, rigging, simulation, camera, rendering, export and review skills. Live authoring requires a compatible connected Blender tool and prefers typed operations. Exact-content validated `bpy` is an explicit route when typed tools are insufficient; the local CLI remains inspection/validation only. Do not turn CLI inspection into silent standalone authoring.
 
-Proof, animation and action workflows have narrow fixed-script batch exceptions. Those exceptions do not authorize arbitrary Python, imported handlers, add-ons or a different authoring backend.
+Proof, floor-plan construction/export, animation and action workflows have narrow fixed-script batch exceptions. Those exceptions do not authorize arbitrary Python, imported handlers, add-ons or a different authoring backend.
 
 ## Optional external asset libraries
 

@@ -12,7 +12,7 @@ Hephaera supplies guidance and workflows. Your project still supplies its engine
 
 ## Start here
 
-If Hephaera is not in your project yet, follow [installation](install.md). Versioned npm and NuGet setup is upcoming and automatically scaffolds the host when complete. Until those packages are published, the guide ends with a working manual clone/submodule fallback at `.hephaera`.
+If Hephaera is not in your project yet, follow [installation](install.md). The `5.1.0-rc.1` npm and NuGet installers are published on GitHub Packages and scaffold the host when setup completes; public npmjs.com and NuGet.org mirrors remain pending. The guide covers packages first and deliberate manual clone/submodule installation last. Features added after that release, including floor-plan-to-model, currently require newer `main` source.
 
 Then walk through [your first session](first-session.md). Start with a narrow request so you can see the agent inspect the project, propose a plan, and report its evidence.
 
@@ -21,6 +21,7 @@ Then walk through [your first session](first-session.md). Start with a narrow re
 - [Everyday work](everyday-work.md): ask for changes, reviews, debugging, and useful project memory.
 - [Project setup](project-setup.md): choose architecture, game engine, and project instructions.
 - [Art and assets](art-and-assets.md): choose a visual style and production method, then review what was made.
+- [Floor plans to buildings](floor-plan-to-model.md): design every floor, approve the whole building and review an editable architectural model package.
 - [Audio, music, and voice](audio-music-voice.md): plan sound work without mixing up generation, listening review, and delivery.
 - [Delivery and troubleshooting](delivery-and-troubleshooting.md): understand review gates and investigate missing prerequisites.
 

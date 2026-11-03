@@ -19,6 +19,7 @@ Plan a readable environment prop for this scene. Check the project's visual styl
 | `PROOF_TO_MODEL` | Reviewed source images and a complete six-view set leading to native reconstruction and finishing. |
 | `CODE` | Three.js models authored as JavaScript/TypeScript source; this path requires THREEJS. |
 | `BLENDER` | Blender 4.5 LTS authoring, validation, renders, and exports under its working-copy controls. |
+| `FLOOR_PLAN_TO_MODEL` | Dimensioned building plans, approval of the complete design, then detailed unfurnished models with separate visual/collision exports. |
 
 Choose a pipeline because it suits the requested result and is available. If it fails or lacks prerequisites, the agent must explain that and request direction rather than silently switching methods. A task-specific pipeline override does not rewrite the project's primary choice.
 
@@ -30,6 +31,10 @@ bash .hephaera/commands/validate-style-contract.sh
 ```
 
 That records the choice. It does not authorize generation or install a provider. CLOUD and LOCAL execution also follow `MEDIA.md`, with explicit input rights, budgets, staging, and review.
+
+## Design a building floor by floor
+
+Use [floor plans to buildings](floor-plan-to-model.md) for dimension-driven architecture. Design each floor, then review all floor plans, the roof, elevations and stair sections as one complete package before modeling. The result includes editable source and separate visual/collision exports; rooms stay unfurnished and game integration comes later. This pipeline is in newer `main` source; the published `5.1.0-rc.1` packages predate it.
 
 ## Review the right thing at each step
 

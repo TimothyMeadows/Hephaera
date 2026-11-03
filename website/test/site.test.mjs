@@ -13,11 +13,18 @@ test('root and project deployments resolve every generated link and anchor', asy
     const output = path.join(siteRoot, '.test-output', name);
     await buildSite({ basePath: base, output });
     const result = await checkOutput(output, base);
-    assert.equal(result.html, 10);
+    assert.equal(result.html, pages.length + 2);
     assert.ok(result.localLinks > 100);
     const search = JSON.parse(await fs.readFile(path.join(output, 'search-index.json'), 'utf8'));
     assert.equal(search.length, pages.length);
     for (const page of search) assert.ok(page.url.startsWith(`${base}docs/`));
+    const floorPlan = search.find(page => page.url === `${base}docs/floor-plan-to-model/`);
+    assert.equal(floorPlan?.title, 'Floor plans to buildings');
+    assert.match(floorPlan.text, /FLOOR_PLAN_TO_MODEL/);
+    const floorHtml = await fs.readFile(path.join(output, 'docs/floor-plan-to-model/index.html'), 'utf8');
+    assert.ok(floorHtml.includes(`href="${base}docs/floor-plan-to-model/" aria-current="page"`));
+    const landing = await fs.readFile(path.join(output, 'index.html'), 'utf8');
+    assert.match(landing, /approved floor plans/);
   }
 });
 
