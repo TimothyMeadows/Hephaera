@@ -78,7 +78,6 @@ Each game project installs Hephaera in `.hephaera/`. Durable project memory, tas
   - [Memory v2](#memory-v2)
   - [Audio, Music, and Voice Pipelines](#audio-music-and-voice-pipelines)
   - [Art Pipelines and Generative Media](#art-pipelines-and-generative-media)
-    - [Floor Plan to Model](#floor-plan-to-model)
   - [Validation](#validation)
   - [Repository Layout](#repository-layout)
 - [Contributing](#contributing)
