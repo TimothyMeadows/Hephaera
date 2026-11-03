@@ -14,7 +14,7 @@ Production manifests and receipts bind exact current input, policy and tool iden
 
 ## Versioned installer entry point
 
-The upcoming npm and NuGet packages expose the same Hephaera installer and are not published yet. After a verified exact release, explicit `install/init --project PATH` installs the pinned baseline and always completes the canonical scaffold; acquisition alone does not. `doctor/status` reports readiness. Exact locked restore, target-version update/dry-run, journal-aware repair/recover and non-destructive deactivation remain distinct operations. See [Installation and layout](Installation-and-Layout) for authentication, invocation and the usable manual fallback. Installer tooling does not replace the baseline's workflow commands or provision native tools/models.
+The published GitHub npm and NuGet packages expose the same Hephaera installer at `5.1.0-rc.1`; public-registry mirrors have separate availability. For a verified exact destination/version, explicit `install/init --project PATH` installs the pinned baseline and always completes the canonical scaffold; acquisition alone does not. `doctor/status` reports readiness. Exact locked restore, target-version update/dry-run, journal-aware repair/recover and non-destructive deactivation remain distinct operations. See [Installation and layout](Installation-and-Layout) for authentication, invocation and the usable manual fallback. Installer tooling does not replace the baseline's workflow commands or provision native tools/models.
 
 ## Resolution and contract families
 
@@ -53,6 +53,7 @@ Read [Work modes and delivery](Work-Modes-and-Delivery). Automatic publication i
 | LOCAL media | `inspect-local-media-host.sh`, `install-bubo-media.sh`, `bubo-media.sh`, `validate-media-generation-manifest.sh` | [Media](Media-Pipelines) |
 | Domain assets | `audio-pipeline.sh`, `music-pipeline.sh`, `voice-pipeline.sh` | Separate immutable domain lifecycles |
 | Source-to-model | `proof-to-model.sh` | [Proof to model](Proof-to-Model) |
+| Floor-plan buildings | `floor-plan-to-model.sh` | [Floor plan to model](Floor-Plan-to-Model) |
 | Motion/actions | `model-to-animation.sh`, `model-to-action.sh` | [Animation and actions](Animation-and-Actions) |
 | CODE models | `create-code-model-manifest.sh`, `validate-code-model-manifest.sh`, `next-code-model-pass.sh`, `record-code-model-review.sh` | THREEJS source-authoring contract |
 | CODE characters | `create-code-character-profile.sh`, `validate-code-character-profile.sh`, `measure-code-character-evidence.sh`, `record-code-character-calibration.sh`, `record-code-character-gate.sh` | Ordered gates and independent calibrated evidence |
@@ -60,7 +61,7 @@ Read [Work modes and delivery](Work-Modes-and-Delivery). Automatic publication i
 | Three.js effects | `threejs-particles.sh`, `threejs-postprocessing.sh` | [Three.js extensions](Threejs-Extensions) |
 | Native web packages | `web-game-package.sh` | [Packaging](Web-Game-Packaging) |
 
-The [asset argument reference](https://github.com/TimothyMeadows/Hephaera/blob/main/commands/BUBO_ARGUMENTS.md) covers common proof/motion/action flags. Their current native help and pinned schemas remain the exact interface authority.
+The [asset argument reference](https://github.com/TimothyMeadows/Hephaera/blob/main/commands/BUBO_ARGUMENTS.md) covers proof, floor-plan, motion and action flags. Floor-plan initialization uses plan/rights/budget records and no actor, recipe or toolchain arguments. Their current native help and pinned schemas remain the exact interface authority.
 
 ## Supporting engineering families
 

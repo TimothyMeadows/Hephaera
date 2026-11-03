@@ -4,13 +4,13 @@ Hephaera is a shared AI production baseline for video game development. It gives
 
 Use the [practical documentation](https://hephaera.com/docs/) for a guided first installation or an everyday task. This Wiki explains the contracts, command families, evidence requirements and failure boundaries behind those guides. The [repository README](https://github.com/TimothyMeadows/Hephaera/blob/main/README.md) is the source overview; [AGENTS.md](https://github.com/TimothyMeadows/Hephaera/blob/main/AGENTS.md) is the shared operating contract.
 
-Package-first setup is upcoming: the npm and NuGet packages are not yet published. The installation page labels preview commands and keeps working manual installation last.
+The authenticated GitHub npm and NuGet packages are published as `5.1.0-rc.1`; public-registry mirror status remains separate. Follow [Installation and layout](Installation-and-Layout) for exact availability and authentication. Floor-plan production was added afterward on main and needs a later package version before it is available through those installers.
 
 ## Start and configure
 
 | Reference | What it answers |
 | --- | --- |
-| [Installation and layout](Installation-and-Layout) | Upcoming npm/NuGet setup and auth, automatic scaffold, managed updates, then manual clone/submodule fallback |
+| [Installation and layout](Installation-and-Layout) | Versioned npm/NuGet setup and auth, automatic scaffold, managed updates, then manual clone/submodule fallback |
 | [Project contracts](Project-Contracts) | Which files select architecture, engine, visual style and media policy |
 | [Work modes and delivery](Work-Modes-and-Delivery) | Brainstorm, planning, Task, Goal, Gauntlet, PR readiness and post-PR QA |
 | [Roles and skills](Roles-and-Skills) | How to find a specialist, resolve aliases and filter workflows by engine |
@@ -21,9 +21,10 @@ Package-first setup is upcoming: the npm and NuGet packages are not yet publishe
 | Reference | What it answers |
 | --- | --- |
 | [Engines and gameplay](Engines-and-Gameplay) | Six-engine selection, runtime ownership, gameplay concepts and actual target evidence |
-| [Visual pipelines](Visual-Pipelines) | STYLE, CLOUD, LOCAL, PROOF_TO_MODEL, CODE, BLENDER and external libraries |
+| [Visual pipelines](Visual-Pipelines) | STYLE, six registered visual primaries and external libraries |
 | [Media pipelines](Media-Pipelines) | Independent AUDIO, MUSIC and VOICE production, consent, review and promotion |
 | [Bubo runtime](Bubo-Runtime) | The pinned native dependency, explicit build, verified resources and readiness limits |
+| [Floor plan to model](Floor-Plan-to-Model) | Whole-building design approval, detailed empty-room construction and portable model review |
 | [Proof to model](Proof-to-Model) | Source classification, six approved views, reconstruction and measured Blender finishing |
 | [Animation and actions](Animation-and-Actions) | Model readiness, real clips, action composition and presentation ownership |
 | [Web-game packaging](Web-Game-Packaging) | MAUI hosts and explicit Windows, macOS, Android and iOS packages |

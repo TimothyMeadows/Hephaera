@@ -63,6 +63,8 @@ Explicit alternatives use the documented generator interface:
 bash .hephaera/commands/generate-style.sh --pipeline BLENDER --allow-pipeline PROOF_TO_MODEL "CEL_SHADED_COMIC"
 ```
 
+`FLOOR_PLAN_TO_MODEL` is the dimension-driven building option; it preserves the default PROOF_TO_MODEL and engine selection. All-procedural floor-plan work needs no MEDIA contract. Its exact complete drawing package must be approved before native modeling; see [Floor plan to model](Floor-Plan-to-Model).
+
 A current-prompt pipeline selection applies only to the task and may select any registered pipeline. Record prompt-selection evidence with the current style-contract hash; do not rewrite the host contract implicitly. Regeneration preserves configured external libraries unless the user replaces or clears them. Inspect [Visual pipelines](Visual-Pipelines) before producing assets.
 
 ## Media execution and independent domains

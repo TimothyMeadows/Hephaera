@@ -78,6 +78,7 @@ Each game project installs Hephaera in `.hephaera/`. Durable project memory, tas
   - [Memory v2](#memory-v2)
   - [Audio, Music, and Voice Pipelines](#audio-music-and-voice-pipelines)
   - [Art Pipelines and Generative Media](#art-pipelines-and-generative-media)
+    - [Floor Plan to Model](#floor-plan-to-model)
   - [Validation](#validation)
   - [Repository Layout](#repository-layout)
 - [Contributing](#contributing)
@@ -94,7 +95,7 @@ Use Hephaera to take a game concept toward a playable, reviewed result, or to im
 | Game design | Player decisions, core loops, progression, economies, difficulty, and balance hypotheses | Design briefs and observed playtest results |
 | Gameplay and worlds | Movement, combat, physics, actors, level systems, persistence, and engine integration | Tests and representative playable scenarios |
 | Game UI and feedback | HUD synchronization, screen/input ownership, controller focus, accessibility, camera, VFX, audio cues, and haptics | Layout/input checks and supported-device testing |
-| Art and assets | Visual direction, 2D proofs, native proof-to-model production, model-to-animation/action composition, Blender authoring, and runtime handoff | Source ancestry, technical budgets, complete motion review, independent reviews, and human acceptance |
+| Art and assets | Visual direction, 2D proofs, proof-to-model production, dimensioned building architecture, model-to-animation/action composition, Blender authoring, and runtime handoff | Source ancestry, approved designs, technical budgets, complete model/motion review, independent reviews, and human acceptance |
 | Sound effects and ambience | AUDIO pipeline for game events and environmental sound | Rights, technical validation, complete listening review, and loop/target evidence |
 | Music | MUSIC pipeline for instrumental tracks and supplied-lyric songs | Exact lyric rights, full-track/vocal review, and runtime budgets |
 | Speech | VOICE pipeline for preset speech and consented local-reference cloning | Reference-bound consent, spoken-content review, and separate disclosure/distribution rights |
@@ -106,7 +107,9 @@ Engine-specific workflows cover **Three.js, Babylon.js, Phaser, Unity, Unreal, a
 
 **Web engines automatically select .NET MAUI packaging.** Three.js, Babylon.js and Phaser keep their JavaScript gameplay and can package a local static build for Windows, macOS, Android and iOS. Native engines retain their own exporters. See [Native Web-Game Packaging](#native-web-game-packaging).
 
-`STYLE.md` selects visual direction and the art pipeline. **PROOF_TO_MODEL** is the default: classify original sources, approve six consistent views, reconstruct them natively and finish in Blender, then review before runtime promotion. CLOUD, LOCAL, CODE, and BLENDER remain explicit alternatives. The CODE pipeline is specific to Three.js.
+`STYLE.md` selects visual direction and the art pipeline. **PROOF_TO_MODEL** is the default: classify original sources, approve six consistent views, reconstruct them natively and finish in Blender, then review before runtime promotion. CLOUD, LOCAL, CODE, BLENDER, and FLOOR_PLAN_TO_MODEL remain explicit alternatives. The CODE pipeline is specific to Three.js.
+
+**FLOOR PLAN TO MODEL** designs buildings floor by floor, then turns one approved architectural package into detailed unfurnished models with editable source and separate visual/collision exports. See [the workflow](#floor-plan-to-model) and [practical guide](https://hephaera.com/docs/floor-plan-to-model/). It is available in newer `main` source; published `5.1.0-rc.1` packages predate it.
 
 **AUDIO, MUSIC, and VOICE are independent production pipelines.** Load them together and alongside the visual workflow without changing its selection. Each provides planning, immutable asset versions, validation, human review, and separate runtime promotion. See [Audio, Music, and Voice Pipelines](#audio-music-and-voice-pipelines) for routing and setup.
 
@@ -733,9 +736,10 @@ Select a different primary pipeline or advertise project-supported alternatives 
 ./commands/generate-style.sh --pipeline LOCAL --allow-pipeline PROOF_TO_MODEL "CEL_SHADED_COMIC"
 ./commands/generate-style.sh --pipeline CODE --allow-pipeline PROOF_TO_MODEL "CEL_SHADED_COMIC"
 ./commands/generate-style.sh --pipeline BLENDER --allow-pipeline PROOF_TO_MODEL "CEL_SHADED_COMIC"
+./commands/generate-style.sh --pipeline FLOOR_PLAN_TO_MODEL --allow-pipeline PROOF_TO_MODEL "CEL_SHADED_COMIC"
 ```
 
-Friendly names such as `imagegen`, `proof-to-model` (also `proof to model` and `2d-to-3d`), `threejs`, and `blender` normalize to `CLOUD`, `PROOF_TO_MODEL`, `CODE`, and `BLENDER`. Canonical `LOCAL` selects direct Bubo generation. The complete style catalog is indexed in `.styles/INDEX.md`; pipeline contracts are indexed in `.styles/.pipelines/INDEX.md`.
+Friendly names such as `imagegen`, `proof-to-model` (also `proof to model` and `2d-to-3d`), `threejs`, and `blender` normalize to `CLOUD`, `PROOF_TO_MODEL`, `CODE`, and `BLENDER`. Canonical `LOCAL` selects direct Bubo generation; `floor-plan-to-model` normalizes to `FLOOR_PLAN_TO_MODEL`. The complete style catalog is indexed in `.styles/INDEX.md`; pipeline contracts are indexed in `.styles/.pipelines/INDEX.md`.
 
 ## Game Engine Selection
 
@@ -927,7 +931,7 @@ $design-game-systems
 | Game systems | `design-game-systems`, `design-action-gameplay`, `build-gameplay-runtime`, `author-game-worlds` | Define player decisions and build testable gameplay and worlds |
 | Game UI and feedback | `build-game-ui`, `build-gameplay-runtime`, `build-accessible-motion-systems`, `create-game-vfx` | Plan input ownership, HUD synchronization, readable feedback, accessibility, and device-specific haptics |
 | Selected-engine implementation | `threejs-build-scenes`, `babylonjs-integrate-physics`, `phaserjs-build-tilemaps`, `unity-build-ui`, `unreal-build-gameplay-framework`, `godot-run-tooling` | Use only the features compatible with ENGINE.md and explicitly selected project dependencies |
-| Art and runtime assets | `build-proof-to-model-assets`, `direct-blender-production`, `review-blender-deliverables`, `prepare-rigged-runtime-actors`, `tcg-art-direction` | Produce and review assets with ancestry, budgets, handoff evidence, and human acceptance |
+| Art and runtime assets | `build-proof-to-model-assets`, `build-floor-plan-models`, `direct-blender-production`, `review-blender-deliverables`, `prepare-rigged-runtime-actors`, `tcg-art-direction` | Produce and review assets with ancestry, budgets, design/model review, handoff evidence, and human acceptance |
 | Model motion and actions | `build-model-animations`, `build-model-actions` | Create reviewed clips and compound actions with selected-engine presentation and separate gameplay authority |
 | Three.js CODE characters | `threejs-build-code-characters`, `threejs-review-code-characters` | Author and independently review source-native Three.js actors |
 | Generative media | `plan-generative-media-pipeline`, `use-bubo-local-generation`, `produce-generative-audio`, `validate-generated-media` | Plan, generate, stage, review, and validate selected image/audio production |
@@ -998,6 +1002,7 @@ Or run the command directly:
 | Independent media contracts | `generate-media-pipeline-contract.sh`, `validate-media-pipeline-contract.sh`, `resolve-media-pipeline.sh` |
 | AUDIO, MUSIC, and VOICE workflows | `audio-pipeline.sh`, `music-pipeline.sh`, `voice-pipeline.sh` |
 | Native proof-to-model assets | `proof-to-model.sh` |
+| Dimensioned building models | `floor-plan-to-model.sh` |
 | Native model-to-animation production | `model-to-animation.sh` |
 | Native model-to-action composition | `model-to-action.sh` |
 | Code-first Three.js models | `create-code-model-manifest.sh`, `validate-code-model-manifest.sh`, `next-code-model-pass.sh`, `record-code-model-review.sh` |
@@ -1346,7 +1351,7 @@ Use three separate production workflows for sound, music, and speech. Ordinary a
 | [MUSIC](.media/pipelines/music/PIPELINE.md) | Instrumental tracks and supplied-lyric songs | `MUSIC.md` | [`build-music-assets`](skills/build-music-assets/SKILL.md), `music-pipeline.sh` |
 | [VOICE](.media/pipelines/voice/PIPELINE.md) | Preset speech and consented local-reference cloning | `VOICE.md` | [`build-voice-assets`](skills/build-voice-assets/SKILL.md), `voice-pipeline.sh` |
 
-All three can load together with CLOUD, LOCAL, PROOF_TO_MODEL, CODE, or BLENDER without changing `STYLE.md`; visual workflows retain their engine/tool prerequisites. Workflow loading, planning, and review are independent; Bubo serializes LOCAL GPU execution, including proof reconstruction. Media approvals retain one physical shared media-state root across tasks and domains. Proof/model workflows keep their own approval and attempt ancestry. Parallel loading creates no generation allowance or permission for simultaneous GPU inference.
+All three can load together with CLOUD, LOCAL, PROOF_TO_MODEL, CODE, BLENDER, or FLOOR_PLAN_TO_MODEL without changing `STYLE.md`; visual workflows retain their engine/tool prerequisites. Workflow loading, planning, and review are independent; Bubo serializes LOCAL GPU execution, including proof reconstruction. Media approvals retain one physical shared media-state root across tasks and domains. Proof/model workflows keep their own approval and attempt ancestry. Parallel loading creates no generation allowance or permission for simultaneous GPU inference.
 
 For a host project that needs all three workflows, run from its project root:
 
@@ -1381,7 +1386,7 @@ Hephaera separates visual direction from production method. Asset-production tas
 4. Configure `MEDIA.md` only when `CLOUD` or `LOCAL` generation is used.
 5. Stop when the selected pipeline is unavailable or fails; never switch pipelines silently.
 
-The five primary art pipelines selectable in `STYLE.md` are:
+The six primary art pipelines selectable in `STYLE.md` are:
 
 | Pipeline | Primary output | Boundary |
 | --- | --- | --- |
@@ -1390,6 +1395,7 @@ The five primary art pipelines selectable in `STYLE.md` are:
 | `PROOF_TO_MODEL` | Source classification, approved six-view proofs, native Pixal3D MV, Blender finishing | Immutable originals, hashed ancestry, independent review and human acceptance |
 | `CODE` | Authored Three.js TypeScript/JavaScript models | No downloaded/generated mesh or model-library loading as the primary implementation |
 | `BLENDER` | Authored Blender 4.5 LTS scenes, assets, renders, and exports | Immutable source, repository-confined working copy, explicit validation, staging, and human review |
+| [`FLOOR_PLAN_TO_MODEL`](#floor-plan-to-model) | Dimensioned architecture, editable Blender source, visual/collision GLBs and approved drawings | Exact whole-building design approval, measured geometry, independent review and separate human model acceptance; no game integration |
 
 Downstream production pipelines compose with model creation:
 
@@ -1416,7 +1422,8 @@ Primary pipeline contracts and owned assets live under:
 ├── code/code-character-profile.schema.json
 ├── code/code-character-observation.schema.json
 ├── code/code-character-evidence-report.schema.json
-└── blender/PIPELINE.md
+├── blender/PIPELINE.md
+└── floor-plan-to-model/PIPELINE.md
 ```
 
 Legacy media-configuration directories are prohibited. Primary art-pipeline assets belong to their owners under `.styles/.pipelines/`; downstream motion and action assets live in their own directories under `.styles/.workflows/`.
@@ -1435,7 +1442,7 @@ For cloud/local execution, generate the optional media contract with canonical n
 ./commands/generate-media-contract.sh CLOUD LOCAL
 ```
 
-Image generation obeys both the resolved pipeline in `STYLE.md` and `MEDIA.md`. Music, sound effects, ambience, and voice use `MEDIA.md` without depending on visual style. All-original six-view `PROOF_TO_MODEL`, `CODE`, and `BLENDER` do not require `MEDIA.md`; read it whenever cloud/local generated inputs are in scope. Proof generation remains a separate authorized CLOUD/LOCAL operation.
+Image generation obeys both the resolved pipeline in `STYLE.md` and `MEDIA.md`. Music, sound effects, ambience, and voice use `MEDIA.md` without depending on visual style. All-original six-view `PROOF_TO_MODEL`, `CODE`, `BLENDER`, and dimension-driven `FLOOR_PLAN_TO_MODEL` do not require `MEDIA.md`; read it whenever cloud/local generated inputs are in scope. Proof generation remains a separate authorized CLOUD/LOCAL operation.
 
 Cloud/local media guardrails include:
 
@@ -1531,6 +1538,28 @@ Capture uses `127.0.0.1` with an OS-assigned port, keeps the Chromium sandbox en
 The `BLENDER` pipeline uses the existing Blender 4.5 LTS production suite for modeling, UVs and textures, materials, procedural scenes, rigging, simulation, lighting, rendering, optimization, export, and review. It preserves the source `.blend`, authors only in declared repository-confined working copies, prefers typed connected Blender operations, validates exceptional exact-content `bpy`, and treats CLI tools as read-only inspection. Blender, addons, packages, and providers are never installed automatically. If live authoring is unavailable, the workflow stops instead of switching pipelines or backends.
 
 The same skills provide subject-specific construction guidance for hard-surface mechanisms, characters and creatures, vehicles, hair cards, foliage, modular environments and cloth. Briefs record detail priorities, inferred hidden structure, articulation, texture and assembly requirements. Reviews compare matched cameras and neutral light before close details, inspect complete applicable motion, and verify a curated runtime export through the selected engine's importer and material rules. These references add no mandatory model, service, addon or paid middleware; technical checks remain separate from artistic acceptance.
+
+### Floor Plan to Model
+
+`FLOOR_PLAN_TO_MODEL` creates detailed building architecture from explicit dimensions. Design single-storey, connected multi-storey or courtyard layouts with straight and angled walls. Rooms remain unfurnished. Use `build-floor-plan-models` and `floor-plan-to-model.sh`; the selected engine and existing default `PROOF_TO_MODEL` stay unchanged.
+
+Start with a request such as:
+
+```text
+Design a two-storey lodge with an open courtyard using the project's style. Agree on room dimensions, materials, player clearances and detail budgets first. Show every floor plan, the roof, exterior elevations and stair sections together. Wait for my approval of the complete design before modeling, keep rooms empty and deliver a model package without adding it to the game.
+```
+
+A versioned structured plan is the dimensional source of truth. Reference pictures can guide appearance but do not establish dimensions automatically. Approval covers the exact complete architectural package; changing a plan invalidates affected approval and models. New versions preserve parent ancestry and earlier attempts.
+
+The command provides `init`, `doctor`, `preview`, `validate`, `build`, `export`, `review`, `record` and `status`. Planning and drawings need no Blender or media provider. Construction/export/review require the explicitly built pinned Bubo runtime, an existing selected Blender 4.5 LTS and currently supported 64-bit Windows native memory enforcement. Rights and finite process/output budgets remain explicit. Selection installs nothing.
+
+Bubo constructs detailed floors, ceilings, shared walls, openings, door/window assemblies, stairs, landings, railings, roofs, facades, materials and trim through its fixed audited bundle. The sealed package retains editable Blender source, separate visual and collision GLBs, semantic metadata, the plan, approved drawings and provenance outside game asset folders.
+
+Review every floor, exterior elevation, roof and section through vertical connections. Independent imports compare geometry, dimensions, materials, hierarchy, openings, door pivots and declared clearances with the approved source. Technical verification, independent model review and human model acceptance are separate gates. Measured traversal geometry does not establish actual engine collision, movement or navigation behavior. There is no promotion operation; game integration remains later work.
+
+This feature is available in newer `main` source and is not included in published `5.1.0-rc.1` packages. Use a deliberately chosen [manual clone/submodule installation](#advanced-manual-installation) for unreleased source; keep package-managed installations under their documented update/recovery workflow. Curved forms, automatic CAD/raster conversion, furnishings, interaction systems and gameplay are deferred.
+
+Read the [plain-language guide](https://hephaera.com/docs/floor-plan-to-model/), [detailed reference](docs/FLOOR_PLAN_TO_MODEL.md), [examples](examples/floor-plan-to-model/README.md) and [reference wiki](https://github.com/TimothyMeadows/Hephaera/wiki/Floor-Plan-to-Model).
 
 ### Native proof to model
 
@@ -1726,7 +1755,7 @@ Installed projects use this baseline layout. Root project contracts and the host
 │   ├── arts/blender-production-artist/ # Blender production owner
 │   └── arts/technical-3d-artist/     # rigged runtime-art handoff owner
 ├── .styles/                          # style templates
-│   ├── .pipelines/                   # CLOUD, LOCAL, PROOF_TO_MODEL, CODE model/character, and BLENDER contracts/assets
+│   ├── .pipelines/                   # CLOUD, LOCAL, PROOF_TO_MODEL, CODE, BLENDER, FLOOR_PLAN_TO_MODEL contracts/assets
 │   └── .workflows/                   # downstream MODEL_TO_ANIMATION and MODEL_TO_ACTION
 ├── .media/
 │   └── pipelines/                    # AUDIO, MUSIC, VOICE contracts, registry, schemas, and examples
