@@ -27,8 +27,10 @@ def main():
     parser.add_argument('--blender', type=Path)
     args = parser.parse_args()
     evidence = args.evidence.resolve(strict=True)
-    run = Path(tempfile.mkdtemp(prefix='installed-', dir=evidence))
-    assert run.parent == evidence and not run.is_symlink()
+    fixtures = BASE/'.local/fpi'
+    fixtures.mkdir(parents=True, exist_ok=True)
+    run = Path(tempfile.mkdtemp(prefix='r-', dir=fixtures))
+    assert run.parent == fixtures and run.resolve().is_relative_to(BASE) and not run.is_symlink()
     env = dict(os.environ, GIT_ALLOW_PROTOCOL='file', GIT_TERMINAL_PROMPT='0',
                GIT_CONFIG_NOSYSTEM='1', GIT_CONFIG_GLOBAL=str(run/'gitconfig'))
     for key in ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'HEPHAERA_PROJECT_ROOT']:
@@ -54,9 +56,11 @@ def main():
         return command(['git', '-C', folder, *values], BASE).stdout.strip()
 
     def save(status):
-        (run/'SUMMARY.json').write_text(json.dumps({'status': status, 'checks': checks, 'forms': forms,
+        summary = json.dumps({'status': status, 'checks': checks, 'forms': forms,
             'baselineHead': git(BASE, 'rev-parse', 'HEAD'),
-            'scope': 'Real pinned native dispatch and optional actual Blender; design decisions are synthetic QA only, no human/model/engine acceptance or promotion.'}, indent=2)+'\n')
+            'fixture': str(run), 'scope': 'Real pinned native dispatch and optional actual Blender; design decisions are synthetic QA only, no human/model/engine acceptance or promotion.'}, indent=2)+'\n'
+        (run/'SUMMARY.json').write_text(summary)
+        (evidence/('installed-'+run.name+'-SUMMARY.json')).write_text(summary)
 
     try:
         command(['node', BASE/'commands/lib/bubo-runtime.cjs', 'verify'], BASE)
