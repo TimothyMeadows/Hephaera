@@ -68,6 +68,8 @@ def main():
         (evidence/('installed-'+run.name+'-SUMMARY.json')).write_text(summary)
 
     try:
+        wrapper_mode = git(BASE, 'ls-tree', source_head, '--', 'commands/floor-plan-to-model.sh').split()[0]
+        check(wrapper_mode == '100755', 'public shell wrapper is committed executable')
         command(['node', BASE/'commands/lib/bubo-runtime.cjs', 'verify'], BASE)
         dependency = BASE/'runtime/bubo'
         receipt = json.loads((dependency/'artifacts/bubo/build-info.json').read_bytes())
@@ -75,7 +77,7 @@ def main():
         check(receipt['sourceRevision'] == pin['revision'] and not receipt['sourceDirty'], 'explicit clean native build matches recorded merged revision')
         bash = 'C:/Program Files/Git/bin/bash.exe' if os.name == 'nt' else 'bash'
         for form in ['clone', 'submodule']:
-            host = run/form
+            host = run/('c' if form == 'clone' else 's')
             host.mkdir()
             git(host, 'init', '-q', '--initial-branch=main')
             baseline = host/'.hephaera'
@@ -99,7 +101,7 @@ def main():
             check(skill['compatible'], form+': coordinating skill resolves compatible before use')
             style = host/'STYLE.md'
             style_hash = sha(style)
-            task = host/'.hephaera/.cache/tasks/floor-plan-qa'
+            task = host/'.hephaera/.cache/tasks/qa'
             task.mkdir(parents=True, exist_ok=True)
             (host/'inputs').mkdir()
             # An unrelated invalid MEDIA contract must never affect procedural architecture.
@@ -107,7 +109,9 @@ def main():
             adapter = baseline/'commands/lib/bubo-floor-plan-adapter.cjs'
 
             def invoke(operation, *values, fail=False):
-                result = command([bash, str(baseline/'commands/floor-plan-to-model.sh').replace('\\', '/'), operation, '--root', host, *values], host, fail=fail, environment=host_env)
+                wrapper = baseline/'commands/floor-plan-to-model.sh'
+                prefix = [bash, str(wrapper).replace('\\', '/')] if os.name == 'nt' else [str(wrapper)]
+                result = command([*prefix, operation, '--root', host, *values], host, fail=fail, environment=host_env)
                 if fail:
                     return result
                 return json.loads(result.stdout)
@@ -127,7 +131,7 @@ def main():
                 budget = task/f'{asset}-budget.json'
                 budget.write_text(json.dumps({'schemaVersion': 'hephaera-floor-plan-budget/v1', 'timeoutSeconds': 600,
                     'maxLogBytes': 16777216, 'maxPrivateBytes': 8589934592}, indent=2)+'\n')
-                initial = invoke('init', '--task', 'floor-plan-qa', '--asset', asset, '--version', 'v1', '--plan', source.relative_to(host).as_posix(), '--rights', rights.relative_to(host).as_posix(), '--budget', budget.relative_to(host).as_posix())
+                initial = invoke('init', '--task', 'qa', '--asset', asset, '--version', 'v1', '--plan', source.relative_to(host).as_posix(), '--rights', rights.relative_to(host).as_posix(), '--budget', budget.relative_to(host).as_posix())
                 manifest = initial['manifest']
                 preview = invoke('preview', '--manifest', manifest)
                 invoke('validate', '--manifest', manifest)

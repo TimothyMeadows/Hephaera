@@ -83,6 +83,82 @@ function requireCapability(info) {
     || !Array.isArray(floor.operations) || !equal([...floor.operations].sort(), [...OPERATIONS].sort()))
     fail('Pinned Bubo lacks the complete architectural-export floor-plan capability; initialize/build the reviewed dependency explicitly.');
 }
+
+// Necessary Windows prerequisites for the pinned bundle's known filenames.
+// This is not a certificate for every Blender/SDK internal cache path. Actual
+// native QA remains required even when these fixed paths fit classic Win32.
+function nativePathDiagnostics(settings, platform = process.platform) {
+  const scope = 'Necessary fixed-path check only; actual native QA remains required. Blender/SDK internal paths are not completely certified.';
+  if (platform !== 'win32' || !['build', 'export', 'review', 'doctor'].includes(settings.operation)) return { checked: false, scope, issues: [] };
+  const paths = new Map(), win = path.win32, guid = '0'.repeat(32);
+  const add = (kind, full, label) => {
+    full = win.normalize(full);
+    const key = kind + ':' + full.toLowerCase();
+    if (!paths.has(key)) paths.set(key, { kind, path: full, label, characters: full.length, maximum: kind === 'file' ? 259 : 247 });
+  };
+  const file = (full, label) => { add('file', full, label); add('directory', win.dirname(full), label + ' parent'); };
+  const full = value => win.resolve(settings.root, value);
+  const stage = full(win.join(settings.staging, 'floor-plan-to-model', settings.asset, settings.version));
+  const attempt = kind => win.join(stage, 'attempts', kind + '-' + guid);
+  const temporary = directory => {
+    for (const suffix of ['', 'cache', 'config', 'scripts', 'data', 'extensions', 'extensions/.cache', 'blender_000000'])
+      add('directory', win.join(directory, 'temp', suffix), 'Fixed Blender temporary/user directory');
+  };
+  const selected = settings.operation === 'doctor' ? ['build', 'export', 'review'] : [settings.operation];
+  for (const name of settings.resourceNames || []) {
+    const basename = win.basename(name);
+    if (selected.includes('build') && ['author.py', 'admission.py'].includes(basename)
+      || selected.some(item => ['export', 'review'].includes(item)) && basename !== 'author.py')
+      file(win.resolve(settings.publication, name), 'Audited native resource');
+  }
+  for (const name of settings.inputFiles || []) file(full(name), 'Declared current native input');
+  file(win.join(stage, 'original/building-plan.json'), 'Immutable plan input');
+  if (selected.includes('build')) {
+    const directory = attempt('build');
+    file(win.join(directory, 'job.json'), 'Construction job');
+    for (const name of ['building.blend', 'construction-report.json', 'construction-report.json.partial']) file(win.join(directory, 'output', name), 'Construction output');
+    temporary(directory);
+  }
+  if (selected.includes('export') || selected.includes('review')) {
+    const source = attempt('build'), directory = attempt('export');
+    for (const name of ['job.json', 'output/building.blend', 'output/construction-report.json']) file(win.join(source, name), 'Current construction input');
+    for (const name of ['package.json', 'building.blend', 'visual.glb', 'collision.glb', 'building-plan.json', 'semantics.json', 'provenance/construction-report.json', 'provenance/design-preview.json', 'provenance/design-approval.json'])
+      file(win.join(directory, 'package', name), 'Sealed export payload');
+    for (const name of settings.drawingNames || []) file(win.join(directory, 'package/drawings', name), 'Approved drawing payload');
+    for (const representation of ['visual', 'collision']) file(win.join(directory, 'verify-' + representation, 'output/verification.json'), 'Current independent verification');
+    if (selected.includes('export')) {
+      const producer = win.join(directory, 'produce'); file(win.join(producer, 'job.json'), 'Producer job');
+      for (const name of ['visual.glb', 'visual.glb.partial', 'collision.glb', 'collision.glb.partial', 'producer-report.json', 'producer-report.json.partial']) file(win.join(producer, 'output', name), 'Producer output');
+      temporary(producer);
+      for (const representation of ['visual', 'collision']) {
+        const verifier = win.join(directory, 'verify-' + representation);
+        file(win.join(verifier, 'job.json'), 'Independent verifier job');
+        file(win.join(verifier, 'output/verification.json.partial'), 'Independent verifier temporary report'); temporary(verifier);
+      }
+    }
+  }
+  if (selected.includes('review')) {
+    const directory = attempt('export-views'); file(win.join(directory, 'job.json'), 'Model-view job');
+    // The fixed native maxViews is 1158; zfill(3) has at most 4 digits.
+    for (const name of ['views.json', 'views.json.partial', 'view-1157.png']) file(win.join(directory, 'output', name), 'Complete model-view output');
+    temporary(directory);
+  }
+  if (settings.operation === 'doctor') temporary(attempt('doctor'));
+  const candidates = [...paths.values()];
+  return { checked: true, scope, limits: { fileCharacters: 259, directoryCharacters: 247 }, candidateCount: candidates.length,
+    issues: candidates.filter(item => item.characters > item.maximum) };
+}
+function pathUnavailable(diagnostics, withheldBlender = null) {
+  const first = diagnostics.issues[0];
+  return `Windows native path prerequisite unavailable: ${first.label} is ${first.characters} UTF-16 characters (maximum ${first.maximum}): ${first.path}. Choose a shorter project path or task/asset/version names. ${withheldBlender ? 'The explicit Blender selection was withheld; no Blender version/SDK probe was run: ' + withheldBlender + '. ' : 'No Blender version/SDK probe was run. '}${diagnostics.scope}`;
+}
+function doctorData(data, diagnostics, withheldBlender) {
+  const result = structuredClone(data), reason = pathUnavailable(diagnostics, withheldBlender);
+  if (!Array.isArray(result?.unavailable) || !Array.isArray(result?.export?.unavailable)) fail('Native doctor response does not support host prerequisite diagnostics.');
+  result.unavailable.push(reason); result.nativeReadiness = 'unverified';
+  result.export.unavailable.push(reason); result.export.nativeReadiness = 'unverified';
+  return result;
+}
 function contextFor(operation, options, info) {
   if (!Object.hasOwn(FLAGS, operation)) fail('Unsupported floor-plan operation.');
   for (const flag of options.keys()) if (!FLAGS[operation].includes(flag)) fail('Unknown or inapplicable floor-plan flag: --' + flag);
@@ -218,6 +294,46 @@ function contextFor(operation, options, info) {
     text(need('reviewer'), 'reviewer'); const evidence = inTask(need('evidence'));
     reference(evidence, 'review'); nativeOptions.set('evidence', evidence);
   }
+  let drawingNames = [], inputFiles = [];
+  if (['export', 'review', 'doctor'].includes(operation) && state?.previews?.at(-1)?.status === 'complete') {
+    const preview = state.previews.at(-1), index = runtime.projectPath(root, path.posix.join(preview.directory, 'preview-index.json'));
+    const packageIndex = json(index, preview.indexSha256);
+    if (!packageIndex.drawings || typeof packageIndex.drawings !== 'object' || Array.isArray(packageIndex.drawings) || Object.keys(packageIndex.drawings).length > 4096) fail('Invalid bounded approved drawing path inventory.');
+    drawingNames = Object.keys(packageIndex.drawings);
+    for (const name of drawingNames) {
+      runtime.syntax(name); if (name.includes('/') || name.includes('\\')) fail('Approved drawing paths must be local filenames.');
+      inputFiles.push(relative(preview.directory + '/' + name));
+    }
+  }
+  if (operation === 'review') {
+    const exportsFile = runtime.projectPath(root, path.posix.join(path.posix.dirname(manifest), 'exports.json'));
+    if (fs.existsSync(exportsFile)) {
+      const exports = json(exportsFile);
+      if (exports.schemaVersion !== 'bubo-floor-plan-export-state/v1' || exports.task !== task || exports.asset !== asset || exports.version !== version
+        || exports.designManifest !== manifest || !Array.isArray(exports.exports) || exports.exports.length > 128) fail('Invalid current export path inventory.');
+      const exported = exports.exports.at(-1);
+      if (exported?.status === 'complete') {
+        const packageDirectory = exported.directory + '/package';
+        const packagePath = relative(packageDirectory + '/package.json');
+        const sealed = json(runtime.projectPath(root, packagePath), exported.packageSha256);
+        if (sealed.schemaVersion !== 'bubo-floor-plan-export-package/v1' || !Array.isArray(sealed.files) || sealed.files.length > 2048) fail('Invalid bounded sealed native path inventory.');
+        inputFiles.push(packagePath);
+        for (const entry of sealed.files) {
+          const name = relative(packageDirectory + '/' + text(entry.path, 'sealed native input path', 512));
+          if (!runtime.within(runtime.projectPath(root, packageDirectory), runtime.projectPath(root, name))) fail('Declared native input escapes its sealed package.');
+          inputFiles.push(name);
+        }
+      }
+    }
+  }
+  const resourceNames = Object.keys(info.catalog?.files || {}).filter(name => name.startsWith('resources/floor-plan-to-model/blender/') && name.endsWith('.py'));
+  const pathDiagnostics = nativePathDiagnostics({ root, staging, asset, version, publication: info.folder, resourceNames, drawingNames, inputFiles, operation });
+  let withheldBlender = null;
+  if (pathDiagnostics.issues.length) {
+    if (operation !== 'doctor') fail(pathUnavailable(pathDiagnostics));
+    withheldBlender = options.get('blender') || null;
+    nativeOptions.delete('blender');
+  }
   const tools = [];
   function tool(value, expected) {
     value = runtime.native(text(value, 'Blender executable', 1024));
@@ -248,7 +364,7 @@ function contextFor(operation, options, info) {
     }
   }
   if (['build', 'export', 'review'].includes(operation)) need('blender');
-  if (options.has('blender')) {
+  if (nativeOptions.has('blender')) {
     const selected = tool(options.get('blender'), retainedTool?.sha256);
     if (retainedTool && !runtime.samePath(retainedTool.path, selected)) fail('Selected Blender differs from this version\'s retained construction tool.');
     nativeOptions.set('blender', selected);
@@ -262,7 +378,7 @@ function contextFor(operation, options, info) {
     policy: { pipeline: 'FLOOR_PLAN_TO_MODEL', styleSha256: sourceStyle.sha256, engine, libraries },
     references: [...references.values()], tools, budgets: envelope.budgets,
     permissions: { provisioning: false, promotion: false } };
-  return { root, task, stateRoot, context, options: nativeOptions, envelope, policyPath };
+  return { root, task, stateRoot, context, options: nativeOptions, envelope, policyPath, pathDiagnostics, withheldBlender };
 }
 function escape(value) { return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 function validateBudgets(value) {
@@ -286,7 +402,18 @@ async function invoke(operation, options, emit = true) {
     const started = performance.now(), info = runtime.verified(), admitted = performance.now();
     const prepared = contextFor(operation, options, info);
     prepared.timings = { runtimeAdmissionMilliseconds: admitted - started, hostPolicyMilliseconds: performance.now() - admitted };
-    return transport.execute('floor-plan-to-model', operation, prepared.options, prepared, info, emit);
+    if (operation !== 'doctor' || !prepared.pathDiagnostics.issues.length) return transport.execute('floor-plan-to-model', operation, prepared.options, prepared, info, emit);
+    const result = await transport.execute('floor-plan-to-model', operation, prepared.options, prepared, info, false);
+    const data = doctorData(result.data, prepared.pathDiagnostics, prepared.withheldBlender);
+    // Keep the raw native dispatch receipt unchanged. This separate task-local
+    // host receipt explains why an explicit tool was not passed to that dispatch.
+    const folder = runtime.projectPath(prepared.root, prepared.stateRoot + '/floor-plan-host-doctor');
+    fs.mkdirSync(folder, { recursive: true }); runtime.components(folder);
+    fs.writeFileSync(path.join(folder, crypto.randomUUID() + '.json'), JSON.stringify({ schemaVersion: 'hephaera-floor-plan-host-doctor/v1',
+      nativeHostContextSha256: result.hostContextSha256, selectedBlender: prepared.withheldBlender, nativeToolProbed: false,
+      diagnostics: prepared.pathDiagnostics }, null, 2) + '\n', { flag: 'wx' });
+    if (emit) console.log(JSON.stringify(data));
+    return { ...result, data };
   });
 }
 const usage = 'floor-plan-to-model.sh <init|doctor|preview|validate|build|export|review|record|status> --root PROJECT [options]\nInit: --task ID --asset ID --version ID --plan JSON --rights JSON --budget JSON [--selection TASK_JSON] [--parent-manifest JSON]\nContinue: --manifest TASK_JSON. Native build/export/review require --blender ABSOLUTE_EXISTING_EXECUTABLE; export also --author ID. Record: --kind whole-building-design|independent-model|human-model --reviewer ID --evidence TASK_JSON.\nRights: hephaera-floor-plan-rights/v1; budget: hephaera-floor-plan-budget/v1. See commands/BUBO_ARGUMENTS.md. No installation, generation, human acceptance or asset promotion is implicit.';
@@ -294,5 +421,5 @@ async function main(values) {
   if (!values.length || values.length === 1 && ['help', '--help', '-h'].includes(values[0])) { console.log(usage); return; }
   const [operation, ...args] = values; await invoke(operation, parse(args));
 }
-module.exports = { parse, requireCapability, contextFor, invoke, main, validateBudgets, json };
+module.exports = { parse, requireCapability, contextFor, invoke, main, validateBudgets, json, nativePathDiagnostics, doctorData };
 if (require.main === module) main(process.argv.slice(2)).catch(error => { console.error(error.message); process.exitCode = 1; });

@@ -8,7 +8,10 @@ const floor = require('../commands/lib/bubo-floor-plan-adapter.cjs');
 const styles = require('../commands/lib/style-contract.cjs');
 const cache = process.env.HEPHAERA_FLOOR_PLAN_TEST_CACHE || (path.basename(runtime.BASE) === '.hephaera' ? path.join(runtime.BASE, '.cache') : path.join(runtime.BASE, '.hephaera/.cache'));
 const evidence = path.join(cache, 'tasks/floor-plan-hephaera-integration/evidence/host-fixtures'); fs.mkdirSync(evidence, { recursive: true });
-const root = fs.mkdtempSync(path.join(evidence, 'p-'));
+// Keep ordinary policy cases short enough for actual Windows native-path
+// prerequisites. Deliberately long roots are separate metadata-only cases.
+const fixtureDirectory = path.join(runtime.BASE, '.local/fph'); fs.mkdirSync(fixtureDirectory, { recursive: true });
+const root = fs.mkdtempSync(path.join(fixtureDirectory, 'p-'));
 let checks = 0, skipped = 0;
 const check = (condition, message) => { assert(condition, message); checks++; };
 function rejects(action, pattern, message) { assert.throws(action, pattern, message); checks++; }
@@ -133,6 +136,52 @@ try {
 } catch (error) { if (!['EPERM', 'EACCES', 'ENOTSUP'].includes(error.code)) throw error; skipped++; }
 check(read(policyPath).equals(initialPolicy), 'Failures never rewrite the retained immutable policy');
 check(!fs.existsSync(path.join(root, 'assets')), 'No fixture path creates game assets');
+const win = path.win32;
+const script = 'resources/floor-plan-to-model/blender/export_admission.py';
+const settings = { root: 'C:\\p', staging: '.art-staging/tasks/t', asset: 'a', version: 'v', publication: 'C:\\p\\.hephaera\\runtime\\bubo\\artifacts\\bubo', resourceNames: [script], drawingNames: ['floor-ground.svg'], operation: 'export' };
+check(floor.nativePathDiagnostics(settings, 'win32').issues.length === 0, 'Short Windows fixed native paths fit');
+check(floor.nativePathDiagnostics({ ...settings, root: 'C:\\' + 'x'.repeat(1000), operation: 'preview' }, 'win32').checked === false, 'Pure design operations do not require Windows native-path readiness');
+check(floor.nativePathDiagnostics({ ...settings, root: 'C:\\' + 'x'.repeat(1000) }, 'linux').checked === false, 'Windows legacy limits are not imposed on other hosts');
+const source259 = 'C:\\' + 'p'.repeat(259 - 4 - win.normalize(script).length);
+const fileBoundary = floor.nativePathDiagnostics({ ...settings, publication: source259 }, 'win32');
+check(fileBoundary.issues.length === 0 && win.resolve(source259, script).length === 259, 'Known native filename at259 UTF16 characters fits');
+const file260 = floor.nativePathDiagnostics({ ...settings, publication: source259 + 'p' }, 'win32');
+check(file260.issues.some(item => item.kind === 'file' && item.characters === 260), 'Known native filename at260 is rejected before launch');
+const surrogate260 = floor.nativePathDiagnostics({ ...settings, publication: source259.slice(0, -1) + '\u{1f989}' }, 'win32');
+check(surrogate260.issues.some(item => item.kind === 'file' && item.characters === 260), 'Windows measurement counts UTF16 code units rather than visible glyphs');
+let firstDirectoryFailure;
+for (let count = 1; count < 240; count++) {
+  const result = floor.nativePathDiagnostics({ ...settings, root: 'C:\\' + 'p'.repeat(count), resourceNames: [] }, 'win32');
+  if (result.issues.length) { firstDirectoryFailure = { count, result }; break; }
+}
+check(firstDirectoryFailure?.result.issues.some(item => item.kind === 'directory' && item.characters === 248), 'Known Blender directory at248 is rejected');
+check(floor.nativePathDiagnostics({ ...settings, root: 'C:\\' + 'p'.repeat(firstDirectoryFailure.count - 1), resourceNames: [] }, 'win32').issues.length === 0, 'Known directory paths immediately below the248 boundary fit');
+check(floor.nativePathDiagnostics({ ...settings, drawingNames: ['x'.repeat(180) + '.svg'] }, 'win32').issues.some(item => item.label === 'Approved drawing payload'), 'Approved payload drawing names are included rather than an arbitrary root cap');
+check(floor.nativePathDiagnostics({ ...settings, operation: 'review', inputFiles: ['staged-package/drawings/' + 'x'.repeat(235) + '.svg'] }, 'win32').issues.some(item => item.label === 'Declared current native input'), 'Review includes every declared sealed input path');
+const nativeDoctor = { schemaVersion: 'synthetic-doctor-only', nativeReadiness: 'unverified', unavailable: ['explicit tool unavailable'], export: { nativeReadiness: 'unverified', unavailable: ['explicit tool unavailable'] } };
+const doctorOriginal = JSON.stringify(nativeDoctor);
+const hostDoctor = floor.doctorData(nativeDoctor, file260, 'C:\\tools\\blender.exe');
+check(JSON.stringify(nativeDoctor) === doctorOriginal, 'Host doctor augmentation preserves the raw native response');
+check(hostDoctor.nativeReadiness === 'unverified' && hostDoctor.export.nativeReadiness === 'unverified'
+  && hostDoctor.unavailable.some(item => item.includes('no Blender version/SDK probe was run'))
+  && hostDoctor.export.unavailable.some(item => item.includes('shorter project path')), 'Host doctor reports the precise limit and withheld probe honestly');
+if (process.platform === 'win32') {
+  const longRoot = fs.mkdtempSync(path.join(evidence, 'long-'));
+  for (const name of ['STYLE.md', 'MEDIA.md', 'inputs/plan.json', 'inputs/rights.json', 'inputs/budget.json', stateRoot + '/selection.json', '.hephaera/runtime/bubo/artifacts/bubo/build-info.json', planOriginal]) {
+    const destination = path.join(longRoot, name); fs.mkdirSync(path.dirname(destination), { recursive: true }); fs.writeFileSync(destination, read(name));
+  }
+  const longInfo = { ...info, folder: path.join(longRoot, '.hephaera/runtime/bubo/artifacts/bubo') };
+  const longInitial = floor.contextFor('init', options(initArgs.map(item => item === root ? longRoot : item)), longInfo);
+  const longState = { ...state, policyInputs: Object.fromEntries(longInitial.context.references.filter(item => item.kind === 'policy').map(item => [item.path, item.sha256])) };
+  fs.writeFileSync(path.join(longRoot, manifest), JSON.stringify(longState));
+  const longContinued = (operation, extra = []) => floor.contextFor(operation, options(['--root', longRoot, '--manifest', manifest, ...extra]), longInfo);
+  check(longInitial.context.tools.length === 0, 'Init remains usable at a root exceeding native output limits');
+  for (const operation of ['preview', 'validate']) check(longContinued(operation).context.tools.length === 0, operation + ' remains usable at a long project root');
+  const unavailableDoctor = longContinued('doctor', ['--blender', process.execPath]);
+  check(unavailableDoctor.pathDiagnostics.issues.length > 0 && unavailableDoctor.withheldBlender === process.execPath
+    && !unavailableDoctor.options.has('blender') && unavailableDoctor.context.tools.length === 0, 'Long-root doctor withholds the selected native probe without adopting or executing it');
+  for (const operation of ['build', 'export', 'review']) rejects(() => longContinued(operation, ['--blender', process.execPath, ...(operation === 'export' ? ['--author', 'synthetic-author'] : [])]), /shorter project path or task\/asset\/version names/, operation + ' fails its known long native paths before a child launch');
+}
 const result = { status: 'passed', assertions: checks, skipped, root, nativeExecution: false, humanAcceptance: false, scope: 'Real host policy/selection/capability/ownership/freshness admission with explicitly synthetic native metadata.' };
 fs.writeFileSync(path.join(evidence, 'latest.json'), JSON.stringify(result, null, 2) + '\n');
 console.log('PASS:', checks, 'floor-plan host assertions;', skipped, 'unavailable link fixture(s).');
