@@ -232,7 +232,12 @@ function contextFor(operation, options, info) {
     return file;
   }
   let retainedTool = null;
-  if (state) {
+  // Pure design operations and prerequisite inspection do not consume an old
+  // construction. Doctor registers only an explicitly supplied diagnostic tool;
+  // it never adopts that tool as the retained construction identity.
+  const usesConstruction = ['build', 'export', 'review', 'status'].includes(operation)
+    || operation === 'record' && options.get('kind') !== 'whole-building-design';
+  if (state && usesConstruction) {
     const constructionFile = runtime.projectPath(root, path.posix.join(path.posix.dirname(manifest), 'construction.json'));
     if (fs.existsSync(constructionFile)) {
       const construction = json(constructionFile);

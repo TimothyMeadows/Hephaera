@@ -6,7 +6,6 @@ runs owned procedural fixtures through construction, export and complete views.
 """
 from pathlib import Path
 import argparse
-import datetime
 import hashlib
 import json
 import os
@@ -25,7 +24,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--evidence', type=Path, required=True)
     parser.add_argument('--blender', type=Path)
+    parser.add_argument('--native-form', choices=['clone', 'submodule'], default='clone')
+    parser.add_argument('--case', action='append', choices=['single-storey', 'multi-storey', 'angled-courtyard'])
     args = parser.parse_args()
+    if args.case and not args.blender:
+        parser.error('--case requires an explicitly selected --blender')
     evidence = args.evidence.resolve(strict=True)
     fixtures = BASE/'.local/fpi'
     fixtures.mkdir(parents=True, exist_ok=True)
@@ -57,7 +60,7 @@ def main():
 
     def save(status):
         summary = json.dumps({'status': status, 'checks': checks, 'forms': forms,
-            'baselineHead': git(BASE, 'rev-parse', 'HEAD'),
+            'baselineHead': git(BASE, 'rev-parse', 'HEAD'), 'nativeForm': args.native_form,
             'fixture': str(run), 'scope': 'Real pinned native dispatch and optional actual Blender; design decisions are synthetic QA only, no human/model/engine acceptance or promotion.'}, indent=2)+'\n'
         (run/'SUMMARY.json').write_text(summary)
         (evidence/('installed-'+run.name+'-SUMMARY.json')).write_text(summary)
@@ -103,10 +106,10 @@ def main():
                     return result
                 return json.loads(result.stdout)
 
-            cases = ['single-storey', 'multi-storey', 'angled-courtyard'] if args.blender and form == 'clone' else ['single-storey']
+            cases = (args.case or ['single-storey', 'multi-storey', 'angled-courtyard']) if args.blender and form == args.native_form else ['single-storey']
             forms[form] = {'host': str(host), 'cases': {}}
-            for index, name in enumerate(cases):
-                asset = ['single', 'multi', 'court'][index]
+            for name in cases:
+                asset = {'single-storey': 'single', 'multi-storey': 'multi', 'angled-courtyard': 'court'}[name]
                 plan = json.loads((dependency/'resources/floor-plan-to-model/examples-v2'/f'{name}.json').read_bytes())
                 plan['styleSha256'] = style_hash
                 plan['budgets']['maxGeometryChecks'] = 4000000
@@ -131,7 +134,7 @@ def main():
                 rights.write_bytes(saved)
                 item = {'manifest': manifest, 'preview': preview}
                 forms[form]['cases'][name] = item
-                if args.blender and form == 'clone':
+                if args.blender and form == args.native_form:
                     review = {'schemaVersion': 'bubo-floor-plan-review/v1', 'kind': 'whole-building-design', 'decision': 'approved',
                         'reviewer': 'synthetic-qa-design-reviewer', 'human': True,
                         'asset': asset, 'version': 'v1', 'planSha256': preview['planSha256'],
@@ -145,7 +148,9 @@ def main():
                     item['export'] = invoke('export', '--manifest', manifest, '--blender', args.blender, '--author', 'synthetic-qa-model-author')
                     item['review'] = invoke('review', '--manifest', manifest, '--blender', args.blender)
                     item['status'] = invoke('status', '--manifest', manifest)
-                    check(item['status']['export']['currentExportValid'], form+'/'+name+': verified portable export remains current')
+                    final = item['status']['export']
+                    check(final['currentExportValid'] and final['currentViewsValid'], form+'/'+name+': verified portable export and complete views remain current')
+                    check(not final['independentModelReviewed'] and not final['humanModelAccepted'] and not final['runtimeAcceptance'], form+'/'+name+': technical output grants no model or runtime acceptance')
                 check(sha(style) == style_hash, form+'/'+name+': workflow preserves STYLE')
                 check(not (host/'assets').exists(), form+'/'+name+': no game asset promotion')
                 save('in-progress')

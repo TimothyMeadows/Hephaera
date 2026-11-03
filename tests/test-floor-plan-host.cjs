@@ -106,7 +106,21 @@ write(constructionFile, construction);
 prepared = continued();
 check(prepared.context.tools.length === 1 && prepared.context.tools[0].path === blender, 'Continuation retains the construction tool without ambient discovery');
 check(continued('export', ['--blender', blender, '--author', 'synthetic-author']).options.get('blender') === blender, 'Explicit current tool and author reach native export');
+const modelReview = kind => continued('record', ['--kind', kind, '--reviewer', 'synthetic-reviewer', '--evidence', stateRoot + '/review.json']);
+const toolBytes = read('tools/blender-fixture.bin');
+fs.unlinkSync(blender);
+try {
+  for (const operation of ['preview', 'validate', 'doctor']) {
+    const designOnly = continued(operation);
+    check(designOnly.context.tools.length === 0 && !designOnly.options.has('blender'), operation + ' remains usable without the former construction tool');
+  }
+  check(modelReview('whole-building-design').context.tools.length === 0, 'Whole-building design recording does not require a former modeling tool');
+  rejects(() => continued(), /ENOENT/, 'Current model status still requires the retained actual tool');
+  for (const kind of ['independent-model', 'human-model']) rejects(() => modelReview(kind), /ENOENT/, kind + ' still requires the retained actual tool');
+  rejects(() => continued('export', ['--blender', blender, '--author', 'synthetic-author']), /ENOENT/, 'Export cannot replace a missing retained tool implicitly');
+} finally { write('tools/blender-fixture.bin', toolBytes); }
 mutate('tools/blender-fixture.bin', 'Changed exact tool identity', continued, /Retained Blender/);
+for (const kind of ['independent-model', 'human-model']) mutate('tools/blender-fixture.bin', 'Changed exact tool identity', () => modelReview(kind), /Retained Blender/);
 write('tools/other-fixture.bin', read('tools/blender-fixture.bin'));
 rejects(() => continued('build', ['--blender', path.join(root, 'tools/other-fixture.bin')]), /differs/, 'Same bytes at another tool path are not silently adopted');
 rejects(() => continued('build', ['--blender', 'blender']), /absolute/, 'No PATH-based tool fallback');
