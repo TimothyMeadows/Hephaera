@@ -93,9 +93,11 @@ def main():
     def save(status):
         value = {'status': status, 'checks': checks, 'forms': forms, 'baselineHead': source_head,
             'selectedNativeRoot': str(native_root), 'fixture': str(run),
-            'scope': 'Actual committed clone/submodule shell wrapper and pinned native envelope inspection. '
+            'sourceHashes': {name: sha(BASE / name) for name in ['tests/test-vfx-installed.py', 'tests/vfx-fixture.cjs',
+                'commands/lib/vfx-assets.cjs', 'commands/lib/bubo-vfx-adapter.cjs', 'runtime/bubo.lock.json']},
+            'scope': 'Actual committed clone/submodule shell wrapper, pinned native inspection and fixed PNG preparation/verification. '
                      'Synthetic captures/review decisions test protocol binding only; no real visual quality, '
-                     'human/runtime acceptance, resource decoding, rendering, generation or promotion.'}
+                     'human/runtime acceptance, rendering, generation or promotion.'}
         write_json(run / 'SUMMARY.json', value)
         write_json(evidence / ('vfx-installed-' + run.name + '-SUMMARY.json'), value)
 
@@ -125,7 +127,7 @@ def main():
     try:
         source_head = git(BASE, 'rev-parse', 'HEAD')
         check(not git(BASE, 'status', '--porcelain', '--untracked-files=no', environment=source_env), 'tracked source and native dependency are clean before acquisition')
-        for name in ['test-vfx-installed.py', 'test-vfx-assets.cjs', 'vfx-fixture.cjs']:
+        for name in ['test-vfx-installed.py', 'test-vfx-assets.cjs', 'test-vfx-threejs-runtime.mjs', 'vfx-fixture.cjs']:
             committed = command(['git', 'show', source_head + ':tests/' + name]).stdout
             check(committed.replace('\r\n', '\n') == (BASE / 'tests' / name).read_text(encoding='utf-8'), 'executing test source is committed: ' + name)
         check(git(BASE, 'ls-tree', source_head, '--', 'commands/vfx-assets.sh').split()[0] == '100755', 'public VFX shell wrapper is committed executable')
@@ -326,6 +328,104 @@ def main():
             contexts = list((host / '.hephaera/.cache/tasks/qa/bubo-host').glob('*/host-context.json'))
             check(bool(contexts) and all(not json.loads(file.read_bytes())['tools'] and 'media' not in json.loads(file.read_bytes())['policy']
                 and not any(ref['path'] in ['MEDIA.md', 'AUDIO.md'] for ref in json.loads(file.read_bytes())['references']) for file in contexts), form + ': actual native contexts isolate tools and unrelated media domains')
+
+            # Actual native decoding and portable atlas ancestry through the
+            # public installed wrapper, separately from the old v1 scenarios.
+            legacy_manifest = manifest
+            prepared_records = []
+            for preparation_key in ['preparation', 'sheetPreparation']:
+                source = data[preparation_key]
+                prepared_init = invoke('init', *init_flags(**{'--asset': source['asset']}))
+                manifest = prepared_init['manifest']
+                invoke('prepare', '--manifest', manifest, '--phase', 'detailed', '--request', source['requestPath'], expected='provisional|accept')
+                check(status()['phases']['detailed']['attempts'] == 0, form + ': detailed preparation gate runs before candidate reservation')
+                provisional = invoke('stage', '--manifest', manifest, '--phase', 'provisional', '--package', source['provisionalPackagePath'], '--visual', data['visual'])
+                record(provisional, name=source['asset'] + '-provisional')
+                prepared = invoke('prepare', '--manifest', manifest, '--phase', 'detailed', '--request', source['requestPath'])
+                check(sha(host / prepared['preparation']['path']) == prepared['preparation']['sha256']
+                    and sha(host / prepared['nativePreparation']['path']) == prepared['nativePreparation']['sha256'], form + ': host preparation and actual native seal have exact file identities')
+                prepared_package = host / prepared['package']['path']
+                declaration = json.loads(prepared_package.read_bytes())
+                atlas = declaration['atlases'][0]
+                check(declaration['schemaVersion'] == 'bubo-vfx-package/v2' and len(declaration['resources']) == 1
+                    and atlas['width'] == 18 and atlas['height'] == 7 and atlas['padding'] == 1 and atlas['extrusion'] == 1,
+                    form + ': actual native preparation builds bounded padded non-square portable atlas')
+                check(atlas['rateNumerator'] == 30000 and atlas['rateDenominator'] == 1001
+                    and atlas['durationNumerator'] == 1001 and atlas['durationDenominator'] == 10000
+                    and atlas['loop'] == source['request']['timing']['loop'], form + ': native atlas preserves exact rational frame duration and loop policy')
+                check([frame['sourceFrame'] for frame in atlas['frames']] == ([2, 0, 1] if preparation_key == 'sheetPreparation' else [0, 1, 2]),
+                    form + ': native sequence/sheet selection preserves original source frame order')
+                atlas_file = prepared_package.parent / declaration['resources'][0]['path']
+                actual_pixels = json.loads(command(['node', baseline / 'tests/vfx-fixture.cjs', 'pixels', atlas_file], cwd=host).stdout)
+                source_pixels = [json.loads(command(['node', baseline / 'tests/vfx-fixture.cjs', 'pixels', host / item['path']], cwd=host).stdout)
+                    for item in source['sources']]
+                for frame_index, frame in enumerate(atlas['frames']):
+                    original = source_pixels[0] if preparation_key == 'sheetPreparation' else source_pixels[frame_index]
+                    source_x = frame['sourceFrame'] * 3 if preparation_key == 'sheetPreparation' else 0
+                    for y in range(-1, 4):
+                        for x in range(-1, 3):
+                            actual_offset = ((frame['y'] + y) * actual_pixels['width'] + frame['x'] + x) * 4
+                            original_offset = (min(2, max(0, y)) * original['width'] + source_x + min(1, max(0, x))) * 4
+                            assert actual_pixels['pixels'][actual_offset:actual_offset + 4] == original['pixels'][original_offset:original_offset + 4], 'native decoded pixels/alpha/extrusion differ from independent original source decoder'
+                check(True, form + ': every decoded RGBA pixel and edge extrusion matches independent owned source fixtures')
+                invoke('stage', '--manifest', manifest, '--phase', 'detailed', '--package', prepared['package']['path'], '--visual', data['visual'], expected='rights|derived|preparation|source')
+                # The missing-receipt attempt is spent, and the original native
+                # reservation remains usable only through its exact receipt.
+                detailed = invoke('stage', '--manifest', manifest, '--phase', 'detailed', '--package', prepared['package']['path'], '--preparation', prepared['preparation']['path'], '--visual', data['visual'])
+                record(detailed, phase='detailed', name=source['asset'] + '-detailed')
+                current = status()
+                check(current['phases']['detailed']['accepted'] and current['phases']['detailed']['attempts'] == 2
+                    and current['humanRuntimeAcceptance'] is False and current['promotionAvailable'] is False,
+                    form + ': native preparation and detail retain exact consumed candidates with separate runtime/promotion gates')
+                for file in [source['requestPath'], *[item['path'] for item in source['sources']], prepared['preparation']['path'],
+                             prepared['nativePreparation']['path'], prepared['package']['path'], atlas_file.relative_to(host).as_posix(),
+                             'inputs/camera.json', 'inputs/captures/start.png', 'inputs/reviews/' + source['asset'] + '-provisional-notes.txt',
+                             'inputs/reviews/' + source['asset'] + '-detailed.json', '.hephaera/.engine/threejs/particles/three-vfx-runtime.mjs',
+                             '.hephaera/.engine/threejs/particles/vfx-package.mjs', '.hephaera/commands/lib/bubo-vfx-adapter.cjs']:
+                    mutate_and_reject(host / file)
+                invoke('prepare', '--manifest', manifest, '--phase', 'detailed', '--request', source['requestPath'], expected='sealed|immutable|already|attempt|candidate')
+                prepared_records.append({'manifest': manifest, 'preparation': prepared, 'detailed': detailed})
+            forms[form]['preparations'] = prepared_records
+            source = data['composedPreparation']
+            manifest = invoke('init', *init_flags(**{'--asset': source['asset']}))['manifest']
+            provisional = invoke('stage', '--manifest', manifest, '--phase', 'provisional', '--package', source['provisionalPackagePath'], '--visual', data['visual'])
+            record(provisional, name='composition-provisional')
+            prepared = invoke('prepare', '--manifest', manifest, '--phase', 'detailed', '--request', source['requestPath'])
+            declaration = json.loads((host / prepared['package']['path']).read_bytes())
+            composition_dir = host / 'inputs/composed-result'
+            composition_dir.mkdir()
+            for resource in declaration['resources']:
+                target = composition_dir / resource['path']
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile((host / prepared['package']['path']).parent / resource['path'], target)
+            declaration['effects'].append({'id': 'cast', 'durationSeconds': .5, 'layers': [{'id': 'burst', 'kind': 'burst',
+                'startSeconds': 0, 'durationSeconds': .5, 'resourceIds': ['atlas'], 'maxParticles': 4,
+                'maxVertices': 16, 'maxDrawCalls': 1, 'maxTrailPoints': 0}]})
+            declaration['atlases'][0]['bindings'].append({'effectId': 'cast', 'layerId': 'burst'})
+            declaration['budgets'].update(maxEffects=2, maxLayers=2, maxParticles=8, maxVertices=64, maxDrawCalls=4,
+                maxTrailPoints=16, maxDurationSeconds=4)
+            composition_file = composition_dir / 'package.json'
+            write_json(composition_file, declaration)
+            profile = {'schemaVersion': 'hephaera-three-vfx-profile/v1', 'nativePackageSha256': sha(composition_file),
+                'preparationSha256': prepared['nativePreparation']['sha256'],
+                'budgets': {'maxSystems': 4, 'maxParticles': 32, 'maxTrailPoints': 16, 'maxVertices': 128, 'maxIndices': 256,
+                    'maxDrawCalls': 4, 'maxTextureBytes': 1024, 'maxBufferBytes': 4000000, 'maxDurationSeconds': 4, 'maxUpdateSeconds': .1},
+                'layers': [{'effectId': 'cast', 'layerId': 'burst', 'family': 'burst',
+                    'emission': {'kind': 'burst', 'capacity': 4, 'count': 3, 'rate': 0, 'lifetimeSeconds': .2, 'durationSeconds': .3},
+                    'size': .3, 'speed': 0, 'color': [1, .5, .25, .8], 'space': 'world', 'maxTailSeconds': .2, 'resourceId': 'atlas'}]}
+            profile_file = host / 'inputs/composed-profile.json'
+            write_json(profile_file, profile)
+            invoke('stage', '--manifest', manifest, '--phase', 'detailed', '--package', composition_file.relative_to(host).as_posix(),
+                '--production', profile_file.relative_to(host).as_posix(), '--visual', data['visual'], expected='preparation|identity|mismatch')
+            detailed = invoke('stage', '--manifest', manifest, '--phase', 'detailed', '--package', composition_file.relative_to(host).as_posix(),
+                '--preparation', prepared['preparation']['path'], '--production', profile_file.relative_to(host).as_posix(), '--visual', data['visual'])
+            record(detailed, phase='detailed', name='composition-detailed')
+            check(status()['phases']['detailed']['accepted'] and status()['phases']['detailed']['attempts'] == 2,
+                form + ': explicit within-brief native composition expands one-particle preparation through exact reviewed production profile')
+            for file in [profile_file, composition_file, composition_dir / 'atlas.png']:
+                mutate_and_reject(file)
+            forms[form]['composition'] = {'manifest': manifest, 'preparation': prepared, 'production': profile_file.relative_to(host).as_posix(), 'detailed': detailed}
+            manifest = legacy_manifest
             # Interrupt an actual independently owned wrapper after native
             # source inspection and real payload copying. Retain its lock,
             # attempt and reservations, then recover only through the CLI.
@@ -411,6 +511,71 @@ def main():
             forms[form]['interruption'] = {'manifest': interruption_manifest, 'ownedPids': sorted(owned_pids),
                 'beforeRecovery': interrupted_status, 'recovery': recovered, 'afterRecovery': recovered_status,
                 'retainedPayload': copied_inventory, 'continuedManifest': continued['manifest']}
+            # Interrupt the new real native processing boundary as well. The
+            # owned 16MP mask has finite256MiB allocation/15second limits, and
+            # supplies an observable native-start window without a provider.
+            source = data['interruptedPreparation']
+            prepared_init = invoke('init', *init_flags(**{'--asset': source['asset']}))
+            native_manifest = prepared_init['manifest']
+            native_state = host / Path(native_manifest).parent
+            native_asset = native_state.parent
+            native_staging = host / prepared_init['staging'] / 'attempts'
+            argv = [bash, (baseline / 'commands/vfx-assets.sh').as_posix(), 'prepare', '--root', host.as_posix(),
+                '--manifest', native_manifest, '--phase', 'provisional', '--request', source['requestPath']]
+            process = subprocess.Popen(argv, cwd=host, env=host_env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                text=True, encoding='utf-8', **process_options)
+            owned_pids = {process.pid}
+            stopped = False
+            native_attempt = None
+            try:
+                deadline = time.monotonic() + 60
+                while time.monotonic() < deadline:
+                    starts = list(native_staging.glob('provisional-*/native/started.json'))
+                    if starts:
+                        native_attempt = starts[0].parent.parent
+                        child = json.loads((native_attempt / 'native-process/child.json').read_bytes())
+                        check(isinstance(child['pid'], int) and child['pid'] > 0, form + ': actual preparation records positive owned native PID before interruption')
+                        owned_pids.add(child['pid'])
+                        stop_owned()
+                        stopped = True
+                        break
+                    assert process.poll() is None, 'Native preparation completed before its bounded interruption window'
+                    time.sleep(.005)
+                assert stopped, 'Native preparation did not reach its owned start receipt within60seconds'
+            finally:
+                if not stopped and process.poll() is None:
+                    stop_owned()
+                stdout, stderr = process.communicate(timeout=20)
+                record = {'command': argv, 'cwd': str(host), 'pid': process.pid,
+                    'exitCode': process.returncode, 'stdout': stdout, 'stderr': stderr}
+                calls.append(record)
+                write_json(run / f'call-{len(calls):04d}.json', record)
+            deadline = time.monotonic() + 10
+            while any(process_active(pid) for pid in owned_pids) and time.monotonic() < deadline:
+                time.sleep(.02)
+            check(process.returncode != 0 and not any(process_active(pid) for pid in owned_pids), form + ': interrupted wrapper and recorded native descendants are actually absent according to OS')
+            partial_inventory = {file.relative_to(host).as_posix(): sha(file) for file in native_staging.rglob('*') if file.is_file()}
+            check(partial_inventory and not (native_attempt / 'native/preparation.json').exists()
+                and not list(native_staging.glob('*/review-packet.json')), form + ': actual interrupted native output retains start/request residue and acquires no preparation/review seal')
+            interrupted_native = invoke('status', '--manifest', native_manifest)
+            check(interrupted_native['ownership']['state'] == 'abandoned' and interrupted_native['phases']['provisional']['attempts'] == 1
+                and interrupted_native['nativeProcesses'][0]['state'] == 'retired' and interrupted_native['nativeProcesses'][0]['proof'] == 'ESRCH',
+                form + ': actual dead native child proof remains distinct from parent ownership and consumed candidate')
+            reservations = {file.name: sha(file) for file in (native_asset / '.history').glob('*.json')}
+            recovered_native = invoke('recover', '--manifest', native_manifest)
+            check(recovered_native['processes']['childCleanup'] == 'tracked-native-preparation-retirement-proven'
+                and recovered_native['processes']['processTermination'] is False
+                and recovered_native['processes']['nativeChildren'][0]['proof'] == 'ESRCH', form + ': public native recovery binds proven child retirement without claiming to terminate it')
+            check(reservations == {file.name: sha(file) for file in (native_asset / '.history').glob('*.json')}
+                and partial_inventory == {file.relative_to(host).as_posix(): sha(file) for file in native_staging.rglob('*') if file.is_file()},
+                form + ': native recovery retains every partial byte and exact candidate reservation')
+            invoke('prepare', '--manifest', native_manifest, '--phase', 'provisional', '--request', source['requestPath'], expected='claim|exist|reservation|version|native|failed')
+            retried_native = invoke('status', '--manifest', native_manifest)
+            check(retried_native['phases']['provisional']['attempts'] == 2 and not retried_native['phases']['provisional']['accepted']
+                and all(sha(host / file) == digest for file, digest in partial_inventory.items()),
+                form + ': new output cannot reset permanent interrupted native version claim or discard original bytes')
+            forms[form]['nativeInterruption'] = {'manifest': native_manifest, 'ownedPids': sorted(owned_pids),
+                'beforeRecovery': interrupted_native, 'recovery': recovered_native, 'afterRetry': retried_native, 'retainedPayload': partial_inventory}
             check(not git(baseline, 'status', '--porcelain', '--untracked-files=no'), form + ': installed tracked baseline and native source remain clean')
             save('in-progress')
         save('passed')

@@ -8,7 +8,7 @@ Start with inexpensive provisional work. Review its placement, timing and readab
 
 `vfx-assets.sh` manages briefs, rights, immutable versions, staging and independent reviews. Bubo validates data-only effect packages and their exact PNG/GLB dependency inventory. The host and native runtime remain separate: Hephaera owns production policy and reviews; Bubo owns package/resource validation.
 
-This delivery admits **owned or licensed fixed inputs**. It does not prepare atlases, render effects, integrate reusable packages into actions or promote assets. Generated-receipt admission is explicitly unavailable. Existing image generation remains governed by STYLE, MEDIA, its provider permissions and shared attempt ledger. A new VFX version grants no generation allowance.
+This workflow admits **owned or licensed fixed inputs**, prepares native atlases and masks, and provides a bounded Three.js presentation bridge. Reusable-package action scheduling and asset promotion are separate deliveries. Generated-receipt admission is explicitly unavailable. Existing image generation remains governed by STYLE, MEDIA, its provider permissions and shared attempt ledger. A new VFX version grants no generation allowance.
 
 Run the prerequisite check first:
 
@@ -16,7 +16,7 @@ Run the prerequisite check first:
 ./.hephaera/commands/vfx-assets.sh doctor
 ```
 
-The check reports actual availability. STYLE and an explicit ENGINE contract are needed for package admission. It never creates contracts, installs tools or selects another engine or primary visual pipeline. Rendering readiness remains unverified for every engine in this delivery. Existing MODEL_TO_ACTION v1 continues using its original cues.
+The check reports actual availability. STYLE and an explicit ENGINE contract are needed for package admission. It never creates contracts, installs tools or selects another engine or primary visual pipeline. Staging does not load a renderer or establish rendering readiness. Three.js production requires the exact dependencies, bounded resource bindings and current real-renderer review described in [Three.js VFX](THREEJS_VFX.md); other engine bridges remain unavailable. Existing MODEL_TO_ACTION v1 continues using its original cues.
 
 ## Start an asset
 
@@ -104,3 +104,13 @@ Brief presentation fields are `camera`, `viewDistanceMetres`, `modelRelativeSize
 Bindings use `{kind, path, sha256}` for `model`, `rig`, `clip`, `marker` or `transform`. File references use `{path, sha256}`. Visual environment contains `backend`, `driver`, `renderer`, hash-bound `scene`, `camera`, `settings` and `dependencies: [{role, path, sha256}]` covering backend, driver and renderer source identities. Visual artifacts use `{path, sha256, coverage}`; their union must cover the brief's requested coverage.
 
 Capture files stay local unless publication is separately authorized. Never upload game captures to an image service as part of asking for review. Container checks, file hashes and synthetic test packets establish no artistic quality, decoded-content validity, browser/MAUI performance or human acceptance.
+
+## Native preparation and Three.js presentation
+
+Use `prepare --manifest ... --phase ... --request ...` for bounded owned/licensed sheets, exact PNG sequences or typed masks. It reserves one phase candidate before work. `stage --preparation HOST_RECEIPT` resumes that candidate once, preserving original rights and exact native seal/resource ancestry; failed or interrupted attempts cannot be replayed or reset. `verify --manifest ...` re-verifies the current native preparation alongside the phase.
+
+An optional `stage --production PROFILE` seals a data-only `hephaera-three-vfx-profile/v1` bound to the exact composed package/native preparation hashes. Every prepared resource and nonbinding atlas field stays exact; additional resources need direct original rights. New layers/capacities need explicit native declarations within the original brief. Keep composition outside the sealed native payload. See [Three.js VFX](THREEJS_VFX.md) for resource correspondence, nine bounded layer families, actual batch limits, shared scene leases and the review attachment.
+
+Preparation records launch intent, actual native PID and close evidence. Recovery refuses a live or unknown child; a missing PID is not proof that nothing launched. Managed installer readers remain fenced after parent death until separate explicit quiescence recovery. No VFX recovery clears an installer lease or supplies that confirmation.
+
+Pure data staging does not import renderer packages and reports renderer readiness unverified. Actual selected-engine construction fails when prerequisites are absent, without installation or fallback. Keep complete real captures and source/dependency correspondence in independent review evidence; human acceptance and promotion remain separate.

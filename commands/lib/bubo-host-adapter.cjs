@@ -205,10 +205,15 @@ async function invokeOwned(workflow, operation, options) {
   prepared.timings = { runtimeAdmissionMilliseconds: admitted - started, hostPolicyMilliseconds: performance.now() - admitted };
   return execute(workflow, operation, options, prepared, info);
 }
-async function execute(workflow, operation, options, prepared, info, emit = true) {
-  return require('./installation-maintenance.cjs').run(prepared.root, () => executeOwned(workflow, operation, options, prepared, info, emit));
+async function execute(workflow, operation, options, prepared, info, emit = true, lifecycle) {
+  // Trusted compiled callers may persist ownership. Hooks are never accepted
+  // through recipe JSON, CLI options or the native execution contract.
+  if (lifecycle !== undefined && (!lifecycle || typeof lifecycle !== 'object' || Array.isArray(lifecycle)
+      || Object.keys(lifecycle).some(key => !['beforeLaunch', 'spawned', 'closed'].includes(key) || typeof lifecycle[key] !== 'function')))
+    fail('Native lifecycle hooks require a fixed compiled caller.');
+  return require('./installation-maintenance.cjs').run(prepared.root, () => executeOwned(workflow, operation, options, prepared, info, emit, lifecycle));
 }
-async function executeOwned(workflow, operation, options, prepared, info, emit = true) {
+async function executeOwned(workflow, operation, options, prepared, info, emit = true, lifecycle) {
   const readOnlyInspection=workflow==='blender-inspection'&&operation==='inspect'&&prepared.context?.policy?.purpose==='read-only-blender-inspection';
   if(!readOnlyInspection)transition.assertProductionAllowed(prepared.root,workflow+' '+operation);
   const folder = runtime.projectPath(prepared.root, prepared.stateRoot + '/bubo-host/' + crypto.randomUUID());
@@ -218,7 +223,28 @@ async function executeOwned(workflow, operation, options, prepared, info, emit =
   const args = [workflow, operation, '--api-version', '2', '--host-context', contextFile];
   for (const [name, value] of options) args.push('--' + name, value);
   const executionStarted = performance.now();
-  const child = cp.spawn(info.executable, args, { cwd: prepared.root, windowsHide: true, stdio: ['ignore', 'pipe', 'inherit'] });
+  const ownership = Object.freeze({ workflow, operation, hostPid: process.pid,
+    contextFile: path.relative(prepared.root, contextFile).split(path.sep).join('/'),
+    hostContextSha256: runtime.hash(contextFile),
+    folder: path.relative(prepared.root, folder).split(path.sep).join('/'), executable: info.executable });
+  const notify = (name, detail) => {
+    const result = lifecycle?.[name]?.(Object.freeze({ ...ownership, ...detail }));
+    if (result && typeof result.then === 'function') fail('Native ownership persistence hooks must be synchronous.');
+  };
+  // There is necessarily a launch/PID-record window. An interrupted caller
+  // must preserve an incomplete intent and report unknown ownership, never
+  // infer child retirement from the parent's death.
+  notify('beforeLaunch', {});
+  let child;
+  try { child = cp.spawn(info.executable, args, { cwd: prepared.root, windowsHide: true, stdio: ['ignore', 'pipe', 'inherit'] }); }
+  catch (error) { notify('closed', { pid: null, status: null, signal: null, error: String(error.message), spawned: false, launchState: 'spawn-failed' }); throw error; }
+  let spawnError, sawSpawn = false;
+  const pidKnown = () => Number.isSafeInteger(child.pid) && child.pid > 0;
+  child.once('spawn', () => { sawSpawn = true; });
+  const retired = new Promise(resolve => {
+    child.once('error', error => { spawnError = error; });
+    child.once('close', (status, signal) => resolve({ status, signal }));
+  });
   let text = '', overflow = false;
   child.stdout.setEncoding('utf8'); child.stdout.on('data', chunk => { text += chunk; if (Buffer.byteLength(text) > 8 * 1024 * 1024) { overflow = true; child.kill(); } });
   // SIGINT reaches Bubo's managed cancellation handler on Linux, allowing it
@@ -226,8 +252,20 @@ async function executeOwned(workflow, operation, options, prepared, info, emit =
   const cancel = () => child.kill(process.platform === 'win32' ? 'SIGTERM' : 'SIGINT');
   process.once('SIGINT', cancel); process.once('SIGTERM', cancel);
   const timeout = setTimeout(cancel, (prepared.context.budgets.timeoutSeconds + 60) * 1000);
-  let status;
-  try { status = await new Promise((resolve, reject) => { child.once('error', reject); child.once('close', code => resolve(code)); }); }
+  let status, closed;
+  try {
+    try { if (pidKnown()) notify('spawned', { pid: child.pid, launchState: 'started' }); }
+    catch (error) {
+      cancel(); closed = await retired;
+      notify('closed', { pid: child.pid ?? null, status: closed.status, signal: closed.signal, error: String(error.message), spawned: pidKnown() || sawSpawn, launchState: pidKnown() ? 'started' : 'unknown' });
+      throw error;
+    }
+    closed = await retired; status = closed.status;
+    const launchState = pidKnown() ? 'started' : spawnError && !sawSpawn ? 'spawn-failed' : 'unknown';
+    notify('closed', { pid: child.pid ?? null, status, signal: closed.signal, error: spawnError ? String(spawnError.message) : null, spawned: pidKnown() || sawSpawn, launchState });
+    if (spawnError) throw spawnError;
+    if (!pidKnown()) fail('Native child PID was not observed; preserve unknown ownership and retained launch intent.');
+  }
   finally { clearTimeout(timeout); process.removeListener('SIGINT', cancel); process.removeListener('SIGTERM', cancel); }
   if (overflow) fail('Bubo result exceeded the bounded host buffer.');
   let result; try { result = JSON.parse(text); } catch { fail('Bubo did not return one valid machine-readable result.'); }

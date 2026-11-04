@@ -1,6 +1,15 @@
 // Independently authored bounded starter integration; host supplies locked libraries.
 export const VERIFIED_VERSIONS = Object.freeze({three: '0.182.0', threeQuarks: '0.17.1', quarksCore: '0.17.1'});
 const owners = new WeakMap();
+const internals = new WeakMap();
+// Integration boundary for the fixed production adapter in three-vfx-runtime.mjs.
+// This is cooperative ownership, not a security boundary against host JavaScript.
+export function acquireThreeQuarksProductionOwner(owner) {
+  const internal = internals.get(owner);
+  if (!internal) fail('A live scene-owned Quarks runtime is required.');
+  return internal;
+}
+export function getThreeQuarksRuntime(scene) { return owners.get(scene) ?? null; }
 const fail = message => { throw new Error(message); };
 const finite = (value, low, high, name) => {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < low || value > high) fail(`${name} must be finite within ${low}..${high}.`);
@@ -48,7 +57,7 @@ function recipe(input, maxDelta, maxParticles) {
 }
 
 /** Scene-owned WebGL starter. No scheduler, package loader or gameplay callbacks. */
-export function createThreeQuarksRuntime({THREE, Quarks, scene, renderer, engineSelection, maxSystems = 32, maxParticles = 65536, maxDelta = .1} = {}) {
+export function createThreeQuarksRuntime({THREE, Quarks, scene, renderer, engineSelection, maxSystems = 32, maxParticles = 65536, maxDelta = .1, maxBufferBytes = 67108864, maxVertices = 1048576, maxIndices = 3145728, maxDrawCalls = 128, maxTrailPoints = 65536, maxTextureBytes = 67108864, maxDurationSeconds = 3600} = {}) {
   if (engineSelection?.effectiveEngine !== 'THREEJS' || engineSelection?.particles?.package !== 'three.quarks') fail('Resolve THREEJS with its selected three.quarks capability first.');
   if (!THREE || !/^\d+$/.test(String(THREE.REVISION)) || Number(THREE.REVISION) < 182) fail('The verified Quarks package requires Three.js r182 or newer.');
   for (const key of ['BatchedRenderer', 'ParticleSystem', 'ConstantValue', 'ConstantColor', 'PointEmitter', 'SphereEmitter']) if (typeof Quarks?.[key] !== 'function') fail(`Missing Quarks API ${key}; verify the installed package pair.`);
@@ -56,6 +65,8 @@ export function createThreeQuarksRuntime({THREE, Quarks, scene, renderer, engine
   if (!scene?.isScene || scene.type !== 'Scene' || typeof scene.add !== 'function' || typeof scene.updateMatrixWorld !== 'function') fail('An actual Three.js Scene is required.');
   if (renderer?.isWebGLRenderer !== true || renderer?.isWebGPURenderer === true) fail('This particle integration requires WebGLRenderer; WebGPU is not selected or substituted.');
   integer(maxSystems, 1, 128, 'maxSystems'); integer(maxParticles, 1, 65536, 'maxParticles'); finite(maxDelta, .001, .25, 'maxDelta');
+  finite(maxDurationSeconds,.000001,3600,'maxDurationSeconds');
+  for (const [name, value] of Object.entries({maxBufferBytes,maxVertices,maxIndices,maxDrawCalls,maxTrailPoints,maxTextureBytes})) integer(value, ['maxIndices','maxTrailPoints','maxTextureBytes'].includes(name)?0:1, 1073741824, name);
   if (owners.has(scene)) fail('This scene already has an owned Quarks runtime.');
   let existing = false;
   scene.traverse(node => { if (node.type === 'BatchedRenderer') existing = true; });
@@ -66,25 +77,86 @@ export function createThreeQuarksRuntime({THREE, Quarks, scene, renderer, engine
   const geometry = new THREE.PlaneGeometry(1, 1);
   const defaultMaterial = new THREE.MeshBasicMaterial({transparent: true, depthWrite: false});
   const records = new Map();
-  let disposed = false, paused = false, updating = false, allocated = 0, elapsed = 0, generation = 0, quality = 2, reducedMotion = false;
-  owners.set(scene, batchRenderer); scene.add(batchRenderer);
-  const alive = () => { if (disposed) fail('Particle runtime is disposed.'); };
+  const constraints = new Set();
+  let disposed = false, disposing = false, paused = false, updating = false, allocated = 0, elapsed = 0, generation = 0, quality = 2, reducedMotion = false;
+  scene.add(batchRenderer);
+  const alive = () => { if (disposed||disposing) fail('Particle runtime is disposed.'); };
   const recordAlive = record => !disposed && !record.disposed && records.get(record.id) === record;
+
+  function borrowedTextureBudget(material) {
+    const textures=new Set(Object.values(material).filter(value=>value?.isTexture));let bytes=0,unbounded=0;
+    for(const texture of textures){
+      const image=texture.image,width=image?.width??image?.videoWidth,height=image?.height??image?.videoHeight;
+      if(texture.isCubeTexture||texture.isData3DTexture||texture.isDataArrayTexture||texture.isCompressedTexture||!Number.isInteger(width)||!Number.isInteger(height)||width<1||height<1||width>16384||height>16384){unbounded++;continue;}
+      const pixelBytes=texture.type===THREE.FloatType?16:texture.type===THREE.HalfFloatType?8:4;
+      let value=width*height*pixelBytes;
+      if(texture.generateMipmaps){let w=width,h=height;while(w>1||h>1){w=Math.max(1,Math.floor(w/2));h=Math.max(1,Math.floor(h/2));value+=w*h*pixelBytes;}}
+      if(texture.mipmaps?.length)for(const mip of texture.mipmaps){if(!Number.isInteger(mip.width)||!Number.isInteger(mip.height)||mip.width<1||mip.height<1){unbounded++;break;}value+=mip.width*mip.height*pixelBytes;}
+      bytes+=Math.max(value,image?.data?.byteLength??0);
+    }
+    return {bytes,unbounded};
+  }
+
+  function bufferStats() {
+    const arrays = new Set(); let bufferBytes = 0, vertices = 0, indices = 0;
+    for (const batch of batchRenderer.batches) {
+      const g = batch.geometry;
+      for (const attribute of [...Object.values(g.attributes), g.index].filter(Boolean)) {
+        const array = attribute.array ?? attribute.data?.array;
+        if (array && !arrays.has(array)) { arrays.add(array); bufferBytes += array.byteLength; }
+      }
+      vertices += g.getAttribute('position')?.count ?? 0; indices += g.index?.count ?? 0;
+    }
+    let reservedVertices = 0, reservedIndices = 0, reservedBufferBytes = 0, trailPoints = 0, textureBytes = 0, unboundedTextures = 0;
+    for (const record of records.values()) {
+      reservedVertices += record.reservation?.vertices ?? 4 * record.config.capacity;
+      reservedIndices += record.reservation?.indices ?? 6 * record.config.capacity;
+      trailPoints += record.reservation?.trailPoints ?? 0;
+      textureBytes += record.reservation?.textureBytes ?? 0;
+      if(!record.production){const borrowed=borrowedTextureBudget(record.material);textureBytes+=borrowed.bytes;unboundedTextures+=borrowed.unbounded;}
+      reservedBufferBytes += record.estimatedBufferBytes ?? 0;
+      bufferBytes += record.reservation?.ownedBufferBytes ?? 0;
+      if(record.object?.geometry){vertices+=record.object.geometry.getAttribute('position')?.count??0;indices+=record.object.geometry.index?.count??0;}
+    }
+    return {bufferBytes, reservedBufferBytes, vertices, indices, reservedVertices, reservedIndices, trailPoints, textureBytes, unboundedTextures, drawCalls: batchRenderer.batches.length + [...records.values()].reduce((n,r) => n + (r.reservation?.extraDrawCalls ?? 0), 0)};
+  }
+  function checkBounds(extra = {}) {
+    const s = bufferStats();
+    const limits={maxSystems,maxParticles,maxBufferBytes,maxVertices,maxIndices,maxDrawCalls,maxTrailPoints,maxTextureBytes};
+    for(const c of [...constraints,...[...records.values()].map(r=>r.profileBudgets).filter(Boolean)])for(const key of Object.keys(limits))if(c[key]!==undefined)limits[key]=Math.min(limits[key],c[key]);
+    if((constraints.size||[...records.values()].some(r=>r.production))&&(s.unboundedTextures||(extra.unboundedTextures??0)))fail('Production ownership requires bounded loaded starter texture dimensions.');
+    if (records.size+(extra.systems??0)>limits.maxSystems||allocated+(extra.particles??0)>limits.maxParticles||Math.max(s.bufferBytes,s.reservedBufferBytes) + (extra.bufferBytes ?? 0) > limits.maxBufferBytes || Math.max(s.vertices, s.reservedVertices) + (extra.vertices ?? 0) > limits.maxVertices || Math.max(s.indices, s.reservedIndices) + (extra.indices ?? 0) > limits.maxIndices || s.trailPoints + (extra.trailPoints ?? 0) > limits.maxTrailPoints || s.textureBytes + (extra.textureBytes ?? 0) > limits.maxTextureBytes || s.drawCalls + (extra.drawCalls ?? 0) > limits.maxDrawCalls) fail('Aggregate scene VFX buffer/geometry/draw/texture capacity exceeded.');
+  }
+  function fixOwnedBatchShaders() {
+    for (const batch of batchRenderer.batches) {
+      const material = batch.material;
+      // Fixed reviewed correction on generated owned clones only. Never edit
+      // installed Quarks files or accept shader source in a recipe.
+      if (typeof material.fragmentShader === 'string' && !material.fragmentShader.includes('#include <colorspace_fragment>')) {
+        if (!material.fragmentShader.includes('#include <tonemapping_fragment>')) fail('Unsupported Quarks fragment shader.');
+        material.fragmentShader = material.fragmentShader.replace('#include <tonemapping_fragment>', '#include <tonemapping_fragment>\n#include <colorspace_fragment>');
+        material.needsUpdate = true;
+      }
+    }
+  }
 
   function releaseEmptyBatches() {
     // These collections and dispose() are public in the verified 0.17.1 API.
+    let error;
     for (let i = batchRenderer.batches.length - 1; i >= 0; i--) {
       const batch = batchRenderer.batches[i];
       if (batch.systems.size) continue;
       const materials = new Set([batch.material, batch.settings.material]);
-      batch.dispose(); // SpriteBatch.dispose releases its generated geometry only.
-      for (const material of materials) material.dispose();
       batchRenderer.remove(batch); batchRenderer.batches.splice(i, 1);
+      try{batch.dispose();}catch(e){error??=e;} // Upstream releases geometry only.
+      for (const material of materials)try{material.dispose();}catch(e){error??=e;}
     }
     batchRenderer.systemToBatchIndex.clear();
     batchRenderer.batches.forEach((batch, index) => { for (const system of batch.systems) batchRenderer.systemToBatchIndex.set(system, index); });
+    if(error)throw error;
   }
   function updateEmission(record) {
+    if (record.production) { record.quality?.(quality, reducedMotion); return; }
     const scale = [0, .5, 1][quality] * (reducedMotion ? .25 : 1);
     record.currentRate = record.config.rate * scale;
     record.rate.value = record.currentRate;
@@ -93,15 +165,25 @@ export function createThreeQuarksRuntime({THREE, Quarks, scene, renderer, engine
   }
   function stop(record) {
     if (!recordAlive(record)) return false;
+    if (record.production) return remove(record);
     record.system.stop(); record.active = false; record.elapsed = 0; record.generation++;
     return true;
   }
   function remove(record) {
     if (!recordAlive(record)) return false;
-    stop(record); record.system.dispose();
-    record.system.particles.length = 0; // Release the pool this helper alone created.
+    if (!record.production) stop(record);
+    record.disposed = true;
     records.delete(record.id); allocated -= record.config.capacity; record.disposed = true;
-    releaseEmptyBatches();
+    record.unlink?.();
+    let error;
+    if (record.system) {
+      try { record.system.stop(); } catch(e) { error=e; }
+      try { record.system.dispose(); } catch(e) { error??=e; }
+      finally { batchRenderer.deleteSystem(record.system);record.system.emitter.removeFromParent();record.system.particles.length = 0; }
+    }
+    try { if(record.production)record.release(); } catch(e) { error??=e; }
+    try { releaseEmptyBatches(); } catch(e) { error??=e; }
+    if(error)throw error;
     return true;
   }
   function assertOwnedConfiguration(record) {
@@ -118,6 +200,8 @@ export function createThreeQuarksRuntime({THREE, Quarks, scene, renderer, engine
     if (!parent?.isObject3D || !sameScene(parent, scene)) fail('Emitter parent must be attached beneath the owned Scene.');
     const material = c.material ?? defaultMaterial;
     if (!material?.isMeshBasicMaterial || typeof material.clone !== 'function' || typeof material.dispose !== 'function') fail('The bounded billboard starter accepts a borrowed MeshBasicMaterial.');
+    const borrowed=borrowedTextureBudget(material);
+    checkBounds({systems:1,particles:c.capacity,bufferBytes:Math.max(1000,c.capacity*2)*52+152,vertices:c.capacity*4,indices:c.capacity*6,drawCalls:1,textureBytes:borrowed.bytes,unboundedTextures:borrowed.unbounded});
     const rate = new Quarks.ConstantValue(c.rate), life = new Quarks.ConstantValue(c.lifetime), distance = new Quarks.ConstantValue(0);
     const burst = c.kind === 'burst' ? new Quarks.ConstantValue(c.count) : null;
     const bursts = burst ? [{time: 0, count: burst, cycle: 1, interval: 0, probability: 1}] : [];
@@ -126,17 +210,20 @@ export function createThreeQuarksRuntime({THREE, Quarks, scene, renderer, engine
       startColor: new Quarks.ConstantColor(new THREE.Vector4(...c.color)), emissionOverTime: rate, emissionOverDistance: distance,
       emissionBursts: bursts, behaviors: [], shape: c.shape === 'sphere' ? new Quarks.SphereEmitter({radius: c.radius}) : new Quarks.PointEmitter(),
       worldSpace: c.space === 'world', material, instancingGeometry: geometry, renderMode: Quarks.RenderMode.BillBoard});
-    const record = {id: c.id, config: c, system, rate, life, distance, burst, bursts, material, currentRate: c.rate, currentCount: c.count, active: c.autoStart, elapsed: 0, generation: 0, disposed: false};
+    const record = {id: c.id, config: c, system, rate, life, distance, burst, bursts, material, estimatedBufferBytes:Math.max(1000,c.capacity*2)*52+152, currentRate: c.rate, currentCount: c.count, active: c.autoStart, elapsed: 0, generation: 0, disposed: false};
     try {
       parent.add(system.emitter); batchRenderer.addSystem(system);
       // addSystem already uses the current settings. Clearing this public flag
       // avoids Quarks deleting/readding the Map key inside its first update.
       system.neededToUpdateRender = false;
       records.set(c.id, record); allocated += c.capacity;
+      fixOwnedBatchShaders(); checkBounds();
       updateEmission(record); record.currentCount = burst?.value ?? 0;
       if (!c.autoStart) system.stop();
     } catch (error) {
-      system.dispose(); releaseEmptyBatches(); throw error;
+      if (records.get(c.id) === record) remove(record);
+      else { system.dispose(); releaseEmptyBatches(); }
+      throw error;
     }
     const tokenValid = token => token === undefined || token === record.generation;
     return Object.freeze({
@@ -155,23 +242,28 @@ export function createThreeQuarksRuntime({THREE, Quarks, scene, renderer, engine
     alive(); finite(deltaSeconds, 0, maxDelta, 'deltaSeconds');
     if (updating) fail('Particle update cannot be reentrant.');
     if (paused || deltaSeconds === 0) return api.stats();
+    checkBounds();
     for (const record of records.values()) {
-      if (!sameScene(record.system.emitter, scene)) { remove(record); fail('An owned emitter left its Scene; it has been released.'); }
-      assertOwnedConfiguration(record);
+      if (!sameScene(record.system?.emitter ?? record.object, scene) || (record.production && !sameScene(record.parent, scene))) { remove(record); fail('An owned emitter or attachment left its Scene; it has been released.'); }
+      if (record.production) { try { record.assert(); } catch(error) { remove(record); throw error; } }
+      else assertOwnedConfiguration(record);
     }
     updating = true;
     try {
       const steps = Math.ceil(deltaSeconds / .1), step = deltaSeconds / steps;
       for (let i = 0; i < steps; i++) {
+        for (const record of [...records.values()]) if (record.production && recordAlive(record)) record.beforeStep(step);
         scene.updateMatrixWorld(true);
         batchRenderer.update(step);
-        for (const record of records.values()) {
+        for (const record of [...records.values()]) {
+          if (record.production) { if (recordAlive(record)) record.afterStep(step); continue; }
           if (record.system.particleNum > record.config.capacity || record.system.particles.length > record.config.capacity) { remove(record); fail('Particle capacity was breached; the offending owned system was released.'); }
           if (record.active && !record.system.paused) {
             record.elapsed += step;
             if (!record.config.looping && record.elapsed >= record.config.duration + record.config.lifetime + .1) stop(record);
           }
         }
+        checkBounds();
       }
       elapsed += deltaSeconds;
     } finally { updating = false; }
@@ -185,13 +277,41 @@ export function createThreeQuarksRuntime({THREE, Quarks, scene, renderer, engine
     remove(id) { alive(); const record = records.get(id); return record ? remove(record) : false; },
     setQuality(value) { alive(); integer(value, 0, 2, 'quality'); quality = value; for (const record of records.values()) { updateEmission(record); record.currentCount = record.burst?.value ?? 0; } },
     setReducedMotion(value) { alive(); if (typeof value !== 'boolean') fail('reducedMotion must be boolean.'); reducedMotion = value; for (const record of records.values()) { updateEmission(record); record.currentCount = record.burst?.value ?? 0; } },
-    stats() { return Object.freeze({disposed, paused, generation, systems: records.size, capacity: allocated, particles: [...records.values()].reduce((n, r) => n + r.system.particleNum, 0), pooledParticles: [...records.values()].reduce((n, r) => n + r.system.particles.length, 0), batches: batchRenderer.batches.length, time: elapsed, quality, reducedMotion}); },
+    stats() { return Object.freeze({disposed, paused, generation, systems: records.size, capacity: allocated, particles: [...records.values()].reduce((n, r) => n + (r.system?.particleNum ?? 0), 0), pooledParticles: [...records.values()].reduce((n, r) => n + (r.system?.particles.length ?? 0), 0), batches: batchRenderer.batches.length, time: elapsed, quality, reducedMotion, ...bufferStats()}); },
     dispose() {
-      if (disposed) return;
-      for (const record of [...records.values()]) remove(record);
-      releaseEmptyBatches(); batchRenderer.removeFromParent(); geometry.dispose(); defaultMaterial.dispose();
-      owners.delete(scene); disposed = true; generation++;
+      if (disposed||disposing) return; disposing=true;
+      let error;
+      for (const record of [...records.values()])try{remove(record);}catch(e){error??=e;}
+      try{releaseEmptyBatches();batchRenderer.removeFromParent();geometry.dispose();defaultMaterial.dispose();}catch(e){error??=e;}
+      owners.delete(scene); internals.delete(api); constraints.clear(); disposed = true; disposing=false; generation++;
+      if(error)throw error;
     }
   });
+  owners.set(scene, api);
+  internals.set(api, Object.freeze({THREE, Quarks, scene, renderer, maxDelta,
+    limits: Object.freeze({maxSystems,maxParticles,maxBufferBytes,maxVertices,maxIndices,maxDrawCalls,maxTrailPoints,maxTextureBytes,maxDurationSeconds}),
+    checkBounds, stats: api.stats,
+    constrain(limits) { alive(); const value=Object.freeze({...limits});constraints.add(value);try{checkBounds();}catch(error){constraints.delete(value);throw error;}return()=>constraints.delete(value); },
+    add(record, parent) {
+      alive(); if (updating) fail('Cannot change particle inventory during update.');
+      if (records.has(record.id) || records.size >= maxSystems || allocated + record.config.capacity > maxParticles) fail('Scene particle/system capacity exceeded or duplicate emitter id.');
+      if (!sameScene(parent, scene)) fail('Emitter parent must be attached beneath the owned Scene.');
+      checkBounds(record.preallocation);
+      try {
+        parent.add(record.system?.emitter ?? record.object);
+        if (record.system) { batchRenderer.addSystem(record.system); record.system.neededToUpdateRender = false; }
+        records.set(record.id, record); allocated += record.config.capacity;
+        fixOwnedBatchShaders(); checkBounds();
+      } catch (error) {
+        if (records.get(record.id) === record) remove(record);
+        else { record.system?.dispose(); record.object?.removeFromParent(); releaseEmptyBatches(); }
+        throw error;
+      }
+    },
+    remove(record) { return remove(record); },
+    isAlive: recordAlive,
+    isUpdating: () => updating,
+    sameScene: node => sameScene(node, scene)
+  }));
   return api;
 }

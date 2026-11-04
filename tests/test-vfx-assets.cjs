@@ -207,6 +207,85 @@ async function drift(name, reason) {
   check((await lifecycle.run('status', options())).fresh === true, reason + ' is current after exact restoration');
   check(sha(file) === require('crypto').createHash('sha256').update(before).digest('hex'), reason + ' restores exact bytes');
 }
+async function preparationPolicyCases() {
+  const asset = data.preparation.asset;
+  const initialized = await lifecycle.run('init', init({asset}));
+  const base = {root, manifest: initialized.manifest, phase: 'provisional', request: data.preparation.requestPath};
+  await rejected(() => lifecycle.run('prepare', {...base, phase: 'detailed'}), /provisional|accept/i);
+  await rejected(() => lifecycle.run('prepare', {...base, phase: 'invented'}), /phase|provisional|detailed/i);
+  const recipe = JSON.parse(fs.readFileSync(path.join(root, base.request)));
+  for (const [label, mutate, pattern] of [
+    ['asset', x => x.id = 'another-asset', /asset|immutable|request/i],
+    ['version', x => x.version = 'v2', /version|immutable|request/i],
+    ['style', x => x.styleSha256 = 'f'.repeat(64), /STYLE|immutable|request/i],
+    ['engine', x => x.engine.id = 'UNITY', /engine|immutable|request/i],
+    ['provider', x => x.profile = 'video-generation', /profile|PNG|native|available/i],
+    ['memory', x => x.budgets.hardProcessMemoryBytes = 1048576, /memory|unavailable|budget/i],
+    ['time', x => x.budgets.maxSeconds = 61, /processing|budget/i],
+    ['source-length', x => x.sources[0].bytes++, /input|length|original|PNG/i],
+    ['source-digest', x => x.sources[0].sha256 = 'e'.repeat(64), /changed|hash|reference/i],
+    ['source-rights', x => { const source = x.sources[0]; source.path = write(root, 'inputs/uncovered-original.png', fs.readFileSync(path.join(root, source.path))); }, /rights|coverage/i]
+  ]) {
+    const value = JSON.parse(JSON.stringify(recipe)); mutate(value);
+    const request = write(root, 'inputs/bad-preparation-' + label + '.json', value);
+    await rejected(() => lifecycle.run('prepare', {...base, request}), pattern);
+  }
+  check((await lifecycle.run('status', {root, manifest: base.manifest})).phases.provisional.attempts === 0,
+    'preparation policy/rights gates fail before creating a candidate or native seal');
+  const sourceBytes = Object.fromEntries(data.preparation.sources.map(item => [item.path, sha(path.join(root, item.path))]));
+  for (let attempt = 0; attempt < 3; attempt++)
+    await rejected(() => lifecycle.run('prepare', base), /Bubo|initialized|built|dependency|Git|runtime/i);
+  const status = await lifecycle.run('status', {root, manifest: base.manifest});
+  check(status.phases.provisional.attempts === 3 && !status.phases.provisional.staged && !status.phases.provisional.accepted,
+    'missing native dependency consumes bounded preparation attempts without fabricating readiness');
+  await rejected(() => lifecycle.run('prepare', base), /candidate|budget|exhaust/i);
+  const revision = await lifecycle.run('init', init({asset, version: 'v2', 'parent-manifest': base.manifest}));
+  const revised = {...recipe, version: 'v2'}, request = write(root, 'inputs/preparation-version-2.json', revised);
+  await rejected(() => lifecycle.run('prepare', {root, manifest: revision.manifest, phase: 'provisional', request}), /candidate|budget|exhaust/i);
+  check(Object.entries(sourceBytes).every(([file, digest]) => sha(path.join(root, file)) === digest),
+    'failed native preparation leaves all original source PNGs unchanged');
+}
+async function nativeLaunchOwnershipCases() {
+  for (const kind of ['unknown', 'missing', 'spawn-failed-without-error', 'spawn-failed']) {
+    const initialized = await lifecycle.run('init', init({asset: 'launch-' + kind}));
+    const manifest = initialized.manifest, directory = path.posix.dirname(manifest), assetDirectory = path.posix.dirname(directory);
+    const attempt = initialized.staging + '/attempts/provisional-' + require('crypto').randomUUID();
+    const writerPid = deadOwner(), context = write(root, '.hephaera/.cache/tasks/qa/bubo-host/' + require('crypto').randomUUID() + '/host-context.json',
+      {fixture: 'synthetic process receipt classification only; no native launch occurred'});
+    const hostContextSha256 = sha(path.join(root, context)), manifestRef = fixture.ref(root, manifest);
+    const ledger = path.join(root, assetDirectory, '.history'), names = fs.readdirSync(ledger).sort(), previous = names.at(-1);
+    const sequence = JSON.parse(fs.readFileSync(path.join(ledger, previous))).sequence + 1;
+    write(root, assetDirectory + '/.history/' + String(sequence).padStart(6, '0') + '.json', {
+      schemaVersion: 'hephaera-vfx-reservation/v1', sequence, budgetSha256: sha(path.join(root, assetDirectory, '.budget.json')),
+      previousSha256: sha(path.join(ledger, previous)), kind: 'attempt-reserved',
+      data: {version: 'v1', phase: 'provisional', attempt, manifest: manifestRef}, recordedAt: new Date().toISOString()});
+    write(root, directory + '/events/000001.json', {schemaVersion: 'hephaera-vfx-event/v1', sequence: 1,
+      manifestSha256: manifestRef.sha256, previousSha256: null, kind: 'stage-started',
+      data: {phase: 'provisional', attempt, operation: 'prepare', sourceRequest: fixture.ref(root, data.preparation.requestPath)}, recordedAt: new Date().toISOString()});
+    write(root, attempt + '/native-process/intent.json', {schemaVersion: 'hephaera-vfx-native-intent/v1', hostPid: writerPid,
+      hostContextSha256, contextFile: context});
+    const completed = {schemaVersion: 'hephaera-vfx-native-completed/v1', hostPid: writerPid, hostContextSha256,
+      pid: null, status: 0, error: null, closed: true};
+    if (kind !== 'missing') completed.launchState = kind.startsWith('spawn-failed') ? 'spawn-failed' : 'unknown';
+    if (kind === 'spawn-failed') completed.error = 'Synthetic ENOENT classification; fixture never launched a native process.';
+    write(root, attempt + '/native-process/completed.json', completed);
+    const lock = write(root, assetDirectory + '/.write-lock', {pid: writerPid, startedAt: new Date().toISOString()});
+    const ownerBytes = fs.readFileSync(path.join(root, lock)), ledgerHashes = Object.fromEntries(fs.readdirSync(ledger).map(name => [name, sha(path.join(ledger, name))]));
+    const status = await lifecycle.run('status', {root, manifest});
+    check(status.fresh && status.nativeProcesses.length === 1 && status.nativeProcesses[0].state === (kind === 'spawn-failed' ? 'not-launched' : 'unknown'),
+      'null PID close classification remains explicit for ' + kind);
+    if (kind === 'spawn-failed') {
+      const recovered = await lifecycle.run('recover', {root, manifest});
+      check(recovered.processes.nativeChildren[0].proof === 'actual-spawn-failure-closed' && recovered.interruptedAttempts.includes(attempt)
+        && recovered.processes.processTermination === false, 'explicit spawn error can close a never-launched synthetic candidate without claiming termination');
+    } else {
+      await rejected(() => lifecycle.run('recover', {root, manifest}), /unknown|child|cleanup|ownership/i);
+      check(fs.readFileSync(path.join(root, lock)).equals(ownerBytes), 'ambiguous launch recovery preserves retained dead-writer bytes: ' + kind);
+    }
+    check(Object.entries(ledgerHashes).every(([name, digest]) => sha(path.join(ledger, name)) === digest),
+      'launch classification never resets the retained candidate allowance: ' + kind);
+  }
+}
 async function main() {
   for (const args of [ ['promote', '--root', root], ['generate', '--root', root],
     ['doctor', '--root', root, '--host-context', 'injected.json'], ['doctor', '--root', root, '--root', root],
@@ -259,6 +338,9 @@ async function main() {
   await drift('.hephaera/.engine/registry.json', 'engine registry drift');
   await drift('.hephaera/commands/vfx-assets.sh', 'host launcher drift');
   await drift('.hephaera/commands/lib/vfx-assets.cjs', 'host lifecycle tool drift');
+  for (const tool of ['three-quarks-runtime', 'three-vfx-runtime', 'vfx-package'])
+    await drift('.hephaera/.engine/threejs/particles/' + tool + '.mjs', tool + ' production engine tool drift');
+  await drift('.hephaera/commands/lib/bubo-vfx-adapter.cjs', 'native VFX boundary tool drift');
   for (const tool of ['engine-contract', 'style-contract', 'installation-maintenance', 'state-transition', 'bubo-mechanical-handoff'])
     await drift('.hephaera/commands/lib/' + tool + '.cjs', tool + ' transitive host tool drift');
   for (const tool of ['maintenance', 'files']) await drift('.hephaera/installer/core/' + tool + '.cjs', tool + ' installer gate drift');
@@ -293,10 +375,15 @@ async function main() {
   check(partialHashes[0] === sha(path.join(root, partial)) && partialHashes[1] === sha(path.join(root, partialStage))
     && !fs.existsSync(path.join(root, partial.replace('/inputs/brief.json', '/manifest.json'))), 'interrupted partial input/copy residue is retained and never adopted or sealed');
   await recoveryCases();
+  await preparationPolicyCases();
+  await nativeLaunchOwnershipCases();
   check(sha(path.join(root, 'MEDIA.md')) === mediaBefore && sha(path.join(root, 'AUDIO.md')) === audioBefore, 'owned resource workflow leaves unrelated media domains unchanged');
   check(!fs.existsSync(path.join(root, 'assets')), 'fast lifecycle creates no runtime asset directory');
   check(!fs.existsSync(path.join(root, '.hephaera/runtime/bubo/artifacts/bubo')), 'fast policy suite builds and installs no native publication');
   const summary = { status: 'passed', assertions: checks, root, nativeExecution: false, syntheticFixture: true,
+    sourceHashes: Object.fromEntries(['tests/test-vfx-assets.cjs', 'tests/vfx-fixture.cjs', 'commands/lib/vfx-assets.cjs',
+      'commands/lib/bubo-vfx-adapter.cjs', '.engine/threejs/particles/three-quarks-runtime.mjs', '.engine/threejs/particles/three-vfx-runtime.mjs',
+      '.engine/threejs/particles/vfx-package.mjs'].map(name => [name, sha(path.join(BASE, name))])),
     scope: 'Host policy, immutable lifecycle, public CLI negatives; no resource-content/render/visual/human acceptance.' };
   fs.writeFileSync(path.join(cache, 'latest.json'), JSON.stringify(summary, null, 2) + '\n');
   console.log('PASS:', checks, 'VFX host policy assertions');

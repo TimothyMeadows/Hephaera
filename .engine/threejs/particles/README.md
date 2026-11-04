@@ -25,3 +25,9 @@ Quality tiers reduce emission to zero/half/full. Reduced motion further reduces 
 Quarks 0.17.1 exposes `neededToUpdateRender`, `batches`, `systems` and `systemToBatchIndex` publicly. Initial renderer settings are already registered before its public dirty flag is cleared, avoiding an initial Map delete/re-add that would advance one system twice. This helper does not expose renderer-setting mutation. Empty batches are removed and remaining public indices rebuilt; geometry and both generated shader/settings material clones are disposed separately because upstream SpriteBatch.dispose releases geometry alone. Preserve this tested API contract when updating packages.
 
 `example.mjs` shows imports and host lifecycle wiring. For MAUI, the host can route `hephaera:lifecycle` suspend/resume to pause/resume while its one normal game loop owns updates. Actual WebGL shader/render output, target performance, mobile/MAUI behavior and bitwise deterministic replay are unverified by CPU-only acceptance tests.
+
+## Production resource profile
+
+`three-vfx-runtime.mjs` extends this same scene owner with nine bounded layer families and typed generation-scoped leases. `vfx-package.mjs` admits fixed native package/profile data and exact RGBA/static-geometry snapshots. See [the production guide](../../../docs/THREEJS_VFX.md). Active native layer capacities and physical batch/attribute allocations have separate measured/reserved counters; Quarks default allocations are preflighted.
+
+`vfx-review-scene.mjs` attaches explicit diagnostic playback to a caller-owned scene, camera and WebGLRenderer plus the existing adjacent postprocessing helper. It loads no files, starts no frame loop, accepts no human decision and renders through one selected direct/composer route per call. The caller owns asset correspondence, scheduling, original resources and final application teardown.

@@ -68,6 +68,12 @@ node tests/test-threejs-quarks-runtime.mjs
 This does not create a WebGL context or certify visual quality, frame budgets, mobile/MAUI readiness or GPU driver cleanup. Preserve actual renderer/device evidence separately. No commits, pushes, external release, vendor editor or package promotion is granted by particle selection.
 
 - [Upstream project](https://github.com/Alchemist0823/three.quarks)
-- [Published0.17.1 source manifest](https://github.com/Alchemist0823/three.quarks/blob/a432a153354ed568c5aa2c94777376c546b5425b/packages/three.quarks/package.json)
+- [Published 0.17.1 registry metadata](https://registry.npmjs.org/three.quarks/0.17.1)
 - [Pinned package lifecycle implementation](https://github.com/Alchemist0823/three.quarks/blob/a432a153354ed568c5aa2c94777376c546b5425b/packages/three.quarks/src/ParticleSystem.ts)
 - [Pinned batch renderer](https://github.com/Alchemist0823/three.quarks/blob/a432a153354ed568c5aa2c94777376c546b5425b/packages/three.quarks/src/BatchedRenderer.ts)
+
+## Reusable production effects
+
+See [Three.js VFX](THREEJS_VFX.md) for native PNG preparation, exact atlas playback, the nine bounded layer families and scene-scoped leases. The existing scaffold copies the starter and production modules into a fresh output directory. The optional review attachment expects the existing postprocessing helper in its adjacent `../postprocessing/` folder; scaffold that helper explicitly or adjust a reviewed host import. Neither scaffold installs dependencies.
+
+Registry metadata reports source revision `a432a153354ed568c5aa2c94777376c546b5425b` for the verified published Quarks/core 0.17.1 artifacts. Repository manifests at that source revision say 0.17.0. Use actual published manifests, lock integrity and installed file verification for the package-version claim; retain source links as source-revision evidence. Do not relabel installed bytes or upgrade the wildcard core dependency silently.
