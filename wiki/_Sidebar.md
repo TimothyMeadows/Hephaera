@@ -17,6 +17,7 @@
 - [Media pipelines](Media-Pipelines)
 - [Bubo runtime](Bubo-Runtime)
 - [Floor plan to model](Floor-Plan-to-Model)
+- [Schematic to model](Schematic-to-Model)
 - [Proof to model](Proof-to-Model)
 - [Animation and actions](Animation-and-Actions)
 - [Web-game packaging](Web-Game-Packaging)

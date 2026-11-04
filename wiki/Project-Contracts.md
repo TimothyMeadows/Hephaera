@@ -65,6 +65,8 @@ bash .hephaera/commands/generate-style.sh --pipeline BLENDER --allow-pipeline PR
 
 `FLOOR_PLAN_TO_MODEL` is the dimension-driven building option; it preserves the default PROOF_TO_MODEL and engine selection. All-procedural floor-plan work needs no MEDIA contract. Its exact complete drawing package must be approved before native modeling; see [Floor plan to model](Floor-Plan-to-Model).
 
+`SCHEMATIC_TO_MODEL` is the mechanical-object option: approve one complete schematic package, construct independent components, then assemble and verify rigid/flexible articulation. It preserves the same default/engine/media boundaries. See [Schematic to model](Schematic-to-Model) for exact rights, budgets and separate design/model reviews.
+
 A current-prompt pipeline selection applies only to the task and may select any registered pipeline. Record prompt-selection evidence with the current style-contract hash; do not rewrite the host contract implicitly. Regeneration preserves configured external libraries unless the user replaces or clears them. Inspect [Visual pipelines](Visual-Pipelines) before producing assets.
 
 ## Media execution and independent domains

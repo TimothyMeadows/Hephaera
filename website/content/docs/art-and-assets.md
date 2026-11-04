@@ -20,6 +20,7 @@ Plan a readable environment prop for this scene. Check the project's visual styl
 | `CODE` | Three.js models authored as JavaScript/TypeScript source; this path requires THREEJS. |
 | `BLENDER` | Blender 4.5 LTS authoring, validation, renders, and exports under its working-copy controls. |
 | `FLOOR_PLAN_TO_MODEL` | Dimensioned building plans, approval of the complete design, then detailed unfurnished models with separate visual/collision exports. |
+| `SCHEMATIC_TO_MODEL` | Approved mechanical schematics, independent components, then an assembled model with separate rigid and flexible parts. |
 
 Choose a pipeline because it suits the requested result and is available. If it fails or lacks prerequisites, the agent must explain that and request direction rather than silently switching methods. A task-specific pipeline override does not rewrite the project's primary choice.
 
@@ -35,6 +36,12 @@ That records the choice. It does not authorize generation or install a provider.
 ## Design a building floor by floor
 
 Use [floor plans to buildings](floor-plan-to-model.md) for dimension-driven architecture. Design each floor, then review all floor plans, the roof, elevations and stair sections as one complete package before modeling. The result includes editable source and separate visual/collision exports; rooms stay unfurnished and game integration comes later. This pipeline is in newer `main` source; the published `5.1.0-rc.1` packages predate it.
+
+## Design an object with separate parts
+
+Use [schematics to assembled models](schematic-to-model.md) for vehicles, devices, vessels and similar objects. Review dimensioned views, internal sections, the component list and connections as one complete design before construction. Build each part first, then assemble the instances and check their declared movement. Identical wheels can share geometry while remaining separately movable; wires and hoses keep their own deformation rigs.
+
+The result includes editable source, a canonical rest GLB and separate diagnostic-motion evidence. Manufacturing/circuit simulation, finished animation and game integration remain separate. This requires a baseline revision containing the workflow and its reviewed native pin; the published `5.1.0-rc.1` packages predate it.
 
 ## Review the right thing at each step
 
@@ -53,5 +60,7 @@ No configured library means no extra startup question. A library also does not b
 ## Add motion as a later handoff
 
 A static model is not automatically ready to animate. Inspect articulation, topology, scale, rights, and any existing rig first. Model-to-animation creates reviewed motion; model-to-action composes clips into sequences. Neither decides combat damage, targeting, or movement authority just because an animation played.
+
+A reviewed schematic assembly uses the current preserve-only `mechanical-assembly` handoff. It carries the separate rigid components and flexible rigs forward; diagnostic readiness clips do not become approved production animations, and changed source state invalidates an old handoff.
 
 Read [visual pipelines](https://github.com/TimothyMeadows/Hephaera/wiki/Visual-Pipelines) and [animation and actions](https://github.com/TimothyMeadows/Hephaera/wiki/Animation-and-Actions) for the detailed stages. If your task is about sound instead, use [audio, music, and voice](audio-music-voice.md).

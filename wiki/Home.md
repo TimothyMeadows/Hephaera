@@ -4,7 +4,7 @@ Hephaera is a shared AI production baseline for video game development. It gives
 
 Use the [practical documentation](https://hephaera.com/docs/) for a guided first installation or an everyday task. This Wiki explains the contracts, command families, evidence requirements and failure boundaries behind those guides. The [repository README](https://github.com/TimothyMeadows/Hephaera/blob/main/README.md) is the source overview; [AGENTS.md](https://github.com/TimothyMeadows/Hephaera/blob/main/AGENTS.md) is the shared operating contract.
 
-The authenticated GitHub npm and NuGet packages are published as `5.1.0-rc.1`; public-registry mirror status remains separate. Follow [Installation and layout](Installation-and-Layout) for exact availability and authentication. Floor-plan production was added afterward on main and needs a later package version before it is available through those installers.
+The authenticated GitHub npm and NuGet packages are published as `5.1.0-rc.1`; public-registry mirror status remains separate. Follow [Installation and layout](Installation-and-Layout) for exact availability and authentication. Floor-plan and schematic production were added afterward on main. A later package version must explicitly include their commands and reviewed native pin; a source merge does not update existing pinned installations or publish a package.
 
 ## Start and configure
 
@@ -21,10 +21,11 @@ The authenticated GitHub npm and NuGet packages are published as `5.1.0-rc.1`; p
 | Reference | What it answers |
 | --- | --- |
 | [Engines and gameplay](Engines-and-Gameplay) | Six-engine selection, runtime ownership, gameplay concepts and actual target evidence |
-| [Visual pipelines](Visual-Pipelines) | STYLE, six registered visual primaries and external libraries |
+| [Visual pipelines](Visual-Pipelines) | STYLE, registered visual primaries and external libraries |
 | [Media pipelines](Media-Pipelines) | Independent AUDIO, MUSIC and VOICE production, consent, review and promotion |
 | [Bubo runtime](Bubo-Runtime) | The pinned native dependency, explicit build, verified resources and readiness limits |
 | [Floor plan to model](Floor-Plan-to-Model) | Whole-building design approval, detailed empty-room construction and portable model review |
+| [Schematic to model](Schematic-to-Model) | Complete mechanical schematics, independent components, assembled articulation and portable model review |
 | [Proof to model](Proof-to-Model) | Source classification, six approved views, reconstruction and measured Blender finishing |
 | [Animation and actions](Animation-and-Actions) | Model readiness, real clips, action composition and presentation ownership |
 | [Web-game packaging](Web-Game-Packaging) | MAUI hosts and explicit Windows, macOS, Android and iOS packages |

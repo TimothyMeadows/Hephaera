@@ -61,7 +61,7 @@ Read the resolved skill before work. Its inputs, output contract, notes and evid
 | --- | --- | --- |
 | Design and runtime | `design-game-systems`, `design-action-gameplay`, `build-gameplay-runtime`, `build-game-ui` | [Engines and gameplay](Engines-and-Gameplay) |
 | Selected-engine features | Engine-prefixed scene, controls, physics, material, UI and tooling skills | Engine registry and selected definition |
-| Asset production | `build-proof-to-model-assets`, `direct-blender-production`, `prepare-game-art-handoff` | [Visual pipelines](Visual-Pipelines) |
+| Asset production | `build-proof-to-model-assets`, `build-floor-plan-models`, `build-schematic-models`, `direct-blender-production`, `prepare-game-art-handoff` | [Visual pipelines](Visual-Pipelines) |
 | Motion | `build-model-animations`, `build-model-actions` | [Animation and actions](Animation-and-Actions) |
 | Media | `use-bubo-local-generation`, `build-audio-assets`, `build-music-assets`, `build-voice-assets` | [Media pipelines](Media-Pipelines) |
 | Delivery | `create-task-file`, `goal-flow`, `gauntlet-flow`, `pr-readiness-gate`, `post-pr-qa` | [Work modes and delivery](Work-Modes-and-Delivery) |

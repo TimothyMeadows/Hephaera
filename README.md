@@ -94,7 +94,7 @@ Use Hephaera to take a game concept toward a playable, reviewed result, or to im
 | Game design | Player decisions, core loops, progression, economies, difficulty, and balance hypotheses | Design briefs and observed playtest results |
 | Gameplay and worlds | Movement, combat, physics, actors, level systems, persistence, and engine integration | Tests and representative playable scenarios |
 | Game UI and feedback | HUD synchronization, screen/input ownership, controller focus, accessibility, camera, VFX, audio cues, and haptics | Layout/input checks and supported-device testing |
-| Art and assets | Visual direction, 2D proofs, proof-to-model production, dimensioned building architecture, model-to-animation/action composition, Blender authoring, and runtime handoff | Source ancestry, approved designs, technical budgets, complete model/motion review, independent reviews, and human acceptance |
+| Art and assets | Visual direction, 2D proofs, proof-to-model production, dimensioned buildings and mechanical assemblies, model-to-animation/action composition, Blender authoring, and runtime handoff | Source ancestry, approved designs, technical budgets, complete model/motion review, independent reviews, and human acceptance |
 | Sound effects and ambience | AUDIO pipeline for game events and environmental sound | Rights, technical validation, complete listening review, and loop/target evidence |
 | Music | MUSIC pipeline for instrumental tracks and supplied-lyric songs | Exact lyric rights, full-track/vocal review, and runtime budgets |
 | Speech | VOICE pipeline for preset speech and consented local-reference cloning | Reference-bound consent, spoken-content review, and separate disclosure/distribution rights |
@@ -106,9 +106,11 @@ Engine-specific workflows cover **Three.js, Babylon.js, Phaser, Unity, Unreal, a
 
 **Web engines automatically select .NET MAUI packaging.** Three.js, Babylon.js and Phaser keep their JavaScript gameplay and can package a local static build for Windows, macOS, Android and iOS. Native engines retain their own exporters. See [Native Web-Game Packaging](#native-web-game-packaging).
 
-`STYLE.md` selects visual direction and the art pipeline. **PROOF_TO_MODEL** is the default: classify original sources, approve six consistent views, reconstruct them natively and finish in Blender, then review before runtime promotion. CLOUD, LOCAL, CODE, BLENDER, and FLOOR_PLAN_TO_MODEL remain explicit alternatives. The CODE pipeline is specific to Three.js.
+`STYLE.md` selects visual direction and the art pipeline. **PROOF_TO_MODEL** is the default: classify original sources, approve six consistent views, reconstruct them natively and finish in Blender, then review before runtime promotion. CLOUD, LOCAL, CODE, BLENDER, FLOOR_PLAN_TO_MODEL, and SCHEMATIC_TO_MODEL remain explicit alternatives. The CODE pipeline is specific to Three.js.
 
 **FLOOR PLAN TO MODEL** designs buildings floor by floor, then turns one approved architectural package into detailed unfurnished models with editable source and separate visual/collision exports. See [the workflow](#floor-plan-to-model) and [practical guide](https://hephaera.com/docs/floor-plan-to-model/). It is available in newer `main` source; published `5.1.0-rc.1` packages predate it.
+
+**SCHEMATIC TO MODEL** designs mechanical objects such as vehicles, devices and vessels. Approve the complete dimensioned schematic, build each part independently, then assemble and check its movement. Repeated bolts or wheels retain separate identities, and wires, hoses, springs and belts retain their own deforming geometry. See [the workflow](#schematic-to-model) and [technical guide](docs/SCHEMATIC_TO_MODEL.md). It is available in newer `main` source; published `5.1.0-rc.1` packages predate it.
 
 **AUDIO, MUSIC, and VOICE are independent production pipelines.** Load them together and alongside the visual workflow without changing its selection. Each provides planning, immutable asset versions, validation, human review, and separate runtime promotion. See [Audio, Music, and Voice Pipelines](#audio-music-and-voice-pipelines) for routing and setup.
 
@@ -738,7 +740,7 @@ Select a different primary pipeline or advertise project-supported alternatives 
 ./commands/generate-style.sh --pipeline FLOOR_PLAN_TO_MODEL --allow-pipeline PROOF_TO_MODEL "CEL_SHADED_COMIC"
 ```
 
-Friendly names such as `imagegen`, `proof-to-model` (also `proof to model` and `2d-to-3d`), `threejs`, and `blender` normalize to `CLOUD`, `PROOF_TO_MODEL`, `CODE`, and `BLENDER`. Canonical `LOCAL` selects direct Bubo generation; `floor-plan-to-model` normalizes to `FLOOR_PLAN_TO_MODEL`. The complete style catalog is indexed in `.styles/INDEX.md`; pipeline contracts are indexed in `.styles/.pipelines/INDEX.md`.
+Friendly names such as `imagegen`, `proof-to-model` (also `proof to model` and `2d-to-3d`), `threejs`, and `blender` normalize to `CLOUD`, `PROOF_TO_MODEL`, `CODE`, and `BLENDER`. Canonical `LOCAL` selects direct Bubo generation; `floor-plan-to-model` and `schematic-to-model` normalize to `FLOOR_PLAN_TO_MODEL` and `SCHEMATIC_TO_MODEL`. The complete style catalog is indexed in `.styles/INDEX.md`; pipeline contracts are indexed in `.styles/.pipelines/INDEX.md`.
 
 ## Game Engine Selection
 
@@ -930,7 +932,7 @@ $design-game-systems
 | Game systems | `design-game-systems`, `design-action-gameplay`, `build-gameplay-runtime`, `author-game-worlds` | Define player decisions and build testable gameplay and worlds |
 | Game UI and feedback | `build-game-ui`, `build-gameplay-runtime`, `build-accessible-motion-systems`, `create-game-vfx` | Plan input ownership, HUD synchronization, readable feedback, accessibility, and device-specific haptics |
 | Selected-engine implementation | `threejs-build-scenes`, `babylonjs-integrate-physics`, `phaserjs-build-tilemaps`, `unity-build-ui`, `unreal-build-gameplay-framework`, `godot-run-tooling` | Use only the features compatible with ENGINE.md and explicitly selected project dependencies |
-| Art and runtime assets | `build-proof-to-model-assets`, `build-floor-plan-models`, `direct-blender-production`, `review-blender-deliverables`, `prepare-rigged-runtime-actors`, `tcg-art-direction` | Produce and review assets with ancestry, budgets, design/model review, handoff evidence, and human acceptance |
+| Art and runtime assets | `build-proof-to-model-assets`, `build-floor-plan-models`, `build-schematic-models`, `direct-blender-production`, `review-blender-deliverables`, `prepare-rigged-runtime-actors`, `tcg-art-direction` | Produce and review assets with ancestry, budgets, design/model review, handoff evidence, and human acceptance |
 | Model motion and actions | `build-model-animations`, `build-model-actions` | Create reviewed clips and compound actions with selected-engine presentation and separate gameplay authority |
 | Three.js CODE characters | `threejs-build-code-characters`, `threejs-review-code-characters` | Author and independently review source-native Three.js actors |
 | Generative media | `plan-generative-media-pipeline`, `use-bubo-local-generation`, `produce-generative-audio`, `validate-generated-media` | Plan, generate, stage, review, and validate selected image/audio production |
@@ -1002,6 +1004,7 @@ Or run the command directly:
 | AUDIO, MUSIC, and VOICE workflows | `audio-pipeline.sh`, `music-pipeline.sh`, `voice-pipeline.sh` |
 | Native proof-to-model assets | `proof-to-model.sh` |
 | Dimensioned building models | `floor-plan-to-model.sh` |
+| Independent mechanical parts and assemblies | `schematic-to-model.sh` |
 | Native model-to-animation production | `model-to-animation.sh` |
 | Native model-to-action composition | `model-to-action.sh` |
 | Code-first Three.js models | `create-code-model-manifest.sh`, `validate-code-model-manifest.sh`, `next-code-model-pass.sh`, `record-code-model-review.sh` |
@@ -1350,7 +1353,7 @@ Use three separate production workflows for sound, music, and speech. Ordinary a
 | [MUSIC](.media/pipelines/music/PIPELINE.md) | Instrumental tracks and supplied-lyric songs | `MUSIC.md` | [`build-music-assets`](skills/build-music-assets/SKILL.md), `music-pipeline.sh` |
 | [VOICE](.media/pipelines/voice/PIPELINE.md) | Preset speech and consented local-reference cloning | `VOICE.md` | [`build-voice-assets`](skills/build-voice-assets/SKILL.md), `voice-pipeline.sh` |
 
-All three can load together with CLOUD, LOCAL, PROOF_TO_MODEL, CODE, BLENDER, or FLOOR_PLAN_TO_MODEL without changing `STYLE.md`; visual workflows retain their engine/tool prerequisites. Workflow loading, planning, and review are independent; Bubo serializes LOCAL GPU execution, including proof reconstruction. Media approvals retain one physical shared media-state root across tasks and domains. Proof/model workflows keep their own approval and attempt ancestry. Parallel loading creates no generation allowance or permission for simultaneous GPU inference.
+All three can load together with CLOUD, LOCAL, PROOF_TO_MODEL, CODE, BLENDER, FLOOR_PLAN_TO_MODEL, or SCHEMATIC_TO_MODEL without changing `STYLE.md`; visual workflows retain their engine/tool prerequisites. Workflow loading, planning, and review are independent; Bubo serializes LOCAL GPU execution, including proof reconstruction. Media approvals retain one physical shared media-state root across tasks and domains. Proof/model workflows keep their own approval and attempt ancestry. Parallel loading creates no generation allowance or permission for simultaneous GPU inference.
 
 For a host project that needs all three workflows, run from its project root:
 
@@ -1385,7 +1388,7 @@ Hephaera separates visual direction from production method. Asset-production tas
 4. Configure `MEDIA.md` only when `CLOUD` or `LOCAL` generation is used.
 5. Stop when the selected pipeline is unavailable or fails; never switch pipelines silently.
 
-The six primary art pipelines selectable in `STYLE.md` are:
+The primary art pipelines selectable in `STYLE.md` are:
 
 | Pipeline | Primary output | Boundary |
 | --- | --- | --- |
@@ -1395,6 +1398,7 @@ The six primary art pipelines selectable in `STYLE.md` are:
 | `CODE` | Authored Three.js TypeScript/JavaScript models | No downloaded/generated mesh or model-library loading as the primary implementation |
 | `BLENDER` | Authored Blender 4.5 LTS scenes, assets, renders, and exports | Immutable source, repository-confined working copy, explicit validation, staging, and human review |
 | [`FLOOR_PLAN_TO_MODEL`](#floor-plan-to-model) | Dimensioned architecture, editable Blender source, visual/collision GLBs and approved drawings | Exact whole-building design approval, measured geometry, independent review and separate human model acceptance; no game integration |
+| [`SCHEMATIC_TO_MODEL`](#schematic-to-model) | Dimensioned schematics, independently built components, editable assembly and portable rest/diagnostic GLBs | Exact whole-design approval, separate physical instances, measured articulation, independent review and separate human model acceptance; no game integration |
 
 Downstream production pipelines compose with model creation:
 
@@ -1403,7 +1407,7 @@ Downstream production pipelines compose with model creation:
 | [`MODEL_TO_ANIMATION`](#model-to-animation) | Reviewed skinned, articulated or rigid motion packages with selected-engine playback and effects | Reviewed model input, rig/motion approvals, independent review and separate human runtime acceptance |
 | [`MODEL_TO_ACTION`](#model-to-action) | Ordered compound animations with timed model-attached effects and fixed-target presentation | Reviewed source clips, explicit timing/blends, sequence review and separate runtime acceptance; gameplay retains authority |
 
-`MODEL_TO_ANIMATION` follows `PROOF_TO_MODEL`, `BLENDER`, a copied library model or an explicitly compatible `CODE` handoff. It keeps the selected `STYLE.md` pipeline and `ENGINE.md` engine; use `build-model-animations` and `model-to-animation.sh` for this stage. See the [production catalog](.styles/.pipelines/INDEX.md).
+`MODEL_TO_ANIMATION` follows `PROOF_TO_MODEL`, `BLENDER`, a copied library model, an explicitly compatible `CODE` handoff or a reviewed `SCHEMATIC_TO_MODEL` mechanical-assembly handoff. It keeps the selected `STYLE.md` pipeline and `ENGINE.md` engine; use `build-model-animations` and `model-to-animation.sh` for this stage. See the [production catalog](.styles/.pipelines/INDEX.md).
 
 `MODEL_TO_ACTION` composes those individual clips into reviewed sequences through `build-model-actions` and `model-to-action.sh`. Both downstream stages preserve the primary art selection and selected engine.
 
@@ -1422,7 +1426,8 @@ Primary pipeline contracts and owned assets live under:
 ├── code/code-character-observation.schema.json
 ├── code/code-character-evidence-report.schema.json
 ├── blender/PIPELINE.md
-└── floor-plan-to-model/PIPELINE.md
+├── floor-plan-to-model/PIPELINE.md
+└── schematic-to-model/PIPELINE.md
 ```
 
 Legacy media-configuration directories are prohibited. Primary art-pipeline assets belong to their owners under `.styles/.pipelines/`; downstream motion and action assets live in their own directories under `.styles/.workflows/`.
@@ -1441,7 +1446,7 @@ For cloud/local execution, generate the optional media contract with canonical n
 ./commands/generate-media-contract.sh CLOUD LOCAL
 ```
 
-Image generation obeys both the resolved pipeline in `STYLE.md` and `MEDIA.md`. Music, sound effects, ambience, and voice use `MEDIA.md` without depending on visual style. All-original six-view `PROOF_TO_MODEL`, `CODE`, `BLENDER`, and dimension-driven `FLOOR_PLAN_TO_MODEL` do not require `MEDIA.md`; read it whenever cloud/local generated inputs are in scope. Proof generation remains a separate authorized CLOUD/LOCAL operation.
+Image generation obeys both the resolved pipeline in `STYLE.md` and `MEDIA.md`. Music, sound effects, ambience, and voice use `MEDIA.md` without depending on visual style. All-original six-view `PROOF_TO_MODEL`, `CODE`, `BLENDER`, and dimension-driven `FLOOR_PLAN_TO_MODEL` and `SCHEMATIC_TO_MODEL` do not require `MEDIA.md`; read it whenever cloud/local generated inputs are in scope. Proof generation remains a separate authorized CLOUD/LOCAL operation.
 
 Cloud/local media guardrails include:
 
@@ -1560,6 +1565,26 @@ This feature is available in newer `main` source and is not included in publishe
 
 Read the [plain-language guide](https://hephaera.com/docs/floor-plan-to-model/), [detailed reference](docs/FLOOR_PLAN_TO_MODEL.md), [examples](examples/floor-plan-to-model/README.md) and [reference wiki](https://github.com/TimothyMeadows/Hephaera/wiki/Floor-Plan-to-Model).
 
+### Schematic to Model
+
+`SCHEMATIC_TO_MODEL` creates mechanically coherent game assets from dimensioned designs. A reusable part definition describes one wheel, bolt or panel; a physical instance identifies each actual occurrence. Definitions may share geometry, while every instance remains a separate object with its own transform and movement. Use `build-schematic-models` and `schematic-to-model.sh` without changing the current default pipeline or engine.
+
+Start with a request such as:
+
+```text
+Use schematic to model for a small inspection rover in the project's style. Define its dimensions, wheel and steering assemblies, accessible enclosure, fasteners and wiring. Show orthographic drawings, internal sections, exploded assembly, connections and the complete bill of materials together. Declare assumptions and simplified systems, then wait for my whole-design approval. Build the parts separately before assembly and preserve their pivots and flexible rigs for later animation. Deliver a reviewed package outside the game.
+```
+
+Approve the complete specification, drawings, component inventory, tolerances, detail and budgets before construction. Bounded extrusions, revolves, sweeps and lofts support curved bodies and hulls. Explicit fixed, hinge, rotary, slider and screw joints can form supported spur-gear, rack-and-pinion, pulley/belt, slider-crank and planar four-bar mechanisms. Wires, hoses, springs and belts have separate skinned geometry and owned rigs. Named terminals and physical routes describe electrical connections; they do not simulate a circuit. Unsupported geometry or motion fails explicitly.
+
+The eleven operations are `init`, `doctor`, `validate`, `preview`, `record`, `build-parts`, `assemble`, `prove-motion`, `export`, `review` and `status`. Pure design work needs no Blender or media provider. Native production requires the explicitly built pinned Bubo runtime, an existing selected Blender 4.5 LTS and currently supported 64-bit Windows committed-memory enforcement. Installation, rights and finite process/output allowances remain explicit.
+
+The sealed package contains editable Blender source, an animation-free assembled GLB, approved schematics, hierarchical BOM, component/mechanism metadata and provenance. Separate diagnostic Blender/GLB outputs preserve sampled rigid and flexible movement. Raw portable checks and independent re-import verify geometry, local precision, every instance, materials, pivots, skins and animation channels. Complete exterior, section, exploded and diagnostic views precede independent review and separate human model acceptance.
+
+Later animation uses the current preserve-only `mechanical-assembly` handoff, including assemblies with no flexible rigs. It preserves the reviewed components and existing rigs, creates no replacement rig, and inherits no human motion/runtime approval. A source revision invalidates affected decisions and handoff evidence. Diagnostic sampling establishes articulation evidence, not finished animation, continuous collision, manufacturing fitness, physics or engine behavior. This command has no asset-promotion operation.
+
+This feature is available in newer `main` source; published `5.1.0-rc.1` packages predate it. For unreleased source use a deliberately chosen [manual installation](#advanced-manual-installation), while keeping package-managed updates under their existing recovery workflow. See the [technical guide](docs/SCHEMATIC_TO_MODEL.md), [examples](examples/schematic-to-model/README.md), [native export contract](runtime/bubo/resources/schematic-to-model/EXPORT.md), [practical guide](https://hephaera.com/docs/schematic-to-model/) and [reference wiki source](wiki/Schematic-to-Model.md).
+
 ### Native proof to model
 
 `PROOF_TO_MODEL` starts by classifying anatomy, structure, materials and occlusion in the original source images. Observations, researched inferences and unknowns stay distinct: a horse and rider remain separate subjects, and a skull-shaped metal helmet remains armor. Generated proofs cannot become evidence about the originals. One usable canonical source supplies one angle; generate the other five. An oblique or cropped source remains an anchor and may require six canonical proofs. With multiple originals, generate only missing usable angles.
@@ -1604,9 +1629,11 @@ Rejected or changed inputs return to the affected stage and invalidate dependent
 
 ### Model to animation
 
-`MODEL_TO_ANIMATION` continues from a reviewed model into motion production and selected-engine integration. It composes after PROOF_TO_MODEL, Blender, copied libraries or an explicitly compatible CODE handoff; it does not replace the primary art pipeline or select another engine. Use `build-model-animations` and `model-to-animation.sh` with `--help`. Hephaera retains its policy contract in `.styles/.workflows/model-to-animation/WORKFLOW.md`; schemas, recipes, audited Blender scripts and engine adapters live in `runtime/bubo/resources/model-to-animation/`.
+`MODEL_TO_ANIMATION` continues from a reviewed model into motion production and selected-engine integration. It composes after PROOF_TO_MODEL, Blender, copied libraries, an explicitly compatible CODE handoff or a current reviewed schematic assembly; it does not replace the primary art pipeline or select another engine. Use `build-model-animations` and `model-to-animation.sh` with `--help`. Hephaera retains its policy contract in `.styles/.workflows/model-to-animation/WORKFLOW.md`; schemas, recipes, audited Blender scripts and engine adapters live in `runtime/bubo/resources/model-to-animation/`.
 
 Start by checking animation readiness. A display mesh may have fused limbs, attached equipment or missing independent wheels and may need modeling repair. Choose a skinned character, articulated mechanism or rigid-object profile. The existing combat-focused rigged-actor/v1 manifest remains available for valid consumers; vehicles and noncombatants do not need fake bones, attacks or combat colliders.
+
+Reviewed schematic assemblies use the versioned `mechanical-assembly` profile with `rig.mode: "preserve"`, the exact canonical rest GLB and the current `--handoff` descriptor. This preserves rigid components and each existing flexible rig, including assemblies with zero flexible rigs; it permits no new rig, retargeting or missing part. Diagnostic readiness clips do not become approved production animation. See [schematic receiving requirements](docs/SCHEMATIC_TO_MODEL.md#continue-with-animation).
 
 The native .NET 10 workflow preserves the source and recipe, runs fixed hash-bound Blender 4.5 LTS stages, authors declarative motion or explicitly retargets owned/licensed clips, bakes and exports editable sources/GLB, and reviews full motion ranges. Rig/hierarchy and motion selection, independent review and human runtime acceptance remain separate hash-bound evidence. This audited batch contract does not relax standalone BLENDER connected-authoring policy. Inputs cannot select arbitrary scripts or execute embedded code.
 
@@ -1754,7 +1781,7 @@ Installed projects use this baseline layout. Root project contracts and the host
 │   ├── arts/blender-production-artist/ # Blender production owner
 │   └── arts/technical-3d-artist/     # rigged runtime-art handoff owner
 ├── .styles/                          # style templates
-│   ├── .pipelines/                   # CLOUD, LOCAL, PROOF_TO_MODEL, CODE, BLENDER, FLOOR_PLAN_TO_MODEL contracts/assets
+│   ├── .pipelines/                   # visual pipeline contracts, including floor-plan and schematic models
 │   └── .workflows/                   # downstream MODEL_TO_ANIMATION and MODEL_TO_ACTION
 ├── .media/
 │   └── pipelines/                    # AUDIO, MUSIC, VOICE contracts, registry, schemas, and examples
@@ -1762,7 +1789,7 @@ Installed projects use this baseline layout. Root project contracts and the host
 │   └── EXTERNAL_SOURCES.md           # capability boundaries and dispositions
 ├── commands/                         # deterministic scripts
 │   └── lib/bubo-runtime.cjs          # pinned runtime and audited-resource admission
-├── docs/                             # detailed workflow guides, including MEDIA_PIPELINES.md
+├── docs/                             # detailed workflow guides, including SCHEMATIC_TO_MODEL.md
 ├── runtime/
 │   ├── bubo.lock.json               # recorded Bubo revision/API/resource identity
 │   └── bubo/                       # Bubo Git submodule; execution and resources

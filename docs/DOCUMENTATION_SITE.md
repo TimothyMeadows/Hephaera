@@ -1,6 +1,6 @@
 # Documentation site and wiki maintenance
 
-Hephaera has three public documentation surfaces. The landing page explains the project and installation. Eight practical guides help someone use it with their coding agent. The GitHub Wiki carries the detailed reference. Shared instructions, commands and technical documents in the repository remain authoritative when behavior changes.
+Hephaera has three public documentation surfaces. The landing page explains the project and installation. Practical guides help someone use it with their coding agent. The GitHub Wiki carries the detailed reference. Shared instructions, commands and technical documents in the repository remain authoritative when behavior changes.
 
 ## Source layout
 
@@ -46,7 +46,7 @@ For a separately approved custom domain/root host, configure DNS and the Pages d
 
 ## Edit and publish the reference wiki
 
-Wiki sources use stable page basenames and ordinary Markdown links such as `[Project contracts](Project-Contracts)`. Source-file links use the main repository's full `blob/main/` or `tree/main/` URL. Guide links point to the public wiki slug. `wiki:check` validates local wiki targets/anchors and source references without claiming those pages are already live.
+Wiki sources use stable page basenames and ordinary Markdown links such as `[Project contracts](Project-Contracts)`. Source-file links use the main repository's full `blob/main/` or `tree/main/` URL. For a new reference page, link guides to its versioned repository source until the separate wiki publication is verified; do not introduce an assumed live wiki URL. `wiki:check` validates local wiki targets/anchors and source references without claiming those pages are already live.
 
 GitHub stores the wiki in a separate Git repository. It must have an initial page created through GitHub before cloning works. Once initialized, prepare a local checkout:
 

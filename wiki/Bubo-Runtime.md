@@ -50,12 +50,13 @@ The command checks the initialized dependency and catalog; it does not install t
 | --- | --- | --- |
 | `proof-to-model.sh` | Classification registration, proofs, preprocessing, reconstruction and finishing | Current style, sources/rights, set approvals, pinned tools/models and recipe |
 | `floor-plan-to-model.sh` | Dimensioned architecture, approved construction, portable export and complete model review | Current STYLE/rights/budgets, whole-design approval, supported Windows enforcement and selected Blender 4.5 LTS for native modeling |
+| `schematic-to-model.sh` | Complete mechanical schematics, independent parts, assembled articulation and portable export/review | Current STYLE/rights/budgets, approved v2 design, independently verified parts, supported Windows enforcement and selected Blender 4.5 LTS for native modeling |
 | `model-to-animation.sh` | Model readiness, rigs/hierarchies, real clips and export | Reviewed GLB, selected profile, Blender and current motion evidence |
 | `model-to-action.sh` | Compound timelines from actual reviewed clips | Compatible motion package, source-motion selection, recipe and anchors |
 | `inspect-blender-scene.sh` | Read-only Blender scene reporting | Existing Blender 4.5.x and selected inspection profile |
 | `bubo-media.sh` | Explicit LOCAL setup, inspection and generation | MEDIA policy, selected domain/style where applicable, verified installation and approval |
 
-Proof, floor-plan, motion and action commands use task manifests and versioned non-runtime staging. Floor-plan planning works without Blender; its native modeling requires the complete architectural-export capability and actual tool/platform/path readiness. Read [Floor plan to model](Floor-Plan-to-Model) for its independent import and human model review gates. Blender inspection needs no fabricated STYLE, ENGINE or MEDIA contract and grants no authoring or acceptance. Read its documented profiles before inspection.
+Proof, floor-plan, schematic, motion and action commands use task manifests and versioned non-runtime staging. Floor-plan/schematic planning works without Blender. Native modeling requires the complete respective architectural-export or portable-assembly-export capability and actual tool/platform/path readiness. Read [Floor plan to model](Floor-Plan-to-Model) and [Schematic to model](Schematic-to-Model) for independent import and human model review gates. Blender inspection needs no fabricated STYLE, ENGINE or MEDIA contract and grants no authoring or acceptance. Read its documented profiles before inspection.
 
 ## LOCAL media discovery and setup
 
