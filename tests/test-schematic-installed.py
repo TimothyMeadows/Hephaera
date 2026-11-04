@@ -40,6 +40,26 @@ def gltf(file):
         return json.loads(stream.read(size))
 
 
+def decode_output(workflow, operation, stdout, expected_manifest=None):
+    if workflow == 'schematic-to-model':
+        return json.loads(stdout)
+    if workflow != 'model-to-animation':
+        raise ValueError('Unsupported fixture workflow')
+    if operation == 'init':
+        safe_id = r'[A-Za-z0-9][A-Za-z0-9._-]{0,79}'
+        pattern = rf'\.hephaera/\.cache/tasks/{safe_id}/model-to-animation/{safe_id}/{safe_id}/manifest\.json'
+        if not isinstance(expected_manifest, str) or not re.fullmatch(pattern, expected_manifest):
+            raise ValueError('Expected motion manifest is not a safe canonical path')
+        if stdout not in (expected_manifest, expected_manifest + '\n', expected_manifest + '\r\n'):
+            raise ValueError('Motion init did not return its exact canonical manifest path')
+        return {'manifest': expected_manifest}
+    if not stdout.strip() or '\0' in stdout:
+        raise ValueError('Motion stage did not return a text result')
+    # Legacy motion stages print text. Their retained state is checked below;
+    # a message alone never certifies that a stage or source check succeeded.
+    return {'message': stdout.strip()}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--evidence', type=Path, required=True)
@@ -171,7 +191,13 @@ def main():
                 prefix = [bash, wrapper.as_posix()] if os.name == 'nt' else [str(wrapper)]
                 result = command([*prefix, operation, '--root', host, *values], host,
                                  expected=expected, environment=host_env)
-                return result if expected else json.loads(result.stdout)
+                if expected:
+                    return result
+                expected_manifest = None
+                if workflow == 'model-to-animation' and operation == 'init':
+                    flags = dict(zip(values[::2], values[1::2], strict=True))
+                    expected_manifest = f'.hephaera/.cache/tasks/{flags["--task"]}/model-to-animation/{flags["--asset"]}/{flags["--version"]}/manifest.json'
+                return decode_output(workflow, operation, result.stdout, expected_manifest)
 
             def references(value):
                 return {name: entry for name, entry in value.items() if isinstance(entry, dict) and 'path' in entry and 'sha256' in entry}
