@@ -53,10 +53,10 @@ def decode_output(workflow, operation, stdout, expected_manifest=None):
         if stdout not in (expected_manifest, expected_manifest + '\n', expected_manifest + '\r\n'):
             raise ValueError('Motion init did not return its exact canonical manifest path')
         return {'manifest': expected_manifest}
-    if not stdout.strip() or '\0' in stdout:
-        raise ValueError('Motion stage did not return a text result')
-    # Legacy motion stages print text. Their retained state is checked below;
-    # a message alone never certifies that a stage or source check succeeded.
+    if '\0' in stdout:
+        raise ValueError('Motion output contains a binary control character')
+    # Legacy stages may be silent or print text. The native success result and
+    # retained state below establish completion, never stdout presence alone.
     return {'message': stdout.strip()}
 
 
