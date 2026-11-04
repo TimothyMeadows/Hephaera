@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="870" viewBox="0 0 1120 870" role="img" aria-labelledby="title description">
+  <title id="title">One enclosure: six definitions, seven physical occurrences</title>
+  <desc id="description">Conceptual identity diagram for the licensed opening-device example. Shell, lid, battery and motor each have one definition and occurrence. A single screw definition supplies screw-left and screw-right, which keep separate objects and screw joints. A wire definition supplies power-wire with its own skin and rig. The wire joins battery positive to motor power on fixed internal components. This diagram is not dimensioned geometry, a circuit simulation or a model approval artifact.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0 0 L8 4 L0 8 Z" fill="#e0bd71"/>
+    </marker>
+  </defs>
+  <rect width="1120" height="870" rx="18" fill="#12191d"/>
+  <text x="40" y="51" font-family="'Segoe UI', Arial, sans-serif" fill="#f4f0e4" font-size="30" font-weight="700">One enclosure, separately owned parts</text>
+  <text x="40" y="83" font-family="'Segoe UI', Arial, sans-serif" fill="#b8cad4" font-size="18">Conceptual identity map · licensed device example · not to scale</text>
+  <g transform="translate(1016 26)" fill="none" stroke="#e0bd71" stroke-width="2.5" aria-hidden="true">
+    <path d="M0 8 L8 0 L16 8 L24 0 L32 8 L32 31 Q16 47 0 31 Z"/>
+    <circle cx="10" cy="19" r="6"/>
+    <circle cx="23" cy="19" r="6"/>
+    <path d="M13 28 L20 28 L16.5 33 Z" fill="#e0bd71" stroke="none"/>
+  </g>
+  <text x="40" y="130" font-family="'Segoe UI', Arial, sans-serif" fill="#e0bd71" font-size="19" font-weight="700">6 reusable part definitions</text>
+  <text x="625" y="130" font-family="'Segoe UI', Arial, sans-serif" fill="#e0bd71" font-size="19" font-weight="700">assembly / 7 physical occurrences</text>
+
+  <rect x="40" y="155" width="410" height="68" rx="8" fill="#1c292f" stroke="#7f9aab" stroke-width="1.5"/>
+  <text x="60" y="184" font-family="'Segoe UI', Arial, sans-serif" fill="#f4f0e4" font-size="20" font-weight="600">shell-definition</text>
+  <text x="60" y="208" font-family="'Segoe UI', Arial, sans-serif" fill="#b8cad4" font-size="17">Open shell, bores and counterbores</text>
+  <path d="M450 189 H613" fill="none" stroke="#e0bd71" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <rect x="625" y="155" width="455" height="68" rx="8" fill="#23343d" stroke="#7f9aab" stroke-width="1.5"/>
+  <text x="645" y="184" font-family="'Segoe UI', Arial, sans-serif" fill="#f4f0e4" font-size="20" font-weight="600">shell</text>
+  <text x="645" y="208" font-family="'Segoe UI', Arial, sans-serif" fill="#b8cad4" font-size="17">800 × 500 × 200 mm authored outer size</text>
+
+  <rect x="40" y="245" width="410" height="68" rx="8" fill="#1c292f" stroke="#7f9aab" stroke-width="1.5"/>
+  <text x="60" y="274" font-family="'Segoe UI', Arial, sans-serif" fill="#f4f0e4" font-size="20" font-weight="600">lid-definition</text>
+  <text x="60" y="298" font-family="'Segoe UI', Arial, sans-serif" fill="#b8cad4" font-size="17">Separate rigid geometry</text>
+  <path d="M450 279 H613" fill="none" stroke="#e0bd71" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <rect x="625" y="245" width="455" height="68" rx="8" fill="#23343d" stroke="#7f9aab" stroke-width="1.5"/>
+  <text x="645" y="274" font-family="'Segoe UI', Arial, sans-serif" fill="#f4f0e4" font-size="20" font-weight="600">lid</text>
+  <text x="645" y="298" font-family="'Segoe UI', Arial, sans-serif" fill="#b8cad4" font-size="17">Own hinge joint · 0–110° travel</text>
+
+  <rect x="40" y="335" width="410" height="68" rx="8" fill="#1c292f" stroke="#7f9aab" stroke-width="1.5"/>
+  <text x="60" y="364" font-family="'Segoe UI', Arial, sans-serif" fill="#f4f0e4" font-size="20" font-weight="600">battery-definition</text>
+  <text x="60" y="388" font-family="'Segoe UI', Arial, sans-serif" fill="#b8cad4" font-size="17">Simplified box and named terminal</text>
+  <path d="M450 369 H613" fill="none" stroke="#e0bd71" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <rect x="625" y="335" width="455" height="68" rx="8" fill="#23343d" stroke="#7f9aab" stroke-width="1.5"/>
+  <text x="645" y="364" font-family="'Segoe UI', Arial, sans-serif" fill="#f4f0e4" font-size="20" font-weight="600">battery</text>
+  <text x="645" y="388" font-family="'Segoe UI', Arial, sans-serif" fill="#b8cad4" font-size="17">Fixed internal component · positive terminal</text>
+
+  <rect x="40" y="425" width="410" height="68" rx="8" fill="#1c292f" stroke="#7f9aab" stroke-width="1.5"/>
+  <text x="60" y="454" font-family="'Segoe UI', Arial, sans-serif" fill="#f4f0e4" font-size="20" font-weight="600">motor-definition</text>
+  <text x="60" y="478" font-family="'Segoe UI', Arial, sans-serif" fill="#b8cad4" font-size="17">Simplified cylinder and named terminal</text>
+  <path d="M450 459 H613" fill="none" stroke="#e0bd71" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <rect x="625" y="425" width="455" height="68" rx="8" fill="#23343d" stroke="#7f9aab" stroke-width="1.5"/>
+  <text x="645" y="454" font-family="'Segoe UI', Arial, sans-serif" fill="#f4f0e4" font-size="20" font-weight="600">motor</text>
+  <text x="645" y="478" font-family="'Segoe UI', Arial, sans-serif" fill="#b8cad4" font-size="17">Fixed internal component · power terminal</text>
+
+  <rect x="40" y="515" width="410" height="112" rx="8" fill="#1c292f" stroke="#7f9aab" stroke-width="1.5"/>
+  <text x="60" y="548" font-family="'Segoe UI', Arial, sans-serif" fill="#f4f0e4" font-size="20" font-weight="600">screw-definition</text>
+  <text x="60" y="575" font-family="'Segoe UI', Arial, sans-serif" fill="#b8cad4" font-size="17">One authored shaft, thread and hex head</text>
+  <text x="60" y="602" font-family="'Segoe UI', Arial, sans-serif" fill="#b8cad4" font-size="17">Geometry reused; ownership stays separate</text>
+  <path d="M450 571 H525 V539 H613" fill="none" stroke="#e0bd71" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <path d="M525 571 V603 H613" fill="none" stroke="#e0bd71" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <rect x="625" y="515" width="455" height="48" rx="8" fill="#23343d" stroke="#7f9aab" stroke-width="1.5"/>
+  <text x="645" y="545" font-family="'Segoe UI', Arial, sans-serif" fill="#f4f0e4" font-size="20" font-weight="600">screw-left · its own object and joint</text>
+  <rect x="625" y="579" width="455" height="48" rx="8" fill="#23343d" stroke="#7f9aab" stroke-width="1.5"/>
+  <text x="645" y="609" font-family="'Segoe UI', Arial, sans-serif" fill="#f4f0e4" font-size="20" font-weight="600">screw-right · its own object and joint</text>
+
+  <rect x="40" y="655" width="410" height="68" rx="8" fill="#1c292f" stroke="#7f9aab" stroke-width="1.5"/>
+  <text x="60" y="684" font-family="'Segoe UI', Arial, sans-serif" fill="#f4f0e4" font-size="20" font-weight="600">wire-definition</text>
+  <text x="60" y="708" font-family="'Segoe UI', Arial, sans-serif" fill="#b8cad4" font-size="17">Authored circular sweep and route</text>
+  <path d="M450 689 H613" fill="none" stroke="#e0bd71" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <rect x="625" y="655" width="455" height="68" rx="8" fill="#23343d" stroke="#7f9aab" stroke-width="1.5"/>
+  <text x="645" y="684" font-family="'Segoe UI', Arial, sans-serif" fill="#f4f0e4" font-size="20" font-weight="600">power-wire</text>
+  <text x="645" y="708" font-family="'Segoe UI', Arial, sans-serif" fill="#b8cad4" font-size="17">Own skin and rig · battery.positive → motor.power</text>
+
+  <path d="M40 754 H1080" stroke="#7f9aab"/>
+  <text x="40" y="789" font-family="'Segoe UI', Arial, sans-serif" fill="#f4f0e4" font-size="18">The wire endpoints stay fixed inside this fixture; lid motion does not drive wire bending.</text>
+  <text x="40" y="821" font-family="'Segoe UI', Arial, sans-serif" fill="#b8cad4" font-size="18">Review the real dimensioned package, every occurrence and all diagnostic samples before acceptance.</text>
+  <text x="40" y="847" font-family="'Segoe UI', Arial, sans-serif" fill="#b8cad4" font-size="18">This illustration supplies no circuit, manufacturing, animation or runtime certification.</text>
+</svg>

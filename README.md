@@ -424,7 +424,7 @@ Hephaera belongs directly at `<project-root>/.hephaera/` in an existing host Git
 
 ## Package Availability
 
-[`5.1.0-rc.1` is published on GitHub](https://github.com/TimothyMeadows/Hephaera/releases/tag/5.1.0-rc.1), including both GitHub Packages installers and the setup ZIP. The **npmjs.com and NuGet.org mirrors are pending**; their examples below apply only after the exact public version is verified. This is a prerelease, so GitHub's latest/full-release link may show an older stable version.
+[`5.1.0-rc.1` is the current full GitHub release](https://github.com/TimothyMeadows/Hephaera/releases/tag/5.1.0-rc.1), including both GitHub Packages installers and the setup ZIP. It is also selected by [GitHub's latest-release link](https://github.com/TimothyMeadows/Hephaera/releases/latest). Promotion changed its GitHub classification; its immutable tag, package version and files remain `5.1.0-rc.1`. Package clients still interpret the `-rc.1` suffix as a SemVer prerelease. The **npmjs.com and NuGet.org mirrors are pending**; their examples below apply only after the exact public version is verified.
 
 | Source | Current status |
 | --- | --- |

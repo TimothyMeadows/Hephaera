@@ -1,6 +1,6 @@
 # Install Hephaera in your project
 
-The [`5.1.0-rc.1` GitHub prerelease](https://github.com/TimothyMeadows/Hephaera/releases/tag/5.1.0-rc.1) is published, including the npm installer, NuGet tool and setup ZIP. **npmjs.com and NuGet.org publication is still pending.** Use the GitHub alternative now; use a public route only after its exact version is confirmed.
+The [current full GitHub release is `5.1.0-rc.1`](https://github.com/TimothyMeadows/Hephaera/releases/tag/5.1.0-rc.1), including the npm installer, NuGet tool and setup ZIP. [GitHub's latest-release link](https://github.com/TimothyMeadows/Hephaera/releases/latest) selects it. Promotion preserves the exact tag, files and package version; package clients still treat `-rc.1` as a SemVer prerelease. **npmjs.com and NuGet.org publication is still pending.** Use the GitHub alternative now; use a public route only after its exact version is confirmed.
 
 | Where you look | Current version |
 | --- | --- |

@@ -35,7 +35,8 @@ async function inspectUpstream(s,io,{wait=false}={}){
  }
  if(run.conclusion!=='success')throw new Error('The upstream GitHub publication did not succeed.');
  const release=await io.getRelease(s.releaseId),expected=Object.values(names(s.version)).sort();
- if(release.id!==s.releaseId||release.tag_name!==s.version||release.draft!==false||release.prerelease!==s.version.includes('-')||!Array.isArray(release.assets)||JSON.stringify(release.assets.map(a=>a.name).sort())!==JSON.stringify(expected))throw new Error('Published upstream release identity or inventory differs.');
+ // GitHub full-release promotion preserves the original candidate package version.
+ if(release.id!==s.releaseId||release.tag_name!==s.version||release.draft!==false||typeof release.prerelease!=='boolean'||(release.prerelease&&!s.version.includes('-'))||!Array.isArray(release.assets)||JSON.stringify(release.assets.map(a=>a.name).sort())!==JSON.stringify(expected))throw new Error('Published upstream release identity or inventory differs.');
  for(const a of release.assets)if(numeric(a.id)!==a.id||!Number.isSafeInteger(a.size)||a.size<=0||a.size>67108864||!/^sha256:[a-f0-9]{64}$/.test(a.digest||''))throw new Error('Invalid published asset identity, digest or limit.');
  return {run,release};
 }

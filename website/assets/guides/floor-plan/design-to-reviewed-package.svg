@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="850" viewBox="0 0 1200 850" role="img" aria-labelledby="title description">
+  <title id="title">From a building brief to a reviewed model package</title>
+  <desc id="description">A six-stage illustrative workflow. First, write the brief and dimensioned source; second, validate and preview every drawing; third, obtain actual human whole-building approval. Then construct and export the building, independently check the delivered files, obtain independent model review and separate human model acceptance. A source revision creates a new version and returns to complete design review. Game-engine integration, movement and collision testing, runtime acceptance and promotion remain later work.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth"><path d="M0 0 8 4 0 8Z" fill="#46535e"/></marker>
+    <marker id="gold-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth"><path d="M0 0 8 4 0 8Z" fill="#805d27"/></marker>
+  </defs>
+  <rect width="1200" height="850" rx="22" fill="#fcfaf5"/>
+  <rect x="1" y="1" width="1198" height="848" rx="21" fill="none" stroke="#dfddd5" stroke-width="2"/>
+  <g font-family="Arial, Helvetica, sans-serif" fill="#202a32">
+    <text x="40" y="43" font-size="17" font-weight="700" letter-spacing="1.5" fill="#805d27">ILLUSTRATIVE WORKFLOW</text>
+    <text x="40" y="84" font-size="31" font-weight="700">Approve the design. Then inspect the delivered building.</text>
+    <text x="40" y="118" font-size="20" fill="#46535e">Each stage keeps the exact inputs, outputs and review history.</text>
+
+    <g stroke="#dfddd5" stroke-width="2">
+      <rect x="40" y="160" width="330" height="188" rx="14" fill="#f1efe7"/>
+      <rect x="435" y="160" width="330" height="188" rx="14" fill="#f1efe7"/>
+      <rect x="830" y="160" width="330" height="188" rx="14" fill="#fff4d6" stroke="#c69a52"/>
+      <rect x="830" y="428" width="330" height="188" rx="14" fill="#f1efe7"/>
+      <rect x="435" y="428" width="330" height="188" rx="14" fill="#f1efe7"/>
+      <rect x="40" y="428" width="330" height="188" rx="14" fill="#fff4d6" stroke="#c69a52"/>
+    </g>
+    <g font-size="18" font-weight="700" fill="#805d27">
+      <text x="62" y="193">01 · DEFINE</text>
+      <text x="457" y="193">02 · CHECK THE DESIGN</text>
+      <text x="852" y="193">03 · HUMAN DESIGN DECISION</text>
+      <text x="852" y="461">04 · CONSTRUCT + EXPORT</text>
+      <text x="457" y="461">05 · INSPECT DELIVERED FILES</text>
+      <text x="62" y="461">06 · MODEL DECISIONS</text>
+    </g>
+    <g font-size="24" font-weight="700">
+      <text x="62" y="233">Brief + v2 plan</text>
+      <text x="457" y="233">Validate + preview</text>
+      <text x="852" y="233">Whole-building approval</text>
+      <text x="852" y="501">Build the architecture</text>
+      <text x="457" y="501">Verify both GLBs</text>
+      <text x="62" y="501">Independent review</text>
+    </g>
+    <g font-size="20" fill="#46535e">
+      <text x="62" y="270">Dimensions, materials, rights,</text>
+      <text x="62" y="300">player clearances and budgets</text>
+      <text x="457" y="270">Every floor, roof, elevation</text>
+      <text x="457" y="300">and required section</text>
+      <text x="852" y="270">Exact plan + complete drawings</text>
+      <text x="852" y="300">No partial-floor approval</text>
+      <text x="852" y="538">Editable source + separate</text>
+      <text x="852" y="568">visual and collision exports</text>
+      <text x="457" y="538">Independent imports +</text>
+      <text x="457" y="568">complete delivered-model views</text>
+      <text x="62" y="538">Then a separate human</text>
+      <text x="62" y="568">model-acceptance decision</text>
+    </g>
+    <g fill="none" stroke="#46535e" stroke-width="2.5" marker-end="url(#arrow)">
+      <path d="M378 254H423"/>
+      <path d="M773 254H818"/>
+      <path d="M995 356V416"/>
+      <path d="M822 522H777"/>
+      <path d="M427 522H382"/>
+    </g>
+    <path d="M850 357V381H205V357" fill="none" stroke="#805d27" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#gold-arrow)"/>
+    <rect x="333" y="365" width="414" height="31" rx="5" fill="#fcfaf5"/>
+    <text x="540" y="387" font-size="19" text-anchor="middle" fill="#805d27">Source revision → new version + full review</text>
+
+    <path d="M205 624V673" fill="none" stroke="#46535e" stroke-width="2.5" marker-end="url(#arrow)"/>
+    <rect x="40" y="686" width="1120" height="96" rx="14" fill="#202a32"/>
+    <text x="63" y="721" font-size="21" font-weight="700" fill="#fff4d6">LATER · SEPARATE GAME INTEGRATION</text>
+    <text x="63" y="756" font-size="20" fill="#fcfaf5">Engine import · movement, navigation and collision tests · runtime acceptance · explicit promotion</text>
+    <text x="40" y="824" font-size="18" fill="#46535e">A technical pass does not supply human acceptance. Outputs stay in staging until separately integrated.</text>
+  </g>
+</svg>

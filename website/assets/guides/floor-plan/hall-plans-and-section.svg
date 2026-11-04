@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1010" viewBox="0 0 1200 1010" role="img" aria-labelledby="title description">
+  <title id="title">Two-storey hall: illustrative plans and section</title>
+  <desc id="description">Two 10 metre by 8 metre plan footprints show empty halls, east windows and a straight stair. The ground plan has a 1.2 metre entry; the upper plan marks a 3.5 by 1.4 metre slab opening around the 1.2 metre clear flight. A simplified section shows finished floors at zero and three metres, 2.8 metre clear heights and a 0.2 metre upper slab. The stair has fifteen 0.2 metre risers. This is an explanatory diagram based on the multi-storey engineering example, not a complete generated drawing or verified model output.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto" markerUnits="strokeWidth"><path d="M0 0 7 3.5 0 7Z" fill="#805d27"/></marker>
+  </defs>
+  <rect width="1200" height="1010" rx="22" fill="#fcfaf5"/>
+  <rect x="1" y="1" width="1198" height="1008" rx="21" fill="none" stroke="#dfddd5" stroke-width="2"/>
+  <g font-family="Arial, Helvetica, sans-serif" fill="#202a32">
+    <text x="40" y="43" font-size="17" font-weight="700" letter-spacing="1.5" fill="#805d27">ILLUSTRATIVE DESIGN DIAGRAM · METRES</text>
+    <text x="40" y="83" font-size="31" font-weight="700">One building. Two connected floors.</text>
+    <text x="85" y="123" font-size="21" font-weight="700">GROUND · z = 0 m</text>
+    <text x="700" y="123" font-size="21" font-weight="700">UPPER · z = 3 m</text>
+
+    <g stroke="#626b71" stroke-width="1.5" fill="none">
+      <path d="M85 164V142M485 164V142M85 150H485M85 144L85 156M485 144L485 156"/>
+      <path d="M700 164V142M1100 164V142M700 150H1100M700 144V156M1100 144V156"/>
+      <path d="M69 180H45M69 500H45M53 180V500M47 180H59M47 500H59"/>
+      <path d="M684 180H660M684 500H660M668 180V500M662 180H674M662 500H674"/>
+    </g>
+    <rect x="235" y="136" width="100" height="28" fill="#fcfaf5"/>
+    <rect x="850" y="136" width="100" height="28" fill="#fcfaf5"/>
+    <text x="285" y="157" font-size="19" text-anchor="middle">10 m</text>
+    <text x="900" y="157" font-size="19" text-anchor="middle">10 m</text>
+    <text x="31" y="348" font-size="19" text-anchor="middle" transform="rotate(-90 31 348)">8 m</text>
+    <text x="646" y="348" font-size="19" text-anchor="middle" transform="rotate(-90 646 348)">8 m</text>
+
+    <g fill="#f1efe7" stroke="#202a32" stroke-width="8">
+      <rect x="85" y="180" width="400" height="320"/>
+      <rect x="700" y="180" width="400" height="320"/>
+    </g>
+    <g stroke="#fcfaf5" stroke-width="11">
+      <path d="M125 500H173M485 364V420M1100 364V420"/>
+    </g>
+    <g stroke="#46535e" stroke-width="2" fill="none">
+      <path d="M485 364V420M1100 364V420"/>
+      <path d="M125 500V452M125 452A48 48 0 0 1 173 500"/>
+    </g>
+    <text x="285" y="244" font-size="23" text-anchor="middle">Empty ground hall</text>
+    <text x="285" y="274" font-size="18" text-anchor="middle" fill="#46535e">9.8 m × 7.8 m clear boundary</text>
+    <text x="900" y="244" font-size="23" text-anchor="middle">Empty upper hall</text>
+    <text x="900" y="274" font-size="18" text-anchor="middle" fill="#46535e">Same wall and floor alignment</text>
+
+    <g fill="#e6e3d9" stroke="#46535e" stroke-width="1.5">
+      <rect x="157" y="356" width="48" height="48"/>
+      <rect x="205" y="356" width="140" height="48"/>
+      <rect x="345" y="356" width="48" height="48"/>
+      <rect x="772" y="356" width="48" height="48"/>
+      <rect x="960" y="356" width="48" height="48"/>
+    </g>
+    <g stroke="#626b71" stroke-width="1.3">
+      <path d="M215 356V404M225 356V404M235 356V404M245 356V404M255 356V404M265 356V404M275 356V404M285 356V404M295 356V404M305 356V404M315 356V404M325 356V404M335 356V404"/>
+    </g>
+    <rect x="820" y="352" width="140" height="56" fill="#fff4d6" stroke="#805d27" stroke-width="2.5" stroke-dasharray="7 5"/>
+    <path d="M214 380H334" stroke="#805d27" stroke-width="3" marker-end="url(#arrow)"/>
+    <path d="M830 380H949" stroke="#805d27" stroke-width="3" marker-end="url(#arrow)"/>
+    <text x="275" y="335" font-size="19" text-anchor="middle" font-weight="700">UP · 1.2 m clear flight</text>
+    <text x="890" y="329" font-size="19" text-anchor="middle" font-weight="700">Upper slab opening</text>
+    <text x="890" y="435" font-size="19" text-anchor="middle" fill="#805d27">3.5 m × 1.4 m</text>
+    <text x="285" y="443" font-size="18" text-anchor="middle" fill="#46535e">1.2 m-deep end landings</text>
+    <path d="M149 505V525" stroke="#626b71" stroke-width="1.5"/>
+    <text x="149" y="549" font-size="19" text-anchor="middle">Entry · 1.2 m</text>
+    <text x="700" y="549" font-size="19" fill="#46535e">Gold dashes mark a real hole in the slab.</text>
+    <text x="85" y="584" font-size="18" fill="#46535e">Plan labels follow source footprint and wall centerlines; walls are 0.2 m thick.</text>
+
+    <path d="M40 610H1160" stroke="#dfddd5" stroke-width="2"/>
+    <text x="85" y="650" font-size="22" font-weight="700">VERTICAL RELATIONSHIP · simplified section</text>
+
+    <g fill="#46535e">
+      <rect x="85" y="900" width="400" height="8"/>
+      <rect x="85" y="780" width="120" height="8"/>
+      <rect x="345" y="780" width="140" height="8"/>
+      <rect x="81" y="788" width="8" height="112"/>
+      <rect x="481" y="788" width="8" height="112"/>
+      <rect x="81" y="668" width="8" height="112"/>
+      <rect x="481" y="668" width="8" height="112"/>
+      <rect x="73" y="661" width="424" height="7"/>
+    </g>
+    <path d="M205 900v-8h10v-8h10v-8h10v-8h10v-8h10v-8h10v-8h10v-8h10v-8h10v-8h10v-8h10v-8h10v-8h10v-8h10v-8" fill="none" stroke="#805d27" stroke-width="3"/>
+    <path d="M205 762H345M205 755V769M345 755V769" stroke="#805d27" stroke-width="1.5"/>
+    <text x="275" y="748" font-size="18" fill="#805d27" text-anchor="middle">Slab opening</text>
+    <g stroke="#626b71" stroke-width="1.5" fill="none">
+      <path d="M525 668V780M519 668H531M519 780H531M525 788V900M519 788H531M519 900H531"/>
+      <path d="M490 780H625M490 900H625" stroke-dasharray="5 5"/>
+    </g>
+    <text x="543" y="722" font-size="18">2.8 m clear</text>
+    <text x="543" y="850" font-size="18">2.8 m clear</text>
+    <text x="705" y="699" font-size="20" font-weight="700">Floor levels are slab tops.</text>
+    <text x="705" y="734" font-size="19" fill="#46535e">Upper slab extends down 0.2 m.</text>
+    <text x="650" y="788" font-size="20" font-weight="700">Upper floor · +3.0 m</text>
+    <text x="705" y="831" font-size="19" fill="#805d27">15 rises × 0.2 m = 3.0 m</text>
+    <text x="705" y="862" font-size="19" fill="#46535e">Treads · 0.25 m depth</text>
+    <text x="650" y="908" font-size="20" font-weight="700">Ground floor · 0.0 m</text>
+    <text x="40" y="961" font-size="18" fill="#46535e">Explanatory geometry only. Frames, rails, finishes and other details are omitted.</text>
+    <text x="40" y="988" font-size="18" fill="#46535e">Review the complete generated drawings; this is not a verified model output or dimension fixture.</text>
+  </g>
+</svg>

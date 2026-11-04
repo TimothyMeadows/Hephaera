@@ -4,11 +4,19 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import MarkdownIt from 'markdown-it';
-import { repoRoot, repository, wiki, slugify } from './build.mjs';
+import { repoRoot, repository, wiki, slugify, guideImagePath, loadGuideImages } from './build.mjs';
 
 const sourceRoot = path.join(repoRoot, 'wiki');
 const parser = new MarkdownIt({ html: false });
 const git = (root, ...args) => execFileSync('git', ['-C', root, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+
+export async function checkWikiImage(src, alt) {
+  const prefix = 'https://raw.githubusercontent.com/TimothyMeadows/Hephaera/main/website/';
+  if (!src.startsWith(prefix) || !alt.trim()) throw new Error(`Wiki image needs a public project source and descriptive alt text: ${src}`);
+  const relative = `../../${src.slice(prefix.length)}`;
+  guideImagePath(relative); // Validate exact source before any Markdown reconstruction.
+  await loadGuideImages([`![Reviewed illustration](${relative})`]);
+}
 
 function headings(source) {
   const tokens = parser.parse(source, {});
@@ -35,10 +43,14 @@ export async function checkWiki() {
     if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 256_000) throw new Error(`Wiki source must be a bounded regular file: ${name}`);
     sources.set(name.slice(0, -3), await fs.readFile(path.join(sourceRoot, name), 'utf8'));
   }
-  let links = 0;
+  let links = 0, images = 0;
   for (const [name, source] of sources) {
     const tokens = parser.parse(source, {});
     for (const block of tokens) for (const token of block.children || []) {
+      if (token.type === 'image') {
+        await checkWikiImage(token.attrGet('src') || '', token.content);
+        images++;
+      }
       if (token.type !== 'link_open') continue;
       const href = token.attrGet('href');
       const url = new URL(href, `${wiki}/${name}`);
@@ -56,7 +68,7 @@ export async function checkWiki() {
       links++;
     }
   }
-  return { names, pages: names.length, links };
+  return { names, pages: names.length, links, images };
 }
 
 export async function publishWiki(destination, execute = false) {
