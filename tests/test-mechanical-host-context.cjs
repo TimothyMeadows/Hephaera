@@ -38,7 +38,7 @@ write(pkgRoot + '/package.json', packageValue);
 const handoff = { schemaVersion: 'bubo-mechanical-assembly-handoff/v1', package: ref(pkgRoot + '/package.json'), model: ref(pkgRoot + '/assembly.glb'),
   design: ref(pkgRoot + '/assembly-design.json'), metadata: ref(pkgRoot + '/assembly-metadata.json'), provenance: ref(pkgRoot + '/provenance.json'),
   technicalReview: ref('sealed/a/technical.json'), independentReview: ref('sealed/a/independent.json'), components: [], bindings: { nodes: [], skins: [] },
-  sourceState: { design: ref(sourceRoot + '/manifest.json'), parts: ref(sourceRoot + '/parts.json'), assembly: ref(sourceRoot + '/assembly.json'), export: ref(sourceRoot + '/exports.json') }, humanAcceptance: null };
+  sourceState: { design: ref(sourceRoot + '/manifest.json'), parts: ref(sourceRoot + '/parts.json'), assembly: ref(sourceRoot + '/assembly.json'), export: ref(sourceRoot + '/exports.json') } };
 write('inputs/handoff.json', handoff);
 const args = ['--root', root, '--task', 'receive', '--asset', 'a', '--version', 'v', '--actor', 'a', '--recipe', 'inputs/recipe.json', '--rights', 'inputs/rights.json', '--model', handoff.model.path, '--handoff', 'inputs/handoff.json'];
 const options = host.parse(args), info = { folder: path.join(root, '.hephaera/runtime/bubo/artifacts/bubo') };
@@ -53,6 +53,7 @@ check(!admitted.context.references.some(item => item.path.includes('data-only-re
 check(!admitted.context.permissions.provisioning && !admitted.context.permissions.promotion, 'Receiving grants no setup or promotion');
 for (const name of ['host-context', 'api-version', 'runtime-build-sha256', 'runtime-resource-catalog-sha256']) rejects(() => host.parse(['--' + name, 'injected']), /protected|unique/);
 const direct = () => mechanical.prepare(root, 'model-to-animation', 'init', options, null);
+mutate('inputs/handoff.json', { ...handoff, unexpected: true }, direct, /handoff fields/);
 mutate('inputs/handoff.json', { ...handoff, model: ref('inputs/rights.json') }, direct, /substituted/);
 mutate('inputs/handoff.json', { ...handoff, sourceState: { ...handoff.sourceState, parts: ref(sourceRoot + '/assembly.json') } }, direct, /siblings/);
 mutate(sourceRoot + '/parts.json', { changed: true }, direct, /Changed bound/);

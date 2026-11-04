@@ -8,9 +8,10 @@ const fail = message => { throw new Error(message); };
 const HASH = /^[a-f0-9]{64}$/;
 const NAMES = ['package', 'model', 'design', 'metadata', 'provenance', 'technicalReview', 'independentReview'];
 const STATES = ['design', 'parts', 'assembly', 'export'];
-function object(value, keys, label) {
+function object(value, keys, label, optional = []) {
   if (!value || Array.isArray(value) || typeof value !== 'object'
-    || JSON.stringify(Object.keys(value).sort()) !== JSON.stringify([...keys].sort())) fail('Invalid mechanical ' + label + ' fields.');
+    || Object.keys(value).some(key => !keys.includes(key))
+    || keys.some(key => !optional.includes(key) && !Object.hasOwn(value, key))) fail('Invalid mechanical ' + label + ' fields.');
 }
 function prepare(root, workflow, operation, options, state) {
   if (workflow !== 'model-to-animation') {
@@ -59,7 +60,7 @@ function prepare(root, workflow, operation, options, state) {
   const expected = state ? state.originals?.[relative(selected)] : undefined;
   if (state && !HASH.test(expected || '')) fail('Missing immutable mechanical handoff identity.');
   const descriptor = document(selected, expected), handoff = descriptor.value;
-  object(handoff, ['schemaVersion', ...NAMES, 'components', 'bindings', 'sourceState', 'humanAcceptance'], 'handoff');
+  object(handoff, ['schemaVersion', ...NAMES, 'components', 'bindings', 'sourceState', 'humanAcceptance'], 'handoff', ['humanAcceptance']);
   if (handoff.schemaVersion !== 'bubo-mechanical-assembly-handoff/v1') fail('Unsupported mechanical handoff schema.');
   const refs = new Map(), opaque = new Map(), typedHashes = new Set();
   const bind = (item, kind = 'input', isJson = false) => {
