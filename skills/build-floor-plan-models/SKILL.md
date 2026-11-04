@@ -6,9 +6,13 @@ engines: [AGNOSTIC]
 
 # Build Floor Plan Models
 
+## When to use
+
+Use for dimensioned building architecture, including individual floors, connected storeys and courtyards. For engineered vehicles, devices or vessels with independently modeled components, use `build-schematic-models`.
+
 ## Workflow
 
-1. Resolve this skill and the selected `FLOOR_PLAN_TO_MODEL` visual pipeline. Read `STYLE.md` and [the pipeline contract](../../.styles/.pipelines/floor-plan-to-model/PIPELINE.md). Preserve the current engine and default pipeline; a prompt override belongs only to this task. Read `MEDIA.md` only when generated reference images are actually in scope.
+1. Resolve this skill and the selected `FLOOR_PLAN_TO_MODEL` visual pipeline. Read `STYLE.md` and `.styles/.pipelines/floor-plan-to-model/PIPELINE.md` from the Hephaera installation. Preserve the current engine and default pipeline; a prompt override belongs only to this task. Read `MEDIA.md` only when generated reference images are actually in scope.
 2. Capture purpose, floor count, dimensions, architectural style/materials, circulation, player-clearance envelope, detail profile, tolerances and budgets. Inspect configured external libraries first and use only project-local copies with rights evidence. Reference images guide the design; author dimensions explicitly.
 3. Author the versioned plan from the pinned Bubo construction schema/examples. Keep stable semantic IDs, one shared coordinate datum, explicit room connectivity, openings, stair/slab connections and courtyard voids. Read the design/construction contracts linked from the pipeline rather than inventing a second schema.
 4. Initialize with `floor-plan-to-model.sh init`, explicit plan rights and finite process budget. Run `validate` and `preview`, then show the user the complete dimensioned design: every floor, roof, exterior elevation and vertical-connection section. Record approval of the exact whole package using actual user evidence. Revise through a new version with retained parent ancestry; earlier approval never transfers automatically.
@@ -19,4 +23,4 @@ engines: [AGNOSTIC]
 
 Deliver editable Blender source, separate visual/collision GLBs, semantic metadata, approved drawings and provenance in non-runtime staging. These are unfurnished architectural model packages. Engine adapters, runtime collision/movement tests, gameplay, asset promotion, curved forms and automatic CAD/raster conversion remain separate work. No command here grants runtime acceptance or copies a model into a game.
 
-Command arguments and policy receipts: [BUBO_ARGUMENTS.md](../../commands/BUBO_ARGUMENTS.md#floor-plan-to-model).
+Read `commands/BUBO_ARGUMENTS.md` (Floor plan to model) in the Hephaera installation for command arguments and policy receipts.
