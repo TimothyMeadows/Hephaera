@@ -29,7 +29,19 @@ async function publishAssets(directory,{execute=false,io,expectedManifest,prefli
  const journal=path.join(root,'release-assets.json');
  if(fs.existsSync(journal)){const old=JSON.parse(fs.readFileSync(journal,'utf8'));if(old.version!==result.version||old.revision!==result.revision||JSON.stringify(old.assets.map(({name,sha256})=>({name,sha256})))!==JSON.stringify(result.assets.map(({name,sha256})=>({name,sha256}))))throw new Error('Existing release asset journal has another identity.');const id=releaseId(old.releaseId);if(result.releaseId!==undefined&&id!==result.releaseId)throw new Error('Release database ID differs from the pinned release.');result.releaseId=id;}
  if(!io){io=defaultAdapter(receipt.version,result.releaseId);result.releaseId=io.id;}
- const get=async()=>{const remote=await io.get(),id=releaseId(remote.id);if(remote.tag_name!==receipt.version)throw new Error('Release tag identity differs.');if(result.releaseId!==undefined&&id!==result.releaseId)throw new Error('Release database ID differs from the pinned release.');if(typeof remote.prerelease!=='boolean'||remote.prerelease!==receipt.version.includes('-'))throw new Error('Release prerelease identity differs.');if(typeof remote.draft!=='boolean'||!Array.isArray(remote.assets))throw new Error('Invalid release state.');result.releaseId=id;return remote;};
+ let classification;
+ const get=async()=>{
+  const remote=await io.get(),id=releaseId(remote.id);
+  if(remote.tag_name!==receipt.version)throw new Error('Release tag identity differs.');
+  if(result.releaseId!==undefined&&id!==result.releaseId)throw new Error('Release database ID differs from the pinned release.');
+  if(typeof remote.draft!=='boolean'||!Array.isArray(remote.assets))throw new Error('Invalid release state.');
+  // GitHub may promote an existing candidate without changing its immutable tag
+  // or package version. Admit that published inventory only; never create it.
+  const promoted=receipt.version.includes('-')&&remote.draft===false&&remote.prerelease===false;
+  if(typeof remote.prerelease!=='boolean'||(remote.prerelease!==receipt.version.includes('-')&&!promoted)||(classification!==undefined&&remote.prerelease!==classification))throw new Error('Release prerelease identity differs.');
+  if(promoted&&JSON.stringify(remote.assets.map(a=>a.name).sort())!==JSON.stringify(assets.map(a=>a.name).sort()))throw new Error('Promoted release asset inventory differs.');
+  classification=remote.prerelease;result.releaseId=id;return remote;
+ };
  const write=()=>{const tmp=journal+'.tmp';fs.writeFileSync(tmp,JSON.stringify(result,null,2)+'\n',{flag:'wx'});fs.renameSync(tmp,journal);};
  let remote=await get();
  for(let i=0;i<assets.length;i++){

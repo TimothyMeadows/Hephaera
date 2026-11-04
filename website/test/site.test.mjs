@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { buildSite, createRenderer, normalizeBase, validateNavigation, siteRoot, repoRoot } from '../scripts/build.mjs';
+import { buildSite, createRenderer, guideImagePath, guideImageSize, loadGuideImages, normalizeBase, validateNavigation, siteRoot, repoRoot } from '../scripts/build.mjs';
 import { checkOutput, listFiles } from '../scripts/check-links.mjs';
 
 const pages = JSON.parse(await fs.readFile(path.join(siteRoot, 'navigation.json'), 'utf8'));
@@ -62,10 +62,49 @@ test('publication output is deterministic and contains only the selected public 
     const files = (await listFiles(output)).sort();
     return Promise.all(files.map(async file => [path.relative(output, file), crypto.createHash('sha256').update(await fs.readFile(file)).digest('hex')]));
   };
-  await buildSite({ output });
+  const built = await buildSite({ output });
   const first = await snapshot();
   await buildSite({ output });
   assert.deepEqual(await snapshot(), first);
-  const expected = ['.nojekyll', '404.html', 'index.html', 'search-index.json', 'assets/owl.png', 'assets/site.css', 'assets/site.js', ...pages.map(p => path.posix.join('docs', p.slug, 'index.html'))].sort();
+  const expected = ['.nojekyll', '404.html', 'index.html', 'search-index.json', 'assets/owl.png', 'assets/site.css', 'assets/site.js', ...built.images, ...pages.map(p => path.posix.join('docs', p.slug, 'index.html'))].sort();
   assert.deepEqual(first.map(([name]) => name.split(path.sep).join('/')).sort(), expected);
+  for (const file of built.images) assert.deepEqual(await fs.readFile(path.join(output, file)), await fs.readFile(path.join(siteRoot, file)));
+});
+
+test('guide images and full-size links use the deployment base and retain accessible labels', async () => {
+  const source = '[![Closed synthetic QA enclosure](../../assets/guides/qa/device-rest.png)](../../assets/guides/qa/device-rest.png)';
+  const images = await loadGuideImages([source]);
+  assert.equal(images.size, 1);
+  for (const base of ['/', '/Hephaera/']) {
+    const html = createRenderer(pages, base, images).render(source);
+    assert.ok(html.includes(`href="${base}assets/guides/qa/device-rest.png"`));
+    assert.ok(html.includes(`src="${base}assets/guides/qa/device-rest.png"`));
+    assert.match(html, /alt="Closed synthetic QA enclosure"/);
+    assert.match(html, /width="512" height="512" loading="lazy" decoding="async"/);
+    assert.throws(() => createRenderer(pages, base, images).render('![](../../assets/guides/qa/device-rest.png)'), /descriptive alt/);
+  }
+});
+
+test('guide image admission refuses traversal, external content, missing files and active SVG', async () => {
+  for (const source of ['../../.hephaera/.cache/secret.png', '../../assets/guides/qa/../secret.png', '../../assets/guides/qa/%2e%2e.png', '../../assets/guides/qa/device-rest.png?x=1', 'https://example.com/track.png', 'data:image/png;base64,AAAA']) {
+    assert.throws(() => guideImagePath(source), /Unknown guide image/);
+    await assert.rejects(loadGuideImages([`![Example](${source})`]), /Unknown guide image/);
+  }
+  await assert.rejects(loadGuideImages(['![Missing](../../assets/guides/qa/absent-example.png)']), /ENOENT/);
+  const svg = body => Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 80">${body}</svg>`);
+  assert.deepEqual(guideImageSize(svg('<rect width="100" height="80"/>'), 'example.svg'), { width: 100, height: 80 });
+  for (const body of ['<script>alert(1)</script>', '<s:script xmlns:s="http://www.w3.org/2000/svg">alert(1)</s:script>', '<image href="https://example.com/image.png"/>', '<rect onclick="alert(1)"/>', '<foreignObject/>', '<style>@import "https://example.com/x.css";</style>', '<style>rect{fill:url(https://example.com/x)}</style>', '<style>svg{background-image:image-set("https://example.com/x" 1x)}</style>', '<style>svg{background-image:-webkit-image-set("https://example.com/x" 1x)}</style>', String.raw`<style>rect{fill:u\72l(https://example.com/x)}</style>`, String.raw`<style>@\69mport "https://example.com/x";</style>`, '<rect fill="&#117;rl(https://example.com/x)"/>']) {
+    assert.throws(() => guideImageSize(svg(body), 'bad.svg'), /self-contained/);
+  }
+  assert.throws(() => guideImageSize(Buffer.alloc(2 * 1024 * 1024 + 1), 'large.png'), /size limit/);
+  assert.throws(() => guideImageSize(Buffer.from('not a png'), 'bad.png'), /Invalid guide PNG/);
+  const original = await fs.readFile(path.join(siteRoot, 'assets/guides/qa/device-rest.png'));
+  assert.throws(() => guideImageSize(original.subarray(0, 24), 'header-only.png'), /Invalid guide PNG/);
+  const corrupt = Buffer.from(original); corrupt[60] ^= 1;
+  assert.throws(() => guideImageSize(corrupt, 'corrupt.png'), /checksum/);
+  assert.throws(() => guideImageSize(Buffer.from('<svg><svg viewBox="0 0 100 80"></svg></svg>'), 'nested.svg'), /self-contained/);
+  assert.throws(() => guideImageSize(svg('<g xml:base="https://example.com/"></g>'), 'base.svg'), /Unsupported guide SVG/);
+  assert.throws(() => guideImageSize(Buffer.from('<svg id="viewBox=\'0 0 100 80\'"></svg>'), 'false-viewbox.svg'), /viewBox/);
+  assert.throws(() => guideImageSize(svg('<g>'), 'unbalanced.svg'), /Unbalanced/);
+  assert.throws(() => guideImageSize(Buffer.from('<svg viewBox="0 0 9999 80"></svg>'), 'large.svg'), /dimensions/);
 });

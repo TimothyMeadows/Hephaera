@@ -2,7 +2,75 @@
 
 `FLOOR_PLAN_TO_MODEL` turns one approved, dimensioned architectural design into detailed unfurnished building models. It supports straight and angled walls, multiple storeys, courtyards, explicit openings and vertical connections. It produces game/environment assets with editable source and portable exports.
 
-Use the [practical guide](https://hephaera.com/docs/floor-plan-to-model/) for the everyday workflow, the [technical reference](https://github.com/TimothyMeadows/Hephaera/blob/main/docs/FLOOR_PLAN_TO_MODEL.md) for flags/records, and the [example walkthrough](https://github.com/TimothyMeadows/Hephaera/blob/main/examples/floor-plan-to-model/README.md) for reproducible prepared inputs. The feature is available on repository main; published `5.1.0-rc.1` predates it. A later reviewed package must include the feature before its installer version can supply these commands. Preserve the normal [package-first installation order](Installation-and-Layout).
+Use the [practical guide](https://hephaera.com/docs/floor-plan-to-model/) for the everyday workflow, the [technical reference](https://github.com/TimothyMeadows/Hephaera/blob/main/docs/FLOOR_PLAN_TO_MODEL.md) for flags/records, and the [example walkthrough](https://github.com/TimothyMeadows/Hephaera/blob/main/examples/floor-plan-to-model/README.md) for reproducible prepared inputs. The feature is available on repository main; published `5.1.0-rc.1` predates it. Promoting that GitHub release does not add newer source to its immutable packages. A later reviewed package must include the feature before its installer version can supply these commands. Preserve the normal [package-first installation order](Installation-and-Layout).
+
+## Worked example: an empty two-storey hall
+
+Start with `multi-storey`, one of the three licensed native examples. Its small room layout makes errors in levels, stair openings and delivered geometry easier to find. The other cases are a single-storey studio and an angled courtyard; they use the same stages with different designs.
+
+The hall's footprint is 10 m × 8 m on both levels. Its finished floors are at 0 m and 3 m, each with 2.8 m clear height and a 0.2 m slab below the floor level. The wall centerlines follow the footprint edges; 0.2 m walls leave a 9.8 m × 7.8 m clear room boundary before stair/landing occupancy. The footprint label is not a finished exterior-face dimension. One ground-floor exterior entry is 1.2 m wide with a 2.2 m head. Each east window is 1.4 m wide, with a 0.9 m sill and 2.1 m head relative to its floor.
+
+One straight stair rises 3 m in 15 risers of 0.2 m. It has a 1.2 m width, 0.25 m tread depth, 1.2 m-deep end landings and an explicitly declared 3.5 m × 1.4 m upper slab opening. Its design headroom is 2.2 m. The player envelope is radius 0.3 m, height 1.8 m, maximum step 0.22 m and minimum landing depth 1.2 m. These values define the engineering exercise; they are neither universal game defaults nor building-code certification.
+
+![Illustrative paired plans of the two-storey hall with dimensions, entry, east windows, stair and upper slab opening; a section shows the finished floors and clear heights.](https://raw.githubusercontent.com/TimothyMeadows/Hephaera/main/website/assets/guides/floor-plan/hall-plans-and-section.svg)
+
+*Illustrative diagram based on the native example. It omits construction details and does not replace the generated, complete dimensioned drawings or actual Blender evidence.*
+
+Use the project's `STYLE.md` to review the example's restrained masonry, timber, glazing and metal materials. Keep rooms unfurnished. The [example brief](https://github.com/TimothyMeadows/Hephaera/blob/main/examples/floor-plan-to-model/brief.md) is a reusable request, not a recorded approval of its design or art treatment.
+
+### Prepare and preview
+
+Run the following in an installed host project's root after the ordinary task exists and the pinned runtime has been initialized/built as described below. These are Bash commands; use Git Bash on Windows. A maintainer source checkout alone is not an alternate supported host layout.
+
+```bash
+node .hephaera/examples/floor-plan-to-model/prepare-example.cjs \
+  --root . --case multi-storey --task fp --asset hall --version v1 \
+  --geometry-checks 4000000 --timeout-seconds 600 \
+  --max-log-bytes 16777216 --max-private-bytes 8589934592
+
+bash .hephaera/commands/floor-plan-to-model.sh init \
+  --task fp --asset hall --version v1 \
+  --plan .hephaera/.cache/tasks/fp/example-inputs/hall/v1/plan.json \
+  --rights .hephaera/.cache/tasks/fp/example-inputs/hall/v1/rights.json \
+  --budget .hephaera/.cache/tasks/fp/example-inputs/hall/v1/budget.json \
+  --selection .hephaera/.cache/tasks/fp/example-inputs/hall/v1/selection.json
+
+manifest=.hephaera/.cache/tasks/fp/floor-plan-to-model/hall/v1/manifest.json
+bash .hephaera/commands/floor-plan-to-model.sh validate --manifest "$manifest"
+bash .hephaera/commands/floor-plan-to-model.sh preview --manifest "$manifest"
+bash .hephaera/commands/floor-plan-to-model.sh status --manifest "$manifest"
+```
+
+The preparer preserves the source license and creates exact plan, rights, budget and task-scoped selection records plus a preparation receipt. It changes only the style hash and explicitly chosen geometry-check allowance in the copied plan. The 4,000,000 checks, 600 seconds, 16 MiB log and 8 GiB committed-memory cap are deliberate example allowances selected before approval; inspect them for your machine and task. An existing destination is preserved rather than overwritten.
+
+Use the actual manifest returned by `init`; the variable shows the expected path for these IDs. Read the returned drawing paths. A successful preview means there is a complete drawing package to inspect. It creates no human approval, model or engine asset. Follow the entrance-to-upper-floor route across both plans and the stair section. Check that the real upper slab opening covers the flight and that clearances include the player body, railings and finishes.
+
+### Move from drawings to a delivered package
+
+![Illustrative workflow with separate whole-building approval, native construction, export/import verification, independent model review, human model acceptance and later game integration.](https://raw.githubusercontent.com/TimothyMeadows/Hephaera/main/website/assets/guides/floor-plan/design-to-reviewed-package.svg)
+
+*Illustrative workflow. Each review binds the exact current artifacts. A source revision returns to whole-design review; no technical pass supplies a person's acceptance.*
+
+After reviewing the complete drawings, preserve the actual human decision using the review fields described below. The path in this command is a placeholder for that real record; this walkthrough does not create an approved receipt:
+
+```bash
+bash .hephaera/commands/floor-plan-to-model.sh record \
+  --manifest "$manifest" --kind whole-building-design \
+  --reviewer REVIEWER_ID --evidence .hephaera/.cache/tasks/fp/reviews/design-v1.json
+```
+
+On a supported 64-bit Windows host, replace the executable placeholder with the absolute path of an existing Blender 4.5 LTS installation. Inspect `doctor` before proceeding:
+
+```bash
+blender_executable='C:/path/to/Blender-4.5/blender.exe'
+bash .hephaera/commands/floor-plan-to-model.sh doctor --manifest "$manifest" --blender "$blender_executable"
+bash .hephaera/commands/floor-plan-to-model.sh build --manifest "$manifest" --blender "$blender_executable"
+bash .hephaera/commands/floor-plan-to-model.sh export --manifest "$manifest" --blender "$blender_executable" --author MODEL_AUTHOR_ID
+bash .hephaera/commands/floor-plan-to-model.sh review --manifest "$manifest" --blender "$blender_executable"
+bash .hephaera/commands/floor-plan-to-model.sh status --manifest "$manifest"
+```
+
+Expect editable architectural source, separate visual/collision GLBs, independent import reports and nine delivered-model views: two floor views, four cardinal exteriors, roof, principal section and stair section. Inspect the imported result against the drawings, then obtain independent model review and separate human model acceptance. The source example, CLI success and diagnostic renders supply none of those human decisions or target-engine acceptance.
 
 ## Select the production method
 
@@ -89,6 +157,8 @@ Design floors separately, then review one exact package containing:
 
 Bind actual human approval to the plan SHA, complete drawing-hash dictionary and current design fingerprint. A single floor, image or metadata receipt cannot approve the building. Any source/detail revision invalidates whole-design approval and dependent models.
 
+For the hall, review the plans side by side with the stair section. Ask whether the 3 m floor rise, 2.8 m clear height, slab thickness, opening and landings describe the same construction. Check the entry-to-stair route and each window's floor-relative sill/head. Request a missing dimension or section before deciding. “Show the upper slab opening and its headroom in section” is a useful revision request; approval of only the ground floor is incomplete.
+
 Whole-design evidence uses `bubo-floor-plan-review/v1` and includes kind/decision/human/reviewer/reason, asset/version, plan SHA, design fingerprint and `reviewedArtifacts`. A command records submitted evidence; a successful technical check cannot supply a person's acceptance. The documented examples create no approved human record.
 
 ## Review the delivered building
@@ -104,6 +174,16 @@ Independent and human model decisions bind the raw package SHA, both verificatio
 ## Package and later engine work
 
 The sealed package contains editable `building.blend`, separate `visual.glb`/`collision.glb`, the v2 plan, semantic metadata, approved drawings and provenance. `package.json` inventories the payload except itself; its raw hash identifies the package externally. Producer/verification/view reports and submitted decisions remain outside that sealed inventory.
+
+| Handoff item | Practical inspection |
+| --- | --- |
+| `building.blend` | Editable, per-floor source hierarchy and actual door pivots |
+| `visual.glb` | Delivered meshes/materials and the geometry shown in the complete review views |
+| `collision.glb` | Separate entrances, room circulation, stairwell and declared door collision |
+| `building-plan.json` | Exact v2 dimensional source associated with the design approval |
+| `semantics.json` | Floor levels, stable IDs, materials, openings, hierarchy and anchors |
+| Drawings and provenance | Complete reviewed design and source/construction ancestry |
+| External reports and decisions | Current import verification, full view index, independent review and human model decision bound to the sealed package |
 
 Source uses Z-up metres; GLB uses Y-up metres with the declared exact conversion. Semantic metadata preserves the source plan, floor elevations, material IDs, hierarchy, openings and anchors. Door geometry is closed at zero; dynamic leaf collision and explicitly final-open route evidence remain distinguishable. Collision proxies preserve rooms, entrances and stairwells rather than replacing the building with one convex hull.
 
@@ -122,3 +202,22 @@ Use a new version with `--parent-manifest` for another version of the same task-
 | Review/view/package bytes changed or latest decision rejected | Obtain fresh applicable verification and complete review; never rewrite expected hashes or transfer approval |
 
 `status` and retained logs identify the current layer. Do not delete task cache, reset attempts, select a different pipeline or install missing software as recovery. See [maintenance and troubleshooting](Maintenance-and-Troubleshooting) for shared dependency/state diagnostics.
+
+For a concrete design revision, ask: “Raise both window sills from 0.9 m to 1.1 m in `v2`, keep the prior package, and show all revised drawings before construction.” The author must resolve the opening's head/height and all dependent details explicitly; changing only a label is insufficient. Initialize the new task-owned version with its parent manifest, fresh exact input records and new applicable review. Do not mutate `v1` or claim its approval covers `v2`.
+
+For interrupted work, ask for the latest manifest/state, failed operation, dispatch report and retained log. Distinguish a missing tool from a design collision or budget exhaustion. Correct the selected prerequisite or revise the source/limits deliberately; preserve the failed attempt and use current status to choose the next supported step. A historical successful package must not mask a later failure or rejection.
+
+## Terms used in this workflow
+
+| Term | Meaning |
+| --- | --- |
+| Datum | Shared coordinate/height reference; floors use absolute Z elevations in source metres |
+| Finished-floor level | Top of the floor slab, which extends downward from that level |
+| Clear room boundary | Finished-face room space, distinct from wall centerlines, thickness and occupied stair space |
+| Slab opening | Explicit hole through a floor slab for a stair or other declared connection |
+| Player envelope | Declared body radius/height and step/landing requirements used in measured clearance checks |
+| Manifest | Durable task/version record that connects exact inputs, native attempts and reviews |
+| Design fingerprint | Identity of the current complete design used to bind whole-building review |
+| Sealed package | Inventoried delivered payload whose raw package hash is bound by later verification and review |
+
+This is an asset-production workflow for unfurnished buildings. Curved forms, automatic CAD/raster conversion, furnishings, gameplay and interaction systems remain outside its current scope. Measured geometry is preparation for engine testing, not certification of runtime walking, physics, navigation or real-world construction.

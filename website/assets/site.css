@@ -692,6 +692,20 @@ a:hover {
   color:var(--slate);
   margin:17px 0
 }
+.article img {
+  display:block;
+  max-width:100%;
+  height:auto;
+  margin:24px auto 12px;
+  border:1px solid #dcd8cb;
+  border-radius:8px;
+  background:#f1efe7
+}
+.article p:has(>img)+p:has(>em:only-child),.article p:has(>a>img)+p:has(>em:only-child) {
+  font-size:.88em;
+  line-height:1.65;
+  margin-top:10px
+}
 .article a {
   color:#805d27
 }

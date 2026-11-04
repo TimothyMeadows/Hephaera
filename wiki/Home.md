@@ -4,7 +4,7 @@ Hephaera is a shared AI production baseline for video game development. It gives
 
 Use the [practical documentation](https://hephaera.com/docs/) for a guided first installation or an everyday task. This Wiki explains the contracts, command families, evidence requirements and failure boundaries behind those guides. The [repository README](https://github.com/TimothyMeadows/Hephaera/blob/main/README.md) is the source overview; [AGENTS.md](https://github.com/TimothyMeadows/Hephaera/blob/main/AGENTS.md) is the shared operating contract.
 
-The authenticated GitHub npm and NuGet packages are published as `5.1.0-rc.1`; public-registry mirror status remains separate. Follow [Installation and layout](Installation-and-Layout) for exact availability and authentication. Floor-plan and schematic production were added afterward on main. A later package version must explicitly include their commands and reviewed native pin; a source merge does not update existing pinned installations or publish a package.
+The current full GitHub release is `5.1.0-rc.1`, with both authenticated GitHub npm and NuGet packages published. Its immutable package version still carries the SemVer prerelease suffix; public-registry mirror status remains separate. Follow [Installation and layout](Installation-and-Layout) for exact availability and authentication. Floor-plan and schematic production were added afterward on main. A later package version must explicitly include their commands and reviewed native pin; a source merge does not update existing pinned installations or publish a package.
 
 ## Start and configure
 

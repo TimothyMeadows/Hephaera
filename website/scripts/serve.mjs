@@ -7,7 +7,7 @@ const root = path.join(siteRoot, 'dist');
 const base = normalizeBase(process.env.SITE_BASE_PATH || '/Hephaera/');
 const port = Number(process.env.SITE_PORT || 4319);
 if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error('SITE_PORT must be an unprivileged port.');
-const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.png': 'image/png' };
+const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.png': 'image/png', '.svg': 'image/svg+xml' };
 const server = http.createServer(async (request, response) => {
   try {
     const url = new URL(request.url, 'http://localhost');

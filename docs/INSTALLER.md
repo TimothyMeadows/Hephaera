@@ -1,6 +1,6 @@
 # Versioned Hephaera installer
 
-The [`5.1.0-rc.1` GitHub prerelease](https://github.com/TimothyMeadows/Hephaera/releases/tag/5.1.0-rc.1) and both GitHub Packages installers are published. The **npmjs.com and NuGet.org mirrors are not published yet**. The public commands below apply only after that destination's exact version is verified; the authenticated GitHub routes are available now. A prerelease is not a stable release.
+The current [full GitHub release is `5.1.0-rc.1`](https://github.com/TimothyMeadows/Hephaera/releases/tag/5.1.0-rc.1), also selected by [GitHub's latest-release link](https://github.com/TimothyMeadows/Hephaera/releases/latest). Both GitHub Packages installers are published. Promotion changed the GitHub classification while preserving the exact tag, package version and artifact bytes. Package clients still treat `-rc.1` as a SemVer prerelease; keep the explicit version below. The **npmjs.com and NuGet.org mirrors are not published yet**. The public commands below apply only after that destination's exact version is verified; the authenticated GitHub routes are available now.
 
 | Destination | Package | Current availability |
 | --- | --- | --- |

@@ -169,6 +169,18 @@ test('default asset uploads and publication keep one ID and published retry make
  const conflict=defaultReleaseAssets(f,{execute:true,expectedReleaseId:124,remote:first.remote});assert.equal(conflict.ok,false);assert.match(conflict.error,/pinned release/);assert.deepEqual(conflict.calls,[]);assert.deepEqual(fs.readFileSync(journal),before);
 });
 
+test('an existing promoted candidate reconciles exact assets without release writes',async()=>{
+ const f=fixture();await confirmedRegistries(f);
+ const first=defaultReleaseAssets(f,{execute:true,expectedReleaseId:123});assert.equal(first.ok,true,first.error);
+ const remote={...first.remote,prerelease:false};
+ for(const execute of [false,true]){
+  const result=defaultReleaseAssets(f,{execute,expectedReleaseId:123,remote});assert.equal(result.ok,true,result.error);assert.equal(result.result.status,execute?'confirmed':'preflight-confirmed');assert.equal(releaseWrites(result).length,0);
+ }
+ for(const change of [{id:124},{tag_name:'different-version'},{draft:true},{prerelease:'false'},{prerelease:null},{assets:remote.assets.slice(1)},{assets:[...remote.assets,remote.assets[0]]},{assets:[...remote.assets,{name:'unexpected'}]},{assets:remote.assets.map((a,i)=>i?a:{...a,digest:'sha256:'+'0'.repeat(64)})}]){
+  const result=defaultReleaseAssets(f,{execute:true,expectedReleaseId:123,remote:{...remote,...change}});assert.equal(result.ok,false);assert.match(result.error,/release|asset|clobber/i);assert.equal(releaseWrites(result).length,0);
+ }
+});
+
 test('uncertain default upload pins the journal ID and refuses a replacement release on retry',async()=>{
  const f=fixture();await confirmedRegistries(f);
  const first=defaultReleaseAssets(f,{execute:true,uncertainUpload:true});assert.equal(first.ok,false);assert.match(first.error,/upload uncertain/);assert.equal(releaseWrites(first).length,1);
@@ -210,12 +222,18 @@ test('injected adapters must match the expected release ID before upload or publ
  const correct=await publishAssets(f.directory,{preflight:true,expectedManifest:f.receipt.manifest,expectedReleaseId:123,io});assert.equal(correct.status,'preflight-confirmed');assert.equal(correct.releaseId,123);assert.equal(writes,0);
 });
 
-test('default adapter rejects missing or wrong prerelease classification before writes',async()=>{
- for(const [version,scenario] of [['5.1.0-rc.1',{restPrerelease:false}],['5.1.0-rc.1',{omitPrerelease:true}],['5.1.0',{restPrerelease:true}]]){
+test('default adapter rejects missing or wrong draft prerelease classification before writes',async()=>{
+ for(const [version,scenario] of [['5.1.0-rc.1',{restPrerelease:false}],['5.1.0-rc.1',{omitPrerelease:true}],['5.1.0-rc.1',{restPrerelease:'false'}],['5.1.0-rc.1',{restPrerelease:null}],['5.1.0',{restPrerelease:true}]]){
   const f=fixture(false,version);await confirmedRegistries(f);
   const result=defaultReleaseAssets(f,{execute:true,expectedReleaseId:123,...scenario});assert.equal(result.ok,false);assert.match(result.error,/prerelease identity/);assert.equal(releaseWrites(result).length,0);
  }
  const stable=defaultReleaseAssets(fixture(false,'5.1.0'),{expectedReleaseId:123});assert.equal(stable.ok,true,stable.error);assert.equal(stable.result.status,'preflight-confirmed');
+});
+
+test('a stable-version published release still rejects prerelease classification',async()=>{
+ const f=fixture(false,'5.1.0');await confirmedRegistries(f);
+ const first=defaultReleaseAssets(f,{execute:true,expectedReleaseId:123});assert.equal(first.ok,true,first.error);
+ const result=defaultReleaseAssets(f,{execute:true,expectedReleaseId:123,remote:{...first.remote,prerelease:true}});assert.equal(result.ok,false);assert.match(result.error,/prerelease identity/);assert.equal(releaseWrites(result).length,0);
 });
 
 test('default adapter revalidates prerelease classification after draft publication',async()=>{

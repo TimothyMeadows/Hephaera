@@ -23,7 +23,7 @@ function io(options={}){
  const api={get:async endpoint=>{
   calls.push(endpoint);const url=new URL(endpoint,'https://api.github.com/'),page=Number(url.searchParams.get('page')||1),pathname=url.pathname;
   if(pathname.endsWith('/commits/main'))return {sha:toolsSha};
-  if(pathname.endsWith('/releases/456'))return {id:456,tag_name:selected.version,draft:false,prerelease:true};
+  if(pathname.endsWith('/releases/456'))return {id:456,tag_name:selected.version,draft:false,prerelease:true,...options.release};
   if(pathname.endsWith('/actions/runs/123'))return {id:123,head_sha:toolsSha,head_branch:'main',path:'.github/workflows/publish-packages.yml',created_at:'2026-01-01T00:00:00Z'};
   if(pathname.endsWith('/actions/workflows/publish-public-packages.yml'))return {id:555,state:'active',path:'.github/workflows/publish-public-packages.yml'};
   if(pathname.endsWith('/actions/runs/123/artifacts'))return {total_count:receipts.length,artifacts:receipts.map(x=>x.metadata).slice((page-1)*100,page*100)};
@@ -34,11 +34,23 @@ function io(options={}){
  },download:async endpoint=>{calls.push(endpoint);const id=Number(endpoint.match(/artifacts\/(\d+)\/zip$/)?.[1]);const found=receipts.find(x=>x.metadata.id===id);assert.ok(found);return found.bytes;},post:async(endpoint,file)=>{posts++;assert.equal(endpoint,'repos/TimothyMeadows/Hephaera/actions/workflows/555/dispatches');assert.deepEqual(JSON.parse(fs.readFileSync(file)),request);remote.push(run(999));},sleep:async()=>{}};
  return {api,calls,posts:()=>posts};
 }
-async function execute(attempt,adapter,label){
+async function execute(attempt,adapter,label,selectedIdentity=selected){
  const keys={GITHUB_REPOSITORY:'TimothyMeadows/Hephaera',GITHUB_REF:'refs/heads/main',HEPHAERA_PUBLIC_TOOLS_SHA:toolsSha,GITHUB_RUN_ATTEMPT:String(attempt)},saved=Object.fromEntries(Object.keys(keys).map(key=>[key,process.env[key]]));Object.assign(process.env,keys);
  const directory=path.join(area,label+'-'+crypto.randomUUID());
- try{return {result:await dispatch(directory,{selected,registrySelection:'nuget',io:adapter.api}),directory};}catch(error){error.ownedDirectory=directory;throw error;}finally{for(const[key,value]of Object.entries(saved))if(value===undefined)delete process.env[key];else process.env[key]=value;}
+ try{return {result:await dispatch(directory,{selected:selectedIdentity,registrySelection:'nuget',io:adapter.api}),directory};}catch(error){error.ownedDirectory=directory;throw error;}finally{for(const[key,value]of Object.entries(saved))if(value===undefined)delete process.env[key];else process.env[key]=value;}
 }
+
+test('an exact promoted candidate retains the one-dispatch and recovery rules',async()=>{
+ const fresh=io({release:{prerelease:false}});assert.equal((await execute(1,fresh,'promoted')).result.status,'confirmed');assert.equal(fresh.posts(),1);
+ const prior=io({release:{prerelease:false},receipts:[receipt(1)],runs:[run(999)]});assert.equal((await execute(2,prior,'promoted-recovery')).result.runId,999);assert.equal(prior.posts(),0);
+});
+
+test('promotion never admits wrong release identity or nonboolean classification',async()=>{
+ for(const release of [{id:789},{tag_name:'other-version'},{draft:true},{prerelease:undefined},{prerelease:null},{prerelease:'false'},{prerelease:0}]){
+  const adapter=io({release:{prerelease:false,...release}});await assert.rejects(execute(1,adapter,'promoted-rejected'),/selected identity/);assert.equal(adapter.posts(),0);
+ }
+ const stable={...selected,version:'5.1.0'},adapter=io({release:{tag_name:stable.version,prerelease:true}});await assert.rejects(execute(1,adapter,'stable-rejected',stable),/selected identity/);assert.equal(adapter.posts(),0);
+});
 
 test('fresh runner restores prior dispatch intent and confirms old run without another POST',async()=>{
  const first=receipt(1),adapter=io({receipts:[first],runs:[run(999)]});const {result,directory}=await execute(2,adapter,'restore');assert.equal(result.status,'confirmed');assert.equal(result.runId,999);assert.equal(result.restoredFrom.attempt,1);assert.equal(adapter.posts(),0);assert.deepEqual(JSON.parse(fs.readFileSync(path.join(directory,'public-dispatch.json'))).request,request);assert.ok(adapter.calls.includes('repos/TimothyMeadows/Hephaera/actions/artifacts/701/zip'));

@@ -34,6 +34,14 @@ The default project path is `/Hephaera/`. To preview a root-hosted build, set `S
 
 Search progressively enhances the guides with a local index. Navigation and content remain available without JavaScript. Code-copy buttons use the browser clipboard when permitted and select code for manual copying when it is unavailable. Escape closes search and returns focus to its opener.
 
+### Illustrate a guide
+
+Keep public example images under `website/assets/guides/<topic>/`. In a practical guide, use ordinary Markdown such as `![A dimensioned ground-floor example](../../assets/guides/floor-plan/example.svg)`, substituting the actual checked-in filename. A surrounding Markdown link to the same image lets readers open the full-size drawing. The relative spelling also works when reading the source on GitHub; the site rewrites it for root and project deployments.
+
+Use descriptive alt text and a nearby caption that says whether the image is an explanatory diagram or actual output. Keep source rights and example provenance reviewable; `website/assets/guides/README.md` describes the included illustrations. A pair of QA frames shows selected poses, not a full motion review or human acceptance of the asset.
+
+The build admits bounded PNGs and static, self-contained SVG drawings only. It verifies each referenced file, refuses traversal, symlinks, external image URLs and active/embedded SVG content, and copies only referenced images. Images retain their original bytes, dimensions and aspect ratio; output links and both deployment bases are tested. Wiki pages can reference the same reviewed assets through their canonical raw GitHub URLs. These files become public only when their source is published; local image checks do not publish the wiki or accept a game asset.
+
 ## Enable GitHub Pages after review
 
 Prepare and validate source on a feature branch, then use the normal PR-readiness gate. Enabling Pages and publishing the wiki are separate public operations; ordinary local site work grants no merge permission.

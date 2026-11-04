@@ -4,7 +4,14 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { siteRoot } from '../scripts/build.mjs';
-import { checkWiki, publishWiki } from '../scripts/wiki.mjs';
+import { checkWiki, checkWikiImage, publishWiki } from '../scripts/wiki.mjs';
+
+test('wiki images validate their exact raw URL, alt text and local public bytes', async () => {
+  const url = 'https://raw.githubusercontent.com/TimothyMeadows/Hephaera/main/website/assets/guides/qa/device-rest.png';
+  await checkWikiImage(url, 'Closed minimal device');
+  for (const source of [url + ')ignored', url + '?other', url.replace('/qa/device-rest.png', '/qa/../secret.png'), 'https://example.com/private.png']) await assert.rejects(checkWikiImage(source, 'Example'), /Wiki image|Unknown guide image/);
+  await assert.rejects(checkWikiImage(url, ''), /descriptive alt/);
+});
 
 test('all detailed-reference pages and source anchors resolve locally', async () => {
   const result = await checkWiki();
