@@ -102,6 +102,7 @@ Skills:
 - `threejs-build-particles`
 - `threejs-build-postprocessing`
 - `build-floor-plan-models`
+- `build-schematic-models`
 
 Commands:
 
@@ -129,6 +130,7 @@ Commands:
 - `commands/threejs-particles.sh`
 - `commands/threejs-postprocessing.sh`
 - `commands/floor-plan-to-model.sh`
+- `commands/schematic-to-model.sh`
 
 ### arts/blender-production-artist
 
@@ -156,6 +158,7 @@ Skills:
 - `create-game-vfx`
 - `build-proof-to-model-assets`
 - `build-floor-plan-models`
+- `build-schematic-models`
 
 Commands:
 
@@ -174,6 +177,7 @@ Commands:
 - `commands/print-game-art-handoff-template.sh`
 - `commands/proof-to-model.sh`
 - `commands/floor-plan-to-model.sh`
+- `commands/schematic-to-model.sh`
 
 ### arts/board-ui-artist
 
@@ -573,6 +577,7 @@ Skills:
 - `threejs-build-particles`
 - `threejs-build-postprocessing`
 - `build-floor-plan-models`
+- `build-schematic-models`
 
 Commands:
 
@@ -602,6 +607,7 @@ Commands:
 - `commands/threejs-particles.sh`
 - `commands/threejs-postprocessing.sh`
 - `commands/floor-plan-to-model.sh`
+- `commands/schematic-to-model.sh`
 
 ### arts/tile-set-artist
 

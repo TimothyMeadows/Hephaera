@@ -45,6 +45,8 @@ Pipeline contracts and their owned assets live under `.styles/.pipelines/` and a
 - `PROOF_TO_MODEL` turns approved 2D proofs into staged, finished 3D assets using native Pixal3D and Blender 4.5 LTS.
 - `CODE` authors procedural Three.js TypeScript/JavaScript models.
 - `BLENDER` authors Blender 4.5 LTS scenes, assets, renders, and runtime exports.
+- `FLOOR_PLAN_TO_MODEL` constructs detailed unfurnished buildings from one approved dimensioned architectural package.
+- `SCHEMATIC_TO_MODEL` constructs independent mechanical components from one approved complete schematic package, then assembles and verifies portable rigid/flexible models.
 
 ### Downstream production pipelines
 

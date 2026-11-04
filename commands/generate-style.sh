@@ -8,6 +8,7 @@ Usage: ./commands/generate-style.sh [--inline] [--pipeline PIPELINE] [--allow-pi
 Defaults to concise link-based output in ../STYLE.md.
 PROOF_TO_MODEL is the default primary art pipeline when --pipeline is omitted.
 FLOOR_PLAN_TO_MODEL selects dimension-driven building design and portable model packages.
+SCHEMATIC_TO_MODEL selects approved mechanical schematics, independent parts and portable assemblies.
 Existing external asset libraries are preserved unless explicitly replaced or cleared.
 Use --inline to embed full style template contents.
 EOF

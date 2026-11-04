@@ -2,7 +2,7 @@
 
 ## Intent
 
-Turn a reviewed model into a versioned, reviewed motion package and selected-engine handoff. This workflow follows PROOF_TO_MODEL, BLENDER, a licensed project-local library copy or an explicitly compatible CODE export. It does not change STYLE.md's primary art pipeline or select an engine.
+Turn a reviewed model into a versioned, reviewed motion package and selected-engine handoff. This workflow follows PROOF_TO_MODEL, SCHEMATIC_TO_MODEL, BLENDER, a licensed project-local library copy or an explicitly compatible CODE export. It does not change STYLE.md's primary art pipeline or select an engine.
 
 The native baseline authors declared rigs/hierarchies and motion channels, retargets explicitly mapped owned or cleared source clips, bakes/exports actual animation, and produces full-motion review evidence. AI rigging, hosted motion generation and paid clip libraries are not required. Adobe products, services, adapters, vendor skeleton presets and declared provider origins are excluded.
 
@@ -18,12 +18,22 @@ Execution resources, schemas, recipes and technical contracts belong to the pinn
 - Keep original-image classification facts separate from model-inspection findings. Generated/model renders do not retrospectively establish anatomy or material facts about the original images.
 - For retargeting, select an actual source motion GLB plus explicit target/source clip and bone mapping, rest-axis correction and root translation policy. Read current command help for exact fields. No implicit provider, skeleton convention or backend fallback.
 
+## Reviewed mechanical assemblies
+
+For a reviewed SCHEMATIC_TO_MODEL assembly, select the versioned native recipe profile `mechanical-assembly` and pass its exact `--handoff PROJECT_JSON` alongside the selected `--model GLB` during initialization. The handoff binds the sealed package, approved design, physical component inventory, actual rest graph/skins, metadata, provenance, current technical/independent decisions and source-state hashes. The receiving adapter admits that specific read-only package directory and checks its complete inventory; Bubo retains and revalidates every native source expectation. Missing or changed payload, review or current design/parts/assembly/export state invalidates receiving.
+
+This profile preserves the mixed rigid components and separately owned flexible rigs. It permits no new rig, retargeting, fused/missing instance, accidental skin, widened numerical policy or changed hierarchy. Use the exact reviewed Blender and bundled glTF SDK. Existing skinned, articulated and rigid restrictions remain applicable to their own profiles; a mechanical descriptor does not make an incompatible profile valid.
+
+Diagnostic motion establishes sampled readiness. Receiving creates immutable ancestry and grants no rig/motion approval, human model acceptance, finished animation or runtime acceptance. Keep the current primary visual selection, then complete this workflow's own stage reviews before explicit promotion. Inspect small or hidden mechanisms in the bound editable/portable assembly with appropriate isolated or sectioned views; an exterior frame cannot certify occluded travel. Procedural receiving does not load an unrelated ambient MEDIA contract, while explicit or historical media ancestry remains bound.
+
+Native technical authority: `runtime/bubo/resources/schematic-to-model/EXPORT.md` and the pinned model-to-animation resources. Host arguments: `commands/BUBO_ARGUMENTS.md`.
+
 ## Production Rules
 
 1. Use `commands/model-to-animation.sh` and the native .NET 10 runner. Consult help for `init`, `doctor`, `inspect`, `prepare`, `rig`, `author`, `retarget`, `bake`, `export`, `review`, `record`, `validate`, `status` and `promote`. The workflow installs or downloads nothing.
 2. Keep manifests, approvals and reports below `.hephaera/.cache/tasks/<task>/`; immutable originals, working copies, revisions and failed attempts below `.art-staging/model-to-animation/<asset>/<version>/`. Runtime promotion is separate and uses a new declared `assets/models/...` destination.
 3. Review animation readiness before authoring. Fused limbs/equipment, missing hidden geometry, incompatible pose, joint topology, independent mechanical parts and pivots can block production. Structural inventory does not certify deformation or anatomical quality.
-4. Select `skinned`, `articulated` or `rigid` explicitly. A humanoid uses a real skeleton and weights; a mechanical assembly uses actual parts/pivots; a rigid hull does not need manufactured bones, attack clips or combat colliders. Existing rigged-actor/v1 remains valid only for its actual character/monster consumers.
+4. Select `skinned`, `articulated`, `rigid` or the reviewed preserve-only `mechanical-assembly` profile explicitly. A humanoid uses a real skeleton and weights; a mechanical assembly uses actual parts/pivots and its owned flexible rigs; a rigid hull does not need manufactured bones, attack clips or combat colliders. Existing rigged-actor/v1 remains valid only for its actual character/monster consumers.
 5. Prepare declared transforms, hierarchy and anchors, then create or preserve the selected rig/hierarchy. Fitting landmarks and part ownership are explicit recipe inputs. Heat-weighting or mapping failure blocks the affected stage rather than silently substituting another algorithm.
 6. Obtain current rig/hierarchy approval before authoring or retargeting. Preserve exact source/target identities, mappings, clip roles, duration/FPS, loops, contacts, root motion, marker semantics and per-clip motion hashes. `author` and `retarget` are explicit alternatives; neither silently invokes the other.
 7. Author real channels or retarget actual source motion, bake every required clip, export an editable source and GLB, and independently re-import the export. A named empty action, a single midpoint render or an uninspected donor does not satisfy motion production.
@@ -43,7 +53,7 @@ Recipe data cannot supply executable expressions, arbitrary Python, providers or
 
 The canonical resolver supplies effective selection and fresh contract/definition/registry hashes. Shared motion production never rewrites ENGINE.md or bypasses an isolated-prototype receipt's scope. CODE remains THREEJS-specific and source-authored; a motion workflow cannot replace its primary source with downloaded/generated meshes. PHASERJS requires an explicit sprite/pre-rendered handoff for 3D source material.
 
-Three.js has an executable presentation adapter under `engines/threejs-motion.mjs`. Host projects supply their already selected, version-locked Three.js APIs and actual GLB animations. The adapter imports no package, CDN or external provider. It requires a visual child beneath a separate authoritative movement root, explicit clocks/parameters/state requests, unique anchors and bounded effect resources. Read `engines/README.md` before integration.
+Three.js has an executable presentation adapter under `runtime/bubo/resources/model-to-animation/engines/threejs-motion.mjs`. Host projects supply their already selected, version-locked Three.js APIs and actual GLB animations. The adapter imports no package, CDN or external provider. It requires a visual child beneath a separate authoritative movement root, explicit clocks/parameters/state requests, unique anchors and bounded effect resources. Read the adjacent pinned `runtime/bubo/resources/model-to-animation/engines/README.md` before integration.
 
 Unity, Unreal, Godot and Babylon.js handoffs use their compatible existing feature skills and actual installed engine versions. Their binary/native assets, controllers, particles, importer options and runtime evidence remain selected-engine work. The shared package is a handoff contract, not a working cross-engine particle system or runtime graph. Absent native prerequisites remain blocked/not-run.
 

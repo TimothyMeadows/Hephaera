@@ -4,7 +4,7 @@
 const fs = require('fs'), path = require('path'), crypto = require('crypto');
 const engines = require('./engine-contract.cjs');
 const BASE = path.resolve(__dirname, '../..');
-const contracts = { CLOUD: 'cloud', LOCAL: 'local', PROOF_TO_MODEL: 'proof-to-model', CODE: 'code', BLENDER: 'blender', FLOOR_PLAN_TO_MODEL: 'floor-plan-to-model' };
+const contracts = { CLOUD: 'cloud', LOCAL: 'local', PROOF_TO_MODEL: 'proof-to-model', CODE: 'code', BLENDER: 'blender', FLOOR_PLAN_TO_MODEL: 'floor-plan-to-model', SCHEMATIC_TO_MODEL: 'schematic-to-model' };
 const native = value => process.platform === 'win32' ? value.replace(/^\/(?:mnt\/)?([A-Za-z])\//, (_, drive) => drive.toUpperCase() + ':/') : value;
 const fail = message => { throw new Error(message); };
 const digest = bytes => crypto.createHash('sha256').update(bytes).digest('hex');

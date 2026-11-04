@@ -20,6 +20,9 @@ node ./tests/test-state-transition.cjs
 ./tests/test-runtime-cache-layout.sh
 node ./tests/test-bubo-installation.cjs
 node ./tests/test-bubo-host-context.cjs
+node ./tests/test-schematic-selection.cjs
+node ./tests/test-schematic-host.cjs
+node ./tests/test-mechanical-host-context.cjs
 node ./tests/test-bubo-media-context.cjs
 node ./tests/test-media-pipeline-contract.cjs
 node ./tests/test-media-pipeline-state.cjs

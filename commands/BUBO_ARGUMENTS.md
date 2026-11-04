@@ -2,7 +2,7 @@
 
 These host commands use the Bubo execution API version recorded in [the runtime lock](../runtime/bubo.lock.json), currently v2. Run them from the project root through `./.hephaera/commands/`. Maintainer checkouts use `./commands/`. Initialize the recorded dependency and explicitly build with `initialize-bubo-runtime.sh` and `build-bubo-runtime.sh` before native work; production never builds or installs software.
 
-The proof, animation and action commands accept `--root PROJECT` (otherwise the shell wrapper resolves the installed host). Every operation except `init` requires `--manifest FILE`. Their `init` requires `--task ID --asset ID --version ID --actor ID` and defaults to `.hephaera/.cache/tasks/<task>/<workflow>/<asset>/<version>/manifest.json`. Proof and motion may select another manifest beneath that active task cache; action init requires its exact canonical path. Inputs must be repository-local and rights, selection, review and tool identities must be current. Hephaera supplies protected execution context internally. The floor-plan command has its own smaller input contract below.
+The proof, animation and action commands accept `--root PROJECT` (otherwise the shell wrapper resolves the installed host). Every operation except `init` requires `--manifest FILE`. Their `init` requires `--task ID --asset ID --version ID --actor ID` and defaults to `.hephaera/.cache/tasks/<task>/<workflow>/<asset>/<version>/manifest.json`. Proof and motion may select another manifest beneath that active task cache; action init requires its exact canonical path. Inputs must be repository-local and rights, selection, review and tool identities must be current. Hephaera supplies protected execution context internally. Floor-plan and schematic commands have their own smaller input contracts below.
 
 ## Proof to model
 
@@ -32,7 +32,7 @@ Use `model-to-animation.sh OPERATION` with common arguments.
 
 | Operation | Additional arguments |
 | --- | --- |
-| `init` | `--model GLB --rights JSON --recipe JSON`; select the existing Blender with `--blender EXECUTABLE` (the default is `blender`). Optional `--editable-source BLEND --source-metadata JSON`. |
+| `init` | `--model GLB --rights JSON --recipe JSON`; select the existing Blender with `--blender EXECUTABLE` (the default is `blender`). Optional `--editable-source BLEND --source-metadata JSON`. A `mechanical-assembly` recipe additionally requires `--handoff JSON`. |
 | `author` | Optional `--revision JSON` for an explicit targeted motion revision. |
 | `retarget` | `--motion-source GLB --mapping JSON`, with explicit cleared source clips and mapping. |
 | `record` | `--kind KIND --reviewer ID --evidence JSON`. |
@@ -40,6 +40,8 @@ Use `model-to-animation.sh OPERATION` with common arguments.
 | `promote` | `--destination assets/models/NAME`; current rig, complete motion, independent and human runtime acceptance are required. |
 
 Recipes, schemas, audited scripts and engine adapters live under `.hephaera/runtime/bubo/resources/model-to-animation/`. Read the Hephaera `MODEL_TO_ANIMATION` policy contract. No Adobe provider, implicit installation, skeleton substitution or automatic asset acceptance is permitted.
+
+For a schematic assembly, select `profile: "mechanical-assembly"` and `rig.mode: "preserve"` in the motion recipe, then pass the current `mechanicalHandoff` reported by schematic status as `--handoff`. Use that descriptor's exact canonical rest GLB as `--model`. The handoff binds the sealed package, design/numerical policy, component inventory, actual rest hierarchy and skins, provenance, current source states and technical/independent review. Native receiving verifies these identities and makes immutable copies; it preserves rigid parts and each independently owned flexible rig. Diagnostic readiness clips remain separate from selected production animation. This profile creates no replacement rig or parts and grants no inherited human motion/runtime approval. Read the pinned schematic `EXPORT.md` and motion schemas for the complete receiving contract.
 
 ## Model to action
 
@@ -79,6 +81,33 @@ On Windows, use short project, task, asset and version paths. Before native mode
 Hephaera snapshots the exact rights, references, budget, STYLE and selection identities into an immutable policy envelope before native initialization. Continuation checks those retained hashes instead of adopting changed files. New plan/style/rights/budget or runtime identity requires a fresh version with retained ancestry and refreshed affected approval. Preserve previous failures and source/review evidence.
 
 The plan schemas, owned examples and fixed audited Blender bundle live in `.hephaera/runtime/bubo/resources/floor-plan-to-model/`. Read `CONSTRUCTION.md` and `EXPORT.md` there for modeling and package/review details. The export package contains editable Blender source, separate visual/collision GLBs, semantic metadata, the plan, approved drawings and provenance. Independent re-import checks and complete views precede independent review and separate human model acceptance. These gates grant no runtime acceptance or asset promotion; actual engine collision/movement testing belongs to later integration.
+
+## Schematic to model
+
+Use `schematic-to-model.sh OPERATION [--root PROJECT]`. The wrapper resolves the installed host when `--root` is omitted. Select `SCHEMATIC_TO_MODEL` through the current STYLE contract or exact task-scoped prompt selection evidence. This preserves the default visual pipeline, engine and independent audio/music/voice domains.
+
+| Operation | Arguments |
+| --- | --- |
+| `init` | Required `--task ID --asset ID --version ID --design JSON --rights JSON --budget JSON`; optional `--selection JSON --parent-manifest JSON`. No actor, recipe, toolchain or output-root flag. |
+| `preview`, `validate` | `--manifest JSON`; pure design operations need no Blender. |
+| `doctor` | `--manifest JSON`; optional `--blender ABSOLUTE_EXECUTABLE` inspects an existing selected tool. Capability and receipts alone do not prove native readiness. |
+| `build-parts` | `--manifest JSON --blender ABSOLUTE_EXECUTABLE`; requires exact whole-design approval and constructs independent definition artifacts. |
+| `assemble` | `--manifest JSON --blender ABSOLUTE_EXECUTABLE`; requires current verified parts and approved explicit v2 assembly choices. |
+| `prove-motion` | `--manifest JSON --blender ABSOLUTE_EXECUTABLE`; requires the latest current assembly and proves every declared diagnostic sample. |
+| `export` | `--manifest JSON --blender ABSOLUTE_EXECUTABLE --author ID`; seals the canonical assembly and separate diagnostic package after current readiness verification. |
+| `review` | `--manifest JSON --blender ABSOLUTE_EXECUTABLE`; renders the delivered exterior, sections, exploded inventory and complete diagnostic motion. |
+| `record` | `--manifest JSON --kind whole-assembly-design\|independent-model\|human-model --reviewer ID --evidence JSON`; consumes an actual exact-package decision. |
+| `status` | `--manifest JSON`; revalidates design, parts, assembly and export evidence, including any retained selected executable. |
+
+The canonical manifest is `.hephaera/.cache/tasks/<task>/schematic-to-model/<asset>/<version>/manifest.json`. Native `parts.json`, `assembly.json` and `exports.json` remain writable sibling state; they are never reclassified as read-only inputs. Immutable originals, part artifacts, assembly attempts and packages stay under task-owned non-runtime `.art-staging/`. Unknown flags, caller-supplied execution identities and roots are rejected. There is no installation, generation, arbitrary-script, engine-integration or promotion operation.
+
+Rights JSON has exactly `schemaVersion: "hephaera-schematic-rights/v1"`, `designSha256`, `status`, `rightsHolder`, `scope: "schematic-to-model"`, `evidence` and `referenceInputs`. The hash binds the original design bytes; status is `owned` or `licensed`. Evidence entries are exact local `{path,sha256}` references. Reference entries add `status`, `rightsHolder` and their own evidence array. Both arrays are required; use `[]` for owned procedural work without external references. Licensed sources require local permission evidence. References inform explicitly authored dimensions and grant no automatic CAD/image conversion or generated-reference permission.
+
+Budget JSON has exactly `schemaVersion: "hephaera-schematic-budget/v1"`, `timeoutSeconds` (1–86400), `maxLogBytes` (1024–1073741824) and `maxPrivateBytes` (67108864–68719476736), all finite safe integers. These process limits supplement the design's geometry, sampling and output budgets. The immutable `hephaera-schematic-host-policy/v1` envelope also binds rights/reference, STYLE/selection, engine/library and actual pinned runtime/build identities. At most 128 unique native policy references are allowed, including this envelope; over-budget initialization fails before writing it.
+
+Continuation checks exact saved hashes and the retained tool rather than adopting changed policy, input or executable bytes. A changed design, STYLE, rights, budget, tool or runtime requires explicit refreshed version ancestry and affected reviews. Keep prior attempts and decisions. Pure design steps remain available without an old modeling tool. Current native execution requires supported Windows aggregate committed-memory enforcement and an explicit existing absolute Blender path. Necessary Windows checks cover schematic prototypes, sampled geometry, nested export/reimport/review bundles and delivered drawings; they do not certify every SDK path. Long paths stop native jobs before launch, and doctor reports the unmet prerequisite without probing a withheld tool.
+
+Read `.hephaera/runtime/bubo/resources/schematic-to-model/EXPORT.md` and its design/construction contracts for native details. The sealed payload preserves every physical occurrence, local frame, pivot, material and owned skin alongside editable Blender, canonical rest GLB, approved schematics, BOM, metadata and provenance. Diagnostic GLB/motion evidence is labeled separately. Current technical verification and complete views precede independent review and separate human model acceptance. The reported mechanical handoff enables preserve-only downstream admission; it grants no finished animation, engine behavior or runtime asset acceptance.
 
 ## Review receipts and continuation
 
