@@ -117,7 +117,7 @@ Art pipeline contracts live in:
 
 - `./.styles/.pipelines/`
 
-Registered pipelines are `CLOUD`, `LOCAL`, `PROOF_TO_MODEL`, `CODE`, `BLENDER`, and `FLOOR_PLAN_TO_MODEL`. Every generated `STYLE.md` contains at least one art style, exactly one primary pipeline, allowed alternatives, task-local prompt-override scope, and an explicit no-silent-fallback rule.
+Registered pipelines are `CLOUD`, `LOCAL`, `PROOF_TO_MODEL`, `CODE`, `BLENDER`, `FLOOR_PLAN_TO_MODEL` and `SCHEMATIC_TO_MODEL`. Every generated `STYLE.md` contains at least one art style, exactly one primary pipeline, allowed alternatives, task-local prompt-override scope, and an explicit no-silent-fallback rule.
 
 ### When `../STYLE.md` exists
 - Read it and follow it as the authoritative art style and pipeline contract for visual, game-art, generated-image, UI-art, code-model, and asset-production work.
@@ -127,7 +127,7 @@ Registered pipelines are `CLOUD`, `LOCAL`, `PROOF_TO_MODEL`, `CODE`, `BLENDER`, 
 ### When `../STYLE.md` is missing
 - Ask the user which style templates in `./.styles/` apply to the repository, unless the user already named the desired style.
 - Support selecting multiple templates for mixed-style repositories.
-- Default the primary art pipeline to `PROOF_TO_MODEL` unless the user explicitly selects `CLOUD`, `LOCAL`, `CODE`, `BLENDER`, or `FLOOR_PLAN_TO_MODEL`.
+- Default the primary art pipeline to `PROOF_TO_MODEL` unless the user explicitly selects `CLOUD`, `LOCAL`, `CODE`, `BLENDER`, `FLOOR_PLAN_TO_MODEL` or `SCHEMATIC_TO_MODEL`.
 - After the user answers, generate `../STYLE.md` with `./commands/generate-style.sh [--pipeline PIPELINE] [--allow-pipeline PIPELINE ...] [--asset-library ID=ABSOLUTE_PATH ...] "<STYLE1>" ["STYLE2" ...]`.
 - External asset libraries are optional. Never ask for or probe a library during startup or initial setup unless the user explicitly requests one.
 - Default generation must use concise read directives (for example `Read \`./.hephaera/.styles/ISOMETRIC_2_5D.md\` instructions`) instead of inlining template text.
@@ -150,6 +150,7 @@ Registered pipelines are `CLOUD`, `LOCAL`, `PROOF_TO_MODEL`, `CODE`, `BLENDER`, 
 - `CODE`: author host-native Three.js TypeScript/JavaScript models; do not use downloaded/generated mesh assets or a model library as the primary implementation.
 - `BLENDER`: author Blender 4.5 LTS scenes, assets, renders, and runtime exports through immutable working-copy, validation, staging, and human-review controls.
 - `FLOOR_PLAN_TO_MODEL`: author dimensioned building plans floor by floor, approve one complete architectural package, then construct and independently verify detailed unfurnished models and separate visual/collision exports through `build-floor-plan-models` and `floor-plan-to-model.sh`. Read `.styles/.pipelines/floor-plan-to-model/PIPELINE.md`.
+- `SCHEMATIC_TO_MODEL`: approve one complete dimensioned mechanical design, construct independent part definitions, then assemble separate physical instances and verify rigid/flexible articulation and portable exports through `build-schematic-models` and `schematic-to-model.sh`. Read `.styles/.pipelines/schematic-to-model/PIPELINE.md`.
 
 PROOF_TO_MODEL classifies only registered original images; generated proofs and model renders cannot establish source anatomy, structure or material. Separate observation, supported inference and uncertainty. Preserve distinct entities, intentional anatomy and attachment ownership. One usable canonical source supplies one angle and needs five additional proofs; an oblique/cropped source remains an anchor and may need all six canonical views. Show originals and front/right/back/left/top/bottom together, allow targeted revisions and require approval of the exact complete set. `classify` and `prepare-proofs` register real assistant/provider artifacts; they do not run vision or image generation. Generated views require separately authorized CLOUD/LOCAL production under MEDIA.md and explicit candidate/revision budgets. A set revision invalidates whole-set approval. Six separate prepared images and camera matrices must reach MV inference; contact sheets and single-view diagnostics cannot satisfy production.
 
@@ -183,12 +184,24 @@ If a selected pipeline is unavailable or fails, stop and request direction. Neve
 - Require independent re-import checks and complete model views, then independent review and separate human model acceptance. Geometry/clearance evidence describes traversal preparation; actual engine collision and movement tests remain separate. This command has no promotion operation and copies no asset into a game.
 - Rooms remain unfurnished. Curved forms, automatic CAD/raster conversion, interaction/gameplay and engine adapters are deferred. Installation, generated references and license acceptance need their own applicable authorization; no silent fallback is allowed.
 
+## Schematic-to-model workflow
+
+`SCHEMATIC_TO_MODEL` creates mechanically coherent vehicles, devices, vessels and similar assets while preserving the default visual pipeline and engine. Use `build-schematic-models` and `schematic-to-model.sh` for init, doctor, validate, preview, record, build-parts, assemble, prove-motion, export, review and status.
+
+- Capture dimensions, materials, internal systems, moving parts, inspection needs, detail, tolerances and budgets. The versioned design separates part definitions, physical instances and subassemblies with stable IDs, local frames, interfaces, joints, mechanisms, terminals and flexible routes. Declare observations, assumptions, unresolved systems and simplifications before approval; images do not supply dimensions automatically.
+- Review the complete dimensioned orthographic, internal-section, exploded, BOM, connection and part/assembly/flexible-rig package together. Bind actual human whole-design approval to the exact design and every artifact before construction. Revisions require a new version, retained ancestry and refreshed affected reviews; reuse parts only when relevant construction inputs remain identical and verified.
+- Hephaera owns exact rights, style/selection, finite process budgets and review policy; pinned Bubo owns geometry, drawings, assembly/motion evaluation and export verification. Pure procedural design needs no Blender or MEDIA contract. Native authoring explicitly selects an existing Blender 4.5 LTS and currently requires supported 64-bit Windows committed-memory enforcement. No implicit installation or fallback.
+- Build and validate part definitions before assembly. Every physical occurrence keeps its own object/identity/transform, even when identical definitions share geometry. Support only declared fixed/hinge/rotary/slider/screw joints, supported spur/rack/pulley/slider-crank/four-bar mechanisms and real separately owned wire/hose/spring/belt skins and rigs. Preserve openings, local precision, approved interfaces, limits, branches and numerical policy.
+- Author only through Bubo's dedicated audited/hash-bound schematic Blender bundle on declared repository-local working copies. This batch exception permits no arbitrary scripts/add-ons and does not change standalone BLENDER policy. Reject missing/fused parts, broken couplings, invalid travel, undeclared interference and excessive/detached deformation explicitly.
+- Preserve editable source, animation-free assembled GLB, approved drawings/BOM, component/mechanism metadata and separate diagnostic-motion evidence in non-runtime staging. Require actual raw and independent imported geometry/skin/channel checks and complete exterior/internal/exploded/sample review, followed by independent review and separate human model acceptance. Sampled readiness grants no manufacturing, circuit/physics, continuous-collision or runtime certification.
+- A current independently reviewed package can supply the preserve-only `mechanical-assembly` handoff to separately selected MODEL_TO_ANIMATION. Preserve every rigid instance and flexible rig; relevant design/parts/assembly/export-state changes invalidate the descriptor. Finished animation, engine integration, gameplay, runtime acceptance and asset promotion remain separate. No command here copies an asset into a game.
+
 ## Model-to-animation workflow
 
 MODEL_TO_ANIMATION is a downstream asset-production workflow, defined in `./.styles/.workflows/model-to-animation/WORKFLOW.md`, not another primary STYLE pipeline. It accepts explicitly reviewed compatible model handoffs and preserves `STYLE.md` and `ENGINE.md` authority. Use `build-model-animations` and `./commands/model-to-animation.sh`; resolve the coordinating skill and engine-specific integration skills before production.
 
 - Inspect animation readiness before rigging: source rights, scale, topology, pose, fused/missing parts, materials and independent articulation. Preserve immutable originals and record required modeling repairs rather than relabeling a static display mesh as ready to deform.
-- Select skinned, articulated or rigid profiles. Reuse approved skeletons/clips or author explicit rigs/parts and motions; do not invent skeletons, attacks or combat colliders for vehicles/noncombatants. Keep the existing rigged-actor/v1 contract intact for its valid consumers.
+- Select skinned, articulated, rigid or the preserve-only `mechanical-assembly` profile. Reviewed SCHEMATIC_TO_MODEL assemblies use their exact handoff with zero or more owned flexible rigs; preserve every physical component, hierarchy, pivot and approved numerical policy. This profile creates no new rig or retargeting authority and inherits no motion/human/runtime approval. Reuse approved skeletons/clips or author explicit compatible rigs/parts and motions; do not invent skeletons, attacks or combat colliders for vehicles/noncombatants. Keep the existing rigged-actor/v1 contract intact for its valid consumers.
 - Author only through this workflow's fixed, audited, hash-bound Blender 4.5 LTS batch scripts on declared repository-local working copies, or use the separately selected connected-authoring workflow. The motion batch contract does not authorize arbitrary scripts or relax standalone BLENDER policy. Never execute embedded source code, install add-ons or silently select another authoring backend.
 - Native authoring and explicit owned/licensed clip retargeting are the baseline. Adobe products, services, adapters and Adobe-dependent authoring integrations are excluded; do not add Mixamo support. Optional AI models, hosted services, paid libraries, uploads, installations and license acceptance require separate selection and authorization.
 - Preserve versioned model, rig/hierarchy, clip, retarget, tool/script/recipe and engine identities. Review complete motion ranges and transitions, including contact, loops, deformation and interruption; a manifest or a single rendered frame does not certify motion quality.
@@ -241,7 +254,7 @@ MEDIA.md remains the shared provider, authorization and provenance authority. Au
 - Read it only for image, music, sound-effect, voice, or media-pipeline work.
 - Treat it as the execution and provenance authority for `CLOUD` and `LOCAL`: versions, staging, runtime destinations, budgets, rights, consent, review, and promotion policy.
 - For image generation, obey both the resolved art pipeline and `MEDIA.md`. Music, sound effects, and voice use `MEDIA.md` without depending on visual style.
-- All-original six-view `PROOF_TO_MODEL`, `CODE`, `BLENDER`, and dimension-driven `FLOOR_PLAN_TO_MODEL` work do not require `MEDIA.md`; read it whenever cloud/local generated inputs are in scope. Selecting a visual pipeline never implicitly authorizes reference generation or creates a media contract.
+- All-original six-view `PROOF_TO_MODEL`, `CODE`, `BLENDER`, dimension-driven `FLOOR_PLAN_TO_MODEL` and procedural `SCHEMATIC_TO_MODEL` work do not require `MEDIA.md`; read it whenever cloud/local generated inputs are in scope. Selecting a visual pipeline never implicitly authorizes reference generation or creates a media contract.
 
 ### When `../MEDIA.md` is missing
 

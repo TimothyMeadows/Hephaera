@@ -9,9 +9,10 @@ const runtime = require('./bubo-runtime.cjs');
 const transition = require('./state-transition.cjs');
 const engines = require('./engine-contract.cjs');
 const styles = require('./style-contract.cjs');
+const mechanicalHandoff = require('./bubo-mechanical-handoff.cjs');
 const fail = message => { throw new Error(message); };
 const IDS = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/;
-const FILE_FLAGS = new Set(['rights', 'recipe', 'toolchain', 'selection', 'library-search', 'evidence', 'proof-set', 'classification', 'finish-settings', 'finish-budget', 'revision', 'source-review', 'sources', 'proof', 'model', 'motion-package', 'motion-source', 'mapping', 'brief', 'proof-metadata', 'source-metadata', 'editable-source', 'artifact', 'source']);
+const FILE_FLAGS = new Set(['rights', 'recipe', 'toolchain', 'selection', 'library-search', 'evidence', 'proof-set', 'classification', 'finish-settings', 'finish-budget', 'revision', 'source-review', 'sources', 'proof', 'model', 'motion-package', 'motion-source', 'mapping', 'brief', 'proof-metadata', 'source-metadata', 'editable-source', 'artifact', 'source', 'handoff']);
 const PATH_FIELDS = new Set(['path', 'image', 'stagedPath', 'copyEvidence', 'handoff', 'preparedGlb', 'authoringEvidence', 'generationManifest', 'generationReceipt', 'authorization', 'mediaContract', 'proof', 'rights', 'recipe', 'toolchain', 'brief', 'sourceSet', 'classification', 'proofSet', 'evidence', 'reviewEvidence', 'motionPackage', 'mapping', 'model', 'editableSource', 'receipt', 'sourceReview']);
 function parse(values) {
   const options = new Map();
@@ -21,7 +22,7 @@ function parse(values) {
     const key = name.slice(2);
     const value = key === 'execute' && (index + 1 === values.length || values[index + 1].startsWith('--')) ? 'true'
       : index + 1 < values.length && !values[index + 1].startsWith('--') ? values[++index] : fail('Missing value for ' + name);
-    if (['host-context', 'api-version', 'baseline-root', 'state-root', 'staging-root', 'runtime-build-sha256'].includes(key)) fail('Hephaera supplies protected execution option --' + key + '.');
+    if (['host-context', 'api-version', 'baseline-root', 'state-root', 'staging-root', 'runtime-build-sha256', 'runtime-resource-catalog-sha256'].includes(key)) fail('Hephaera supplies protected execution option --' + key + '.');
     if (key === 'execute' && value !== 'true') fail('--execute accepts only true; omit it for dry-run setup.');
     options.set(key, value);
   }
@@ -75,12 +76,17 @@ function contextFor(workflow, operation, options, info) {
   if (state && (!state.hostPolicySha256 || !state.runtimeBuildSha256)) fail('Historical pre-extraction state is preserved. Initialize a new asset version with retained ancestry and fresh affected verification; do not rewrite old approvals.');
   const stateRoot = '.hephaera/.cache/tasks/' + task;
   if (manifest && !relative(manifest).startsWith(stateRoot + '/')) fail('Manifest must stay in the active canonical task cache.');
-  const references = new Map(); const tools = new Map(); const visitedJson = new Set();
-  function reference(value, kind = 'input') {
+  const references = new Map(); const tools = new Map(); const visitedJson = new Set(); const admittedHashes = new Map();
+  let mechanical = null;
+  function reference(value, kind = 'input', expected) {
     const file = runtime.projectPath(root, value), rel = relative(file);
     if (!fs.existsSync(file) || !fs.statSync(file).isFile()) fail('Missing referenced input: ' + rel);
+    const actual = runtime.hash(file);
+    if (expected !== undefined && actual !== expected) fail('Retained source changed: ' + rel);
+    admittedHashes.set(rel, actual);
+    if (mechanical?.omitExactLeaf(rel, actual)) return file;
     const previous = references.get(rel);
-    references.set(rel, { path: rel, sha256: runtime.hash(file), kind: previous?.kind === 'policy' ? 'policy' : kind });
+    references.set(rel, { path: rel, sha256: actual, kind: previous?.kind === 'policy' ? 'policy' : kind });
     if (references.size > 4096) fail('Host reference bound exceeded; narrow the input set.');
     return file;
   }
@@ -107,11 +113,13 @@ function contextFor(workflow, operation, options, info) {
       } else if (item && typeof item === 'object') discover(item, depth + 1);
     }
   }
-  function input(value, kind) {
-    const file = reference(value, kind);
-    if (path.extname(file).toLowerCase() === '.json' && !visitedJson.has(file)) { visitedJson.add(file); discover(runtime.json(file)); }
+  function input(value, kind, expected) {
+    const file = reference(value, kind, expected), rel = relative(file);
+    if (path.extname(file).toLowerCase() === '.json' && !visitedJson.has(file) && !mechanical?.isOpaque(rel, admittedHashes.get(rel))) { visitedJson.add(file); discover(runtime.json(file)); }
     return file;
   }
+  mechanical = mechanicalHandoff.prepare(root, workflow, operation, options, state);
+  for (const item of mechanical?.references || []) reference(item.path, item.kind, item.sha256);
   const styleFile = reference('STYLE.md', 'policy');
   const styleInfo = styles.validate(styleFile);
   let selectedOverride = null;
@@ -137,16 +145,18 @@ function contextFor(workflow, operation, options, info) {
   }
   const libraries = styleInfo.libraries.map(item => ({ id: item.id, root: item.path }));
   const policy = { pipeline: selection.pipeline, styleSha256: runtime.hash(styleFile), engine, libraries };
-  if (fs.existsSync(path.join(root, 'MEDIA.md'))) { const file = reference('MEDIA.md', 'policy'); policy.media = { path: relative(file), sha256: runtime.hash(file) }; }
+  if (!mechanical && fs.existsSync(path.join(root, 'MEDIA.md'))) { const file = reference('MEDIA.md', 'policy'); policy.media = { path: relative(file), sha256: runtime.hash(file) }; }
   for (const [name, value] of options) if (FILE_FLAGS.has(name)) input(value, name === 'rights' ? 'rights' : ['evidence', 'source-review'].includes(name) ? 'review' : 'input');
   if (options.has('reuse-manifest')) input(options.get('reuse-manifest'), 'input');
   if (state) {
     for (const name of ['rights', 'recipe', 'toolchain', 'brief', 'proofMetadata', 'sourceMetadata', 'sourceReview']) if (state[name]) input(state[name], name === 'rights' ? 'rights' : name === 'sourceReview' ? 'review' : 'input');
     for (const dictionary of [state.originals, state.sourceInputs, ...Object.values(state.stages || {}).map(stage => stage.inputs)].filter(Boolean)) for (const [name, expected] of Object.entries(dictionary)) {
-      const file = input(name);
-      if (references.get(relative(file)).sha256 !== expected) fail('Retained source changed: ' + name);
+      input(name, 'input', expected);
     }
   }
+  // Procedural assemblies do not acquire an ambient media policy. An explicit
+  // or historical media input remains bound and retains its policy identity.
+  if (mechanical && references.has('MEDIA.md')) { const file = reference('MEDIA.md', 'policy'); policy.media = { path: relative(file), sha256: runtime.hash(file) }; }
   const configs = [];
   for (const value of [options.get('toolchain'), options.get('recipe'), state?.toolchain, state?.recipe].filter(Boolean)) configs.push(runtime.json(runtime.projectPath(root, value)));
   function tool(value, required = false) {
@@ -165,6 +175,7 @@ function contextFor(workflow, operation, options, info) {
   if (state?.blender) tool(state.blender, true);
   for (const file of tools.keys()) if (runtime.within(root, file)) references.delete(relative(file));
   const inputs = [];
+  if (mechanical) inputs.push(mechanical.packageRoot);
   if (!(operation === 'setup' && options.get('execute') === 'true')) for (const config of configs) if (config.modelDir) {
     const directory = relative(config.modelDir);
     if (!inputs.includes(directory)) inputs.push(directory);

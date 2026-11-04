@@ -1,6 +1,6 @@
 ---
 name: build-model-animations
-description: Produce reviewed humanoid, articulated or rigid model animation packages through native Blender authoring or explicit motion retargeting. Use for MODEL_TO_ANIMATION preparation, clip revisions, runtime handoff and motion/effect verification.
+description: Produce reviewed skinned, articulated, rigid or mechanical assembly animation packages through native Blender authoring or compatible motion retargeting. Use for MODEL_TO_ANIMATION preparation, clip revisions, runtime handoff and motion/effect verification.
 engines: [AGNOSTIC]
 ---
 
@@ -15,8 +15,10 @@ For a dance pattern, chained combination or charge/cast sequence assembled from 
 ## Workflow
 
 1. Resolve the project engine and this skill; read architecture, STYLE.md and `.styles/.workflows/model-to-animation/WORKFLOW.md`. This downstream workflow does not replace the primary art pipeline, select another engine or install dependencies.
-2. Preserve the reviewed model and editable source ancestry. Inspect configured libraries first and use only project-local copies. Read [motion-profiles.md](references/motion-profiles.md) to choose skinned, articulated or rigid ownership and assess actual animation readiness.
+2. Preserve the reviewed model and editable source ancestry. Inspect configured libraries first and use only project-local copies. Read [motion-profiles.md](references/motion-profiles.md) to choose skinned, articulated, rigid or preserve-only mechanical assembly ownership and assess actual animation readiness.
 3. Inspect command help and use `model-to-animation.sh` for native operations. Supply explicit rights, recipe, coordinates, actual required clips, budgets and the existing Blender4.5 installation. No provider-specific auto-rigging, hidden downloads or Adobe integration is available.
+
+   For reviewed SCHEMATIC_TO_MODEL assemblies, initialize the `mechanical-assembly` profile with the exact reviewed `--handoff` and rest `--model`, including assemblies with zero flexible rigs. Preserve every component, pivot, hierarchy and any separately owned flexible rig. Current package/review/source-state hashes are required; diagnostic motion and input review create no downstream approvals. This profile preserves rigs and rejects retargeting or new rig creation. Inspect hidden hardware through the bound editable assembly or suitable isolated/sectioned views before making a visual acceptance claim.
 4. Inspect/prepare the model and author or preserve its real rig/hierarchy. Review fit, joints, weights, independent mechanical parts/pivots and anchors. Record current rig approval before authoring or retargeting.
 5. Author declared motion or retarget explicitly mapped owned/cleared source clips. Keep original clip rights, rest-axis corrections and skeleton identity. Use targeted `author --revision JSON` when supported; preserve unaffected motion hashes and previous attempts rather than replacing the set silently.
 6. Bake, export and independently re-import actual channels, actions and bindings. Read [review-and-delivery.md](references/review-and-delivery.md) for full-range clip/transition review and separate motion, independent and human runtime acceptance. Passing inventories or a midpoint still cannot accept a motion set.

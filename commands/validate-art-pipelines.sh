@@ -16,8 +16,9 @@ declare -A paths=(
   [CODE]="code/PIPELINE.md"
   [BLENDER]="blender/PIPELINE.md"
   [FLOOR_PLAN_TO_MODEL]="floor-plan-to-model/PIPELINE.md"
+  [SCHEMATIC_TO_MODEL]="schematic-to-model/PIPELINE.md"
 )
-for pipeline in CLOUD LOCAL PROOF_TO_MODEL CODE BLENDER FLOOR_PLAN_TO_MODEL; do
+for pipeline in CLOUD LOCAL PROOF_TO_MODEL CODE BLENDER FLOOR_PLAN_TO_MODEL SCHEMATIC_TO_MODEL; do
   file="$root/${paths[$pipeline]}"
   [[ -f "$file" ]] || { echo "Missing art pipeline contract: $file" >&2; exit 1; }
   heading="$(head -n 1 "$file" | tr -d '\r')"

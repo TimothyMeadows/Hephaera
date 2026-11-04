@@ -1,0 +1,4 @@
+interface:
+  display_name: "Build Schematic Models"
+  short_description: "Design and review separately articulated model assemblies"
+  default_prompt: "Use $build-schematic-models to design this object as a complete schematic package, obtain human whole-design approval, then build and review its independent parts and articulated assembly."

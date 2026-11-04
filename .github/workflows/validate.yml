@@ -42,6 +42,9 @@ jobs:
         run: |
           node tests/test-floor-plan-selection.cjs
           node tests/test-floor-plan-host.cjs
+          node tests/test-schematic-selection.cjs
+          node tests/test-schematic-host.cjs
+          node tests/test-mechanical-host-context.cjs
           node tests/test-bubo-host-context.cjs
           node tests/test-bubo-media-context.cjs
           node tests/test-media-pipeline-contract.cjs
@@ -81,6 +84,11 @@ jobs:
         run: |
           mkdir -p .local/floor-plan-installed-ci
           python3 tests/test-floor-plan-installed.py --evidence .local/floor-plan-installed-ci
+      - name: Real schematic clone and submodule design dispatch
+        shell: bash
+        run: |
+          mkdir -p .local/schematic-installed-ci
+          python3 tests/test-schematic-installed.py --evidence .local/schematic-installed-ci
       - name: Actual managed Linux cancellation and native group cleanup
         if: runner.os == 'Linux'
         run: python3 tests/test-bubo-cancellation.py
