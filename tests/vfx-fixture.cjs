@@ -67,7 +67,7 @@ function preparationAt(root, baseline, {asset = 'prepared-effect', version = 'v1
     request.timing.frameCount = 1; request.timing.loop = 'once'; request.atlas.columns = 1;
     request.mask = {kind: 'disc', width: 4000, height: 4000, innerRadius: 0, outerRadius: .8, softness: .2, angleDegrees: 0};
     Object.assign(request.budgets, {maxFrames: 1, maxDecodedPixels: 16777216, maxAtlasPixels: 16777216,
-      maxPixelWork: 134217728, maxWorkingBytes: 268435456});
+      maxPixelWork: 134217728, maxWorkingBytes: 268435456, maxOutputBytes: 134217728});
   }
   return {asset, version, requestPath: write(root, prefix + '/request.json', request), sources: sources.map(({path, sha256}) => ({path, sha256})), request};
 }
@@ -157,6 +157,10 @@ function initialize(root, baseline = BASE) {
       maxTextureBytes: 1048576, maxOutputBytes: 2097152, maxDurationSeconds: 30, maxConcurrency: 1, maxProcessingSeconds: 60, maxCandidates: 3, maxRevisions: 3 },
     accessibility: { qualityVariants: ['low', 'high'], reducedMotion: 'disable trails', reducedFlash: 'soft pulses', contrast: 'visible shape', colorIndependent: 'shape cues' },
     targets: [{ id: 'desktop', description: 'Synthetic declared target only; not executed.', frameBudgetMs: 16.67, memoryBudgetBytes: 16777216 }] });
+  const interruptionBrief = JSON.parse(fs.readFileSync(path.join(root, brief), 'utf8'));
+  interruptionBrief.budgets.maxOutputBytes = 134217728;
+  interruptionBrief.budgets.maxTextureBytes = 134217728;
+  interruptedPreparation.brief = write(root, 'inputs/interrupted-preparation-brief.json', interruptionBrief);
   const rights = write(root, 'inputs/rights.json', { schemaVersion: 'hephaera-vfx-rights/v1', origin: 'owned', holder: 'Hephaera synthetic QA author',
     permission: ref(root, 'inputs/permission.txt'), inputs: [...effect.resources, ...revised.resources, ...noVisual.resources, ...interrupted.resources, ...interruptedRevision.resources,
       ...prepared.sources, ...preparedProvisional.resources, ...sheet.sources, ...sheetProvisional.resources,

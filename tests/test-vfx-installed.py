@@ -445,11 +445,12 @@ def main():
 
             def stop_owned():
                 if os.name == 'nt':
-                    # taskkill can return 128 when a descendant exits during
-                    # enumeration. Preserve that result and require actual OS
-                    # proof that every reported PID and the Popen root exited.
+                    # A descendant can exit during taskkill enumeration, which
+                    # returns1,128 or255. No code proves retirement: retain
+                    # every reported PID and always require the bounded OS
+                    # liveness checks below, including the Popen/native roots.
                     result = command(['taskkill', '/PID', str(process.pid), '/T', '/F'], cwd=host,
-                        environment=host_env, allowed_exit_codes=[0, 128])
+                        environment=host_env, allowed_exit_codes=[0, 1, 128, 255])
                     owned_pids.update(int(value) for value in re.findall(r'process with PID (\d+)', result.stdout + result.stderr, re.I))
                 else:
                     os.killpg(process.pid, signal.SIGKILL)
@@ -512,10 +513,10 @@ def main():
                 'beforeRecovery': interrupted_status, 'recovery': recovered, 'afterRecovery': recovered_status,
                 'retainedPayload': copied_inventory, 'continuedManifest': continued['manifest']}
             # Interrupt the new real native processing boundary as well. The
-            # owned 16MP mask has finite256MiB allocation/15second limits, and
+            # owned 16MP mask has finite256MiB allocation/128MiB output/15second limits, and
             # supplies an observable native-start window without a provider.
             source = data['interruptedPreparation']
-            prepared_init = invoke('init', *init_flags(**{'--asset': source['asset']}))
+            prepared_init = invoke('init', *init_flags(**{'--asset': source['asset'], '--brief': source['brief']}))
             native_manifest = prepared_init['manifest']
             native_state = host / Path(native_manifest).parent
             native_asset = native_state.parent
