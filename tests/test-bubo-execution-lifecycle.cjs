@@ -3,7 +3,9 @@
 const assert = require('node:assert/strict'), fs = require('node:fs'), path = require('node:path');
 const { execute } = require('../commands/lib/bubo-host-adapter.cjs');
 const base = path.resolve(__dirname, '..');
-const root = fs.mkdtempSync(path.join(base, '.hephaera/.cache/tasks/hephaera-vfx-threejs/evidence/transport-'));
+const evidence = path.join(base, '.hephaera/.cache/tasks/hephaera-vfx-threejs/evidence');
+fs.mkdirSync(evidence, {recursive: true});
+const root = fs.mkdtempSync(path.join(evidence, 'transport-'));
 const script = path.join(root, 'owned-child.cjs');
 fs.writeFileSync(script, `const fs=require('node:fs'),crypto=require('node:crypto');
 const args=process.argv.slice(2),context=args[args.indexOf('--host-context')+1];
