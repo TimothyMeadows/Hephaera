@@ -1,6 +1,6 @@
 ---
 name: create-game-vfx
-description: Design and implement readable, performant game visual effects with semantic timing, bounded layers, pooling, cleanup, accessibility, and gameplay validation. Use for hit, cast, summon, movement, status, environment, UI-world, and transition effects.
+description: Design reusable game effects, stage versioned VFX packages, and review their timing, readability, rights, budgets and accessibility. Use for individual effects or effects coordinated with model actions.
 engines: [AGNOSTIC]
 ---
 
@@ -13,6 +13,10 @@ engines: [AGNOSTIC]
 - Reviewing VFX for readability, timing, accessibility, or runtime cost.
 
 ## Workflow
+
+For reusable assets, read [versioned-vfx-assets.md](references/versioned-vfx-assets.md) and use `./commands/vfx-assets.sh`. Start with a task-bound brief and rights evidence, inspect prerequisites, stage inexpensive provisional work, and obtain a current independent complete-phase review before detailed work. Preserve immutable inputs, rejected attempts and version ancestry. The command validates packages through Bubo; it does not create a STYLE primary, select another engine, install dependencies or grant generation or asset promotion.
+
+Check the command's actual capabilities before promising production. The initial lifecycle admits owned/licensed fixed inputs and native contract/dependency inspection. Generated-receipt admission, resource processing, engine rendering, reusable-package action playback and promotion remain explicitly unavailable at this delivery. Existing MODEL_TO_ACTION v1 keeps its original cues. A JSON package or review verdict does not establish rendered quality or human runtime acceptance.
 
 For effects timed across a dance, combination or charge/cast sequence, coordinate with `build-model-actions`. Bind cues to real reviewed step/clip markers and anchors, capture fixed target points explicitly, and keep cancellation/resource cleanup separate from gameplay hit and projectile decisions.
 

@@ -44,6 +44,7 @@ jobs:
           node tests/test-floor-plan-host.cjs
           node tests/test-schematic-selection.cjs
           node tests/test-schematic-host.cjs
+          node tests/test-vfx-assets.cjs
           node tests/test-mechanical-host-context.cjs
           node tests/test-schematic-examples.cjs
           node tests/test-bubo-host-context.cjs
@@ -90,6 +91,11 @@ jobs:
         run: |
           mkdir -p .local/schematic-installed-ci
           python3 tests/test-schematic-installed.py --evidence .local/schematic-installed-ci
+      - name: Real VFX clone and submodule lifecycle
+        shell: bash
+        run: |
+          mkdir -p .local/vfx-installed-ci
+          python3 tests/test-vfx-installed.py --evidence .local/vfx-installed-ci --native-root runtime/bubo
       - name: Actual managed Linux cancellation and native group cleanup
         if: runner.os == 'Linux'
         run: python3 tests/test-bubo-cancellation.py
