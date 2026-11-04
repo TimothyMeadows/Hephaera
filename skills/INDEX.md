@@ -98,7 +98,7 @@ Curated reusable skills included in Hephaera. Install the baseline at `<project-
 - `build-music-assets` - Run independent instrumental and supplied-lyric MUSIC production with exact lyrics/rights, disabled planning, complete track/line/loop review and separate target/promotion gates.
 - `build-voice-assets` - Run independent preset/cloning VOICE production with exact local references, purpose-bound consent, complete spoken-content review and separate output disclosure/target/promotion gates.
 - `validate-generated-media` - Validate manifests, hashes, exact coverage, budgets, provenance, and review status before promotion.
-- `create-game-vfx` - Design readable effect families with timing, accessibility, and runtime budgets.
+- `create-game-vfx` - Design and stage reusable VFX packages with rights, budgets, accessibility and independent phase reviews.
 - `optimize-web-games` - Profile and improve browser-game frame time, memory, loading, and asset churn.
 - `test-playable-games` - Run structured functional, experiential, accessibility, and performance playtests.
 - `ship-web-games` - Assemble evidence and release gates for a web game without automatic publication.

@@ -162,6 +162,7 @@ Skills:
 
 Commands:
 
+- `commands/vfx-assets.sh`
 - `commands/model-to-action.sh`
 - `commands/model-to-animation.sh`
 - `commands/resolve-art-pipeline.sh`
@@ -310,6 +311,7 @@ Skills:
 
 Commands:
 
+- `commands/vfx-assets.sh`
 - `commands/model-to-action.sh`
 - `commands/model-to-animation.sh`
 - `commands/print-gameplay-system-brief.sh`
@@ -640,6 +642,7 @@ Skills:
 
 Commands:
 
+- `commands/vfx-assets.sh`
 - `commands/print-tcg-art-style-template.sh`
 - `commands/print-gameplay-system-brief.sh`
 - `commands/art-sanity-checklist.sh`
@@ -1001,6 +1004,7 @@ Skills:
 
 Commands:
 
+- `commands/vfx-assets.sh`
 - `commands/model-to-action.sh`
 - `commands/model-to-animation.sh`
 - `commands/list-external-asset-libraries.sh`

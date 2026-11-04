@@ -2,11 +2,11 @@
   "schemaVersion": 1,
   "repository": "https://github.com/TimothyMeadows/Bubo.git",
   "path": "runtime/bubo",
-  "revision": "7ab99a9f12761095e5a3ee5cfb37d2a679b026a7",
+  "revision": "cf609117f72cb45fcb2e67051e7f8a1b6dbf0e7e",
   "apiVersion": 2,
   "resourceCatalogSha256": "7c52b59ee15e7661d9b8970f886b789c7b7bf51709a023cca1f0790bfebd43fe",
   "buildReceipt": "artifacts/bubo/build-info.json",
-  "trackingIssue": "https://github.com/TimothyMeadows/Hephaera/issues/201",
+  "trackingIssue": "https://github.com/TimothyMeadows/Hephaera/issues/208",
   "acceptedPrerequisite": {
     "originalMerge": "7881c49429b3303acd7fa3a8675ac81b403ef226",
     "pullRequest": "https://github.com/TimothyMeadows/Bubo/pull/36",
@@ -73,6 +73,19 @@
           "https://app.snyk.io/org/timothymeadows/pr-checks/caa7d291-04ac-4ca0-9446-fa663d70f4f2",
           "https://github.com/TimothyMeadows/Bubo/actions/runs/41771218971/job/126381100124",
           "https://github.com/TimothyMeadows/Bubo/actions/runs/41771218971/job/126381100426"
+        ]
+      }
+    },
+    "vfxIntegration": {
+      "trackingIssue": "https://github.com/TimothyMeadows/Hephaera/issues/208",
+      "foundation": {
+        "pullRequest": "https://github.com/TimothyMeadows/Bubo/pull/49",
+        "reviewedHead": "9089ee3abdbf28f695817cc3d7c9a3f1bbca6b1c",
+        "mergedRevision": "cf609117f72cb45fcb2e67051e7f8a1b6dbf0e7e",
+        "qa": "https://github.com/TimothyMeadows/Bubo/pull/49#issuecomment-6640268465",
+        "requiredCi": [
+          "https://github.com/TimothyMeadows/Bubo/actions/runs/41898470746/job/126814208656",
+          "https://github.com/TimothyMeadows/Bubo/actions/runs/41898470746/job/126814209371"
         ]
       }
     }

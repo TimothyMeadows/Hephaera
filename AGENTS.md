@@ -219,6 +219,12 @@ Only the action workflow's fixed audited/hash-bound Blender bundle may compose i
 
 Engine playback captures fixed target points at action start, owns one presentation clock and cleans up attachments, particles and visual projectiles on cancellation, restart or disposal. Frame variation and synchronous callbacks cannot repeat retired events or double-apply motion. Gameplay retains targeting, collision, damage, movement, costs, cooldowns and projectile outcomes; effects and animation callbacks grant no gameplay authority. No Adobe integration, provider fallback, automatic installation or production promotion is implied.
 
+## Reusable VFX assets
+
+Use `create-game-vfx`, `./commands/vfx-assets.sh` and `./docs/VFX_ASSETS.md` for versioned effect briefs, immutable provisional/detail packages and independent phase review. This is an engine-agnostic production workflow, not another primary STYLE pipeline. Preserve STYLE and ENGINE authority, bind exact rights/provenance and resource identities, and require current whole-phase evidence before advancing detail.
+
+Hephaera owns policy, staging, review and continuation; Bubo owns strict effect-package and dependency inspection. Discovery never installs tools or selects another provider. Read actual reported capabilities: package inspection does not establish decoded resource validity, engine rendering, action integration, human runtime acceptance or promotion. Existing action v1 keeps its original cues and cannot consume reusable VFX packages through an implicit upgrade. Initial source admission covers owned/licensed fixed inputs; generated-receipt admission remains explicitly unavailable and must preserve the existing MEDIA permissions and attempt ledger.
+
 ## Generative media workflow
 
 The optional generative media contract for the host repository is:
