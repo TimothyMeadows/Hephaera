@@ -23,8 +23,17 @@ test('root and project deployments resolve every generated link and anchor', asy
     assert.match(floorPlan.text, /FLOOR_PLAN_TO_MODEL/);
     const floorHtml = await fs.readFile(path.join(output, 'docs/floor-plan-to-model/index.html'), 'utf8');
     assert.ok(floorHtml.includes(`href="${base}docs/floor-plan-to-model/" aria-current="page"`));
+    const schematic = search.find(page => page.url === `${base}docs/schematic-to-model/`);
+    assert.equal(schematic?.title, 'Schematics to assembled models');
+    assert.match(schematic.text, /SCHEMATIC_TO_MODEL/);
+    assert.match(schematic.text, /mechanical-assembly/);
+    const schematicHtml = await fs.readFile(path.join(output, 'docs/schematic-to-model/index.html'), 'utf8');
+    assert.ok(schematicHtml.includes(`href="${base}docs/schematic-to-model/" aria-current="page"`));
+    assert.ok(schematicHtml.includes('blob/main/wiki/Schematic-to-Model.md'));
+    assert.ok(!schematicHtml.includes('/wiki/Schematic-to-Model"'));
     const landing = await fs.readFile(path.join(output, 'index.html'), 'utf8');
     assert.match(landing, /approved floor plans/);
+    assert.match(landing, /schematics into models with separate moving parts/);
   }
 });
 

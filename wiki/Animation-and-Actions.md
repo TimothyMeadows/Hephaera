@@ -6,7 +6,7 @@ The authoritative contracts are [MODEL_TO_ANIMATION](https://github.com/TimothyM
 
 ## Inputs and subject readiness
 
-Use a repository-local reviewed GLB from PROOF_TO_MODEL, BLENDER, a copied licensed asset bundle or an explicitly compatible CODE handoff. Preserve immutable model, editable-source and rights ancestry. Inspect configured libraries before authoring replacements; never open directly from a read-only library.
+Use a repository-local reviewed GLB from PROOF_TO_MODEL, BLENDER, a copied licensed asset bundle or an explicitly compatible CODE handoff. A [schematic assembly](Schematic-to-Model) requires its explicit current mechanical handoff. Preserve immutable model, editable-source and rights ancestry. Inspect configured libraries before authoring replacements; never open directly from a read-only library.
 
 Readiness checks include scale, topology, pose, missing hidden parts, fused equipment, independent articulation, materials and attachments. A static display model may need modeling repair before deformation. Record that repair explicitly instead of relabeling the model animation-ready.
 
@@ -15,8 +15,11 @@ Readiness checks include scale, topology, pose, missing hidden parts, fused equi
 | `skinned` | Actual skeleton, weights and deforming surfaces | Generic humanoid bones for incompatible anatomy |
 | `articulated` | Independent parts, hierarchy and measured pivots | Deformation assumptions for rigid mechanics |
 | `rigid` | Hull/whole-object motion and real anchors | Skeletons, attacks or combat colliders for noncombatants |
+| `mechanical-assembly` | Preserve-only reviewed rigid occurrences plus separately owned flexible rigs | New rigs, retargeting, missing/fused components or inherited human motion acceptance |
 
 Existing rigged-actor/v1 remains valid for its actual character/monster consumers. It is not a universal vehicle or prop schema. CODE remains source-authored and THREEJS-specific; downstream motion cannot replace its primary implementation with an unrelated generated mesh.
+
+For `mechanical-assembly`, use `rig.mode: preserve`, the exact canonical rest GLB and current `--handoff`. The descriptor binds the real node/skin graph, component inventory, numerical policy, complete package/reviews and current source states. Receiving preserves local pivots and per-rig ownership. Changes to design/parts/assembly/export state or payloads invalidate it; do not silently refresh expected hashes. Diagnostic readiness clips remain separate from finished production motion, and this profile does not relax existing profiles or later rig/motion/independent/human runtime reviews.
 
 ## Native preparation and limits
 

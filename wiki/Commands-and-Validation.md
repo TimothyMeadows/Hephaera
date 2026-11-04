@@ -54,6 +54,7 @@ Read [Work modes and delivery](Work-Modes-and-Delivery). Automatic publication i
 | Domain assets | `audio-pipeline.sh`, `music-pipeline.sh`, `voice-pipeline.sh` | Separate immutable domain lifecycles |
 | Source-to-model | `proof-to-model.sh` | [Proof to model](Proof-to-Model) |
 | Floor-plan buildings | `floor-plan-to-model.sh` | [Floor plan to model](Floor-Plan-to-Model) |
+| Mechanical assemblies | `schematic-to-model.sh` | [Schematic to model](Schematic-to-Model) |
 | Motion/actions | `model-to-animation.sh`, `model-to-action.sh` | [Animation and actions](Animation-and-Actions) |
 | CODE models | `create-code-model-manifest.sh`, `validate-code-model-manifest.sh`, `next-code-model-pass.sh`, `record-code-model-review.sh` | THREEJS source-authoring contract |
 | CODE characters | `create-code-character-profile.sh`, `validate-code-character-profile.sh`, `measure-code-character-evidence.sh`, `record-code-character-calibration.sh`, `record-code-character-gate.sh` | Ordered gates and independent calibrated evidence |
@@ -61,7 +62,7 @@ Read [Work modes and delivery](Work-Modes-and-Delivery). Automatic publication i
 | Three.js effects | `threejs-particles.sh`, `threejs-postprocessing.sh` | [Three.js extensions](Threejs-Extensions) |
 | Native web packages | `web-game-package.sh` | [Packaging](Web-Game-Packaging) |
 
-The [asset argument reference](https://github.com/TimothyMeadows/Hephaera/blob/main/commands/BUBO_ARGUMENTS.md) covers proof, floor-plan, motion and action flags. Floor-plan initialization uses plan/rights/budget records and no actor, recipe or toolchain arguments. Their current native help and pinned schemas remain the exact interface authority.
+The [asset argument reference](https://github.com/TimothyMeadows/Hephaera/blob/main/commands/BUBO_ARGUMENTS.md) covers proof, floor-plan, schematic, motion and action flags. Floor-plan/schematic initialization uses exact plan/design, rights and budget records with no actor, recipe or toolchain arguments. Later mechanical animation admission explicitly selects its recipe and current handoff. Current help and pinned schemas remain the exact interface authority.
 
 ## Supporting engineering families
 

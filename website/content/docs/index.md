@@ -12,7 +12,7 @@ Hephaera supplies guidance and workflows. Your project still supplies its engine
 
 ## Start here
 
-If Hephaera is not in your project yet, follow [installation](install.md). The `5.1.0-rc.1` npm and NuGet installers are published on GitHub Packages and scaffold the host when setup completes; public npmjs.com and NuGet.org mirrors remain pending. The guide covers packages first and deliberate manual clone/submodule installation last. Features added after that release, including floor-plan-to-model, currently require newer `main` source.
+If Hephaera is not in your project yet, follow [installation](install.md). The `5.1.0-rc.1` npm and NuGet installers are published on GitHub Packages and scaffold the host when setup completes; public npmjs.com and NuGet.org mirrors remain pending. The guide covers packages first and deliberate manual clone/submodule installation last. Features added after that release, including floor-plan-to-model and schematic-to-model, require a newer baseline revision; merging source documentation does not update installed version-pinned packages.
 
 Then walk through [your first session](first-session.md). Start with a narrow request so you can see the agent inspect the project, propose a plan, and report its evidence.
 
@@ -22,6 +22,7 @@ Then walk through [your first session](first-session.md). Start with a narrow re
 - [Project setup](project-setup.md): choose architecture, game engine, and project instructions.
 - [Art and assets](art-and-assets.md): choose a visual style and production method, then review what was made.
 - [Floor plans to buildings](floor-plan-to-model.md): design every floor, approve the whole building and review an editable architectural model package.
+- [Schematics to assembled models](schematic-to-model.md): approve the complete mechanical design, build separate components and review their articulation.
 - [Audio, music, and voice](audio-music-voice.md): plan sound work without mixing up generation, listening review, and delivery.
 - [Delivery and troubleshooting](delivery-and-troubleshooting.md): understand review gates and investigate missing prerequisites.
 
