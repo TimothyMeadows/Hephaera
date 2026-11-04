@@ -80,10 +80,11 @@ def main():
     fixtures.mkdir(parents=True, exist_ok=True)
     run = Path(tempfile.mkdtemp(prefix='r-', dir=fixtures))
     assert run.parent == fixtures and run.resolve().is_relative_to(BASE) and not run.is_symlink()
-    env = dict(os.environ, GIT_ALLOW_PROTOCOL='file', GIT_TERMINAL_PROMPT='0',
-               GIT_CONFIG_NOSYSTEM='1', GIT_CONFIG_GLOBAL=str(run / 'gitconfig'))
+    source_env = dict(os.environ)
     for key in ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'HEPHAERA_PROJECT_ROOT']:
-        env.pop(key, None)
+        source_env.pop(key, None)
+    env = dict(source_env, GIT_ALLOW_PROTOCOL='file', GIT_TERMINAL_PROMPT='0',
+               GIT_CONFIG_NOSYSTEM='1', GIT_CONFIG_GLOBAL=str(run / 'gitconfig'))
     (run / 'gitconfig').write_text(
         '[core]\n autocrlf = false\n longpaths = true\n[commit]\n gpgsign = false\n'
         '[user]\n name = Schematic fixture\n email = fixture@example.invalid\n', encoding='utf-8')
@@ -130,7 +131,12 @@ def main():
 
     try:
         source_head = git(BASE, 'rev-parse', 'HEAD')
-        check(not git(BASE, 'status', '--porcelain', '--untracked-files=no'), 'tracked source and native dependency are clean before installed acquisition')
+        # The existing source must use its checkout's Git configuration. The
+        # isolated fixtures below deliberately use LF; applying that policy to
+        # an existing Windows CRLF checkout can falsely report tracked edits.
+        source_status = command(['git', '-C', BASE, 'status', '--porcelain', '--untracked-files=no'],
+                                BASE, environment=source_env).stdout.strip()
+        check(not source_status, 'tracked source and native dependency are clean before installed acquisition: ' + source_status)
         fixture_blob = command(['git', 'show', source_head + ':tests/test-schematic-installed.py'], BASE).stdout
         check(fixture_blob.replace('\r\n', '\n') == Path(__file__).read_text(encoding='utf-8'), 'the executing fixture is committed at the installed source head')
         mode = git(BASE, 'ls-tree', source_head, '--', 'commands/schematic-to-model.sh').split()[0]
