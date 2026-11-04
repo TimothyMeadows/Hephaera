@@ -16,6 +16,27 @@ const SHA256 = /^[a-f0-9]{64}$/;
 const TASK = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const MAX_FILE_BYTES = 8 * 1024 * 1024;
 const PIPELINES = { CLOUD: 'cloud', LOCAL: 'local', PROOF_TO_MODEL: 'proof-to-model', CODE: 'code', BLENDER: 'blender', FLOOR_PLAN_TO_MODEL: 'floor-plan-to-model', SCHEMATIC_TO_MODEL: 'schematic-to-model' };
+// Reviewed local tool closure: public shell entrypoint and its sourced helpers,
+// lifecycle/native entrypoints, every local CommonJS import (including the
+// conditional managed-installation branch), and their transitive imports.
+// Hash these files without importing additional code or discovering providers.
+// Changes to this closure must retain every relevant tool identity here.
+const TOOL_FILES = Object.freeze([
+  'commands/vfx-assets.sh',
+  'commands/lib/memory-common.sh',
+  'commands/lib/state-transition-common.sh',
+  'commands/lib/vfx-assets.cjs',
+  'commands/lib/bubo-vfx-adapter.cjs',
+  'commands/lib/bubo-host-adapter.cjs',
+  'commands/lib/bubo-runtime.cjs',
+  'commands/lib/engine-contract.cjs',
+  'commands/lib/style-contract.cjs',
+  'commands/lib/installation-maintenance.cjs',
+  'commands/lib/state-transition.cjs',
+  'commands/lib/bubo-mechanical-handoff.cjs',
+  'installer/core/maintenance.cjs',
+  'installer/core/files.cjs'
+]);
 const digest = value => crypto.createHash('sha256').update(JSON.stringify(runtime.canonical(value))).digest('hex');
 
 function rootPath(value) {
@@ -86,8 +107,7 @@ function snapshot(rootArgument) {
   policy(path.join(runtime.BASE, '.styles/.pipelines/INDEX.md'));
   for (const name of validated.styles) policy(path.join(runtime.BASE, '.styles', name + '.md'));
   for (const name of validated.allowed) policy(path.join(runtime.BASE, '.styles/.pipelines', PIPELINES[name], 'PIPELINE.md'));
-  for (const name of ['commands/vfx-assets.sh', 'commands/lib/vfx-assets.cjs', 'commands/lib/bubo-vfx-adapter.cjs',
-    'commands/lib/bubo-host-adapter.cjs', 'commands/lib/bubo-runtime.cjs']) policy(path.join(runtime.BASE, name));
+  for (const name of TOOL_FILES) policy(path.join(runtime.BASE, name));
 
   // Bind actual concise read directives, including architecture templates.
   // A misplaced mount must never substitute an unrelated local definition.
@@ -194,7 +214,10 @@ async function inspect(request) {
     const result = await launcher.execute('vfx-assets', operation, options, { root, task, stateRoot, context, options }, info, false);
     requireExpected(snapshot(root), policy);
     return { data: result.data, policy, runtime: { revision: info.pinned.revision,
-      buildSha256: digest(info.capability.build), resourceCatalogSha256: info.pinned.resourceCatalogSha256 },
+      // Match Bubo's UTF-8 JsonObject.ToJsonString() build identity exactly;
+      // host policy canonicalization is a separate identity algorithm.
+      buildSha256: crypto.createHash('sha256').update(JSON.stringify(info.capability.build), 'utf8').digest('hex'),
+      resourceCatalogSha256: info.pinned.resourceCatalogSha256 },
       hostContextSha256: result.hostContextSha256 };
   });
 }

@@ -8,4 +8,6 @@ Stage a provisional package with its complete capture/environment packet. Bubo c
 
 Revisions retain failed attempts, rejected reviews and ancestry. A changed brief, input, rights record, policy, native build, scene, camera, driver or artifact invalidates affected evidence. Do not change expected hashes to refresh a review. Preserve declared candidate/revision bounds and existing shared MEDIA permissions/attempts.
 
+After interruption, inspect ownership and incomplete reservations. Use the scoped `recover` operation only when it can verify the retained writer has ended; keep archived lock/attempt evidence and spent budgets. It never kills a process or establishes untracked native-child cleanup.
+
 The initial command handles owned/licensed fixed inputs. Generated-receipt admission is explicitly unavailable; inspecting a MEDIA contract or supplied receipt cannot mint a generation allowance. Resource preparation, runtime rendering, reusable-package action integration and promotion require their later declared capability and actual target evidence. No standalone package, staged visual packet or independent technical review grants human runtime acceptance.

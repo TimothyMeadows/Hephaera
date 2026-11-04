@@ -69,6 +69,8 @@ function initialize(root, baseline = BASE) {
   const effect = packageAt(root, baseline);
   const revised = packageAt(root, baseline, { version: 'v2', prefix: 'inputs/effect-v2' });
   const noVisual = packageAt(root, baseline, { asset: 'missing-visual', prefix: 'inputs/no-visual' });
+  const interrupted = packageAt(root, baseline, { asset: 'interrupted-effect', prefix: 'inputs/interrupted' });
+  const interruptedRevision = packageAt(root, baseline, { asset: 'interrupted-effect', version: 'v2', prefix: 'inputs/interrupted-v2' });
   const bindings = ['model', 'rig', 'clip', 'marker', 'transform'].map(kind => {
     const file = 'inputs/bindings/' + kind + (kind === 'model' ? '.glb' : '.json');
     write(root, file, kind === 'model' ? glb() : { fixture: kind, synthetic: true, notRuntimeEvidence: true });
@@ -81,7 +83,7 @@ function initialize(root, baseline = BASE) {
     accessibility: { qualityVariants: ['low', 'high'], reducedMotion: 'disable trails', reducedFlash: 'soft pulses', contrast: 'visible shape', colorIndependent: 'shape cues' },
     targets: [{ id: 'desktop', description: 'Synthetic declared target only; not executed.', frameBudgetMs: 16.67, memoryBudgetBytes: 16777216 }] });
   const rights = write(root, 'inputs/rights.json', { schemaVersion: 'hephaera-vfx-rights/v1', origin: 'owned', holder: 'Hephaera synthetic QA author',
-    permission: ref(root, 'inputs/permission.txt'), inputs: [...effect.resources, ...revised.resources, ...noVisual.resources], media: null });
+    permission: ref(root, 'inputs/permission.txt'), inputs: [...effect.resources, ...revised.resources, ...noVisual.resources, ...interrupted.resources, ...interruptedRevision.resources], media: null });
   write(root, 'inputs/scene.json', { fixture: 'synthetic-no-scene-render' });
   write(root, 'inputs/camera.json', { fixture: 'synthetic-no-camera-render' });
   write(root, 'inputs/settings.json', { fixture: 'synthetic-no-renderer-execution' });
@@ -95,7 +97,8 @@ function initialize(root, baseline = BASE) {
       scene: ref(root, 'inputs/scene.json'), camera: ref(root, 'inputs/camera.json'), settings: ref(root, 'inputs/settings.json') },
     artifacts: [{ ...ref(root, 'inputs/captures/start.png'), coverage: ['start'] }, { ...ref(root, 'inputs/captures/end.png'), coverage: ['end'] }] });
   return { task: 'qa', asset: 'owned-effect', version: 'v1', creator: 'fixture-author', brief, rights,
-    packagePath: effect.packagePath, revisedPackagePath: revised.packagePath, noVisualPackagePath: noVisual.packagePath, visual,
+    packagePath: effect.packagePath, revisedPackagePath: revised.packagePath, noVisualPackagePath: noVisual.packagePath,
+    interruptionPackagePath: interrupted.packagePath, interruptionRevisionPackagePath: interruptedRevision.packagePath, visual,
     manifest: '.hephaera/.cache/tasks/qa/vfx/owned-effect/v1/manifest.json',
     revisedManifest: '.hephaera/.cache/tasks/qa/vfx/owned-effect/v2/manifest.json' };
 }

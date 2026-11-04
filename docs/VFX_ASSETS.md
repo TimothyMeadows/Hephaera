@@ -77,6 +77,16 @@ Relevant brief, rights, source, policy, native build, host tool, model/clip/mark
 
 `status` and `doctor` inspect metadata. Native `validate`/`inspect` keep execution-context/result audit records under the task. None of these operations installs software, generates media, certifies gameplay or copies an asset into a game.
 
+If the client stops during staging, inspect `status` first. Started attempts and partial files remain recorded. When its exact writer is confirmed dead, recover the retained ownership record:
+
+```bash
+./.hephaera/commands/vfx-assets.sh recover --manifest PATH_TO_MANIFEST
+```
+
+Recovery archives the old lock and records interruption without resetting budgets, reusing partial attempts or accepting a phase. It refuses a live, unknown or malformed owner and never kills a process. Host ownership recovery does not certify cleanup of untracked native children. Preserve the reported evidence and use the actual execution owner's cancellation controls for any work still running.
+
+Recovery has its own immutable ownership claims. If that client also stops, the next recovery can continue a verified abandoned claim and its prepared archive. A partial recovery cannot masquerade as a completed one or reset the asset's budget.
+
 ## Data contracts
 
 JSON uses exact fields and canonical project-relative forward-slash paths. Unknown/duplicate properties, unsafe aliases, links and stale hashes fail. The coordinating skill supplies the records; native package/resource schemas belong to [Bubo's VFX contract guide](../runtime/bubo/docs/VFX_ASSETS.md).

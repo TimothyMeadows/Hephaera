@@ -10,12 +10,13 @@ const maintenance = require('./installation-maintenance.cjs');
 const transition = require('./state-transition.cjs');
 const CACHE = '.hephaera/.cache/tasks', SHA = /^[a-f0-9]{64}$/;
 const MAX_JSON = 8 * 1024 * 1024, MAX_FILE = 512 * 1024 * 1024, MAX_EVENTS = 4096;
+const MAX_LOCK = 4096;
 const BUDGETS = Object.freeze({ timeoutSeconds: 60, maxLogBytes: 1048576 });
 const FLAGS = {
   init: ['root', 'task', 'asset', 'version', 'creator', 'brief', 'rights', 'parent-manifest', 'provenance'],
   stage: ['root', 'manifest', 'phase', 'package', 'visual'],
   record: ['root', 'manifest', 'phase', 'reviewer', 'evidence'],
-  validate: ['root', 'manifest'], inspect: ['root', 'manifest'], status: ['root', 'manifest'], doctor: ['root']
+  validate: ['root', 'manifest'], inspect: ['root', 'manifest'], status: ['root', 'manifest'], recover: ['root', 'manifest'], doctor: ['root']
 };
 const fail = message => { throw new Error(message); };
 const encode = value => JSON.stringify(value, null, 2) + '\n';
@@ -104,6 +105,9 @@ function ref(root, value, maximum = MAX_FILE) {
 // Reject duplicate keys and malformed UTF-8 before JSON.parse can erase them.
 function read(root, name, expected) {
   const { file } = statFile(root, name, MAX_JSON), bytes = fs.readFileSync(file);
+  return documentBytes(bytes, name, expected);
+}
+function documentBytes(bytes, name, expected) {
   if (bytes.length > MAX_JSON || (expected && crypto.createHash('sha256').update(bytes).digest('hex') !== expected)) fail('Retained JSON changed: ' + name);
   const source = bytes.toString('utf8');
   if (!Buffer.from(source, 'utf8').equals(bytes)) fail('JSON must use valid UTF-8.');
@@ -173,12 +177,181 @@ function paths(task, asset, version) {
 }
 async function lock(root, directory, action) {
   const folder = full(root, directory); fs.mkdirSync(folder, { recursive: true }); runtime.components(folder);
-  const name = directory + '/.write-lock', file = full(root, name); let fd;
-  try { fd = fs.openSync(file, 'wx'); } catch (error) { if (error.code === 'EEXIST') fail('VFX asset write is already owned; inspect the retained lock before recovery.'); throw error; }
+  const marker = directory + '/.recovery-lock';
+  requireNoRecoveryClaim(root, directory);
+  if (fs.existsSync(full(root, marker))) fail('VFX asset recovery is already owned; writers must preserve its marker.');
+  const name = directory + '/.write-lock'; let owned;
+  try { owned = createOwnership(root, name, { pid: process.pid, startedAt: new Date().toISOString() }); }
+  catch (error) { if (error.code === 'EEXIST') fail('VFX asset write is already owned; inspect the retained lock before recovery.'); throw error; }
   try {
-    fs.writeFileSync(fd, encode({ pid: process.pid, startedAt: new Date().toISOString() })); fs.fsyncSync(fd);
+    requireNoRecoveryClaim(root, directory);
+    if (fs.existsSync(full(root, marker))) fail('VFX recovery began while acquiring ownership; writer stopped before mutation.');
     return await action();
-  } finally { fs.closeSync(fd); fs.unlinkSync(file); }
+  } finally { removeOwned(root, name, owned); }
+}
+function lockMetadata(stat) {
+  return { dev: stat.dev, ino: stat.ino, size: stat.size, mtimeMs: stat.mtimeMs, ctimeMs: stat.ctimeMs, birthtimeMs: stat.birthtimeMs };
+}
+function ownershipBytes(root, name) {
+  const { file, stat } = statFile(root, name, MAX_LOCK), fd = fs.openSync(file, 'r');
+  const buffer = Buffer.alloc(MAX_LOCK + 1); let length = 0;
+  try {
+    const opened = fs.fstatSync(fd);
+    if (!equal(lockMetadata(opened), lockMetadata(stat))) fail('Ownership metadata changed before inspection.');
+    let count;
+    while (length < buffer.length && (count = fs.readSync(fd, buffer, length, buffer.length - length, null))) length += count;
+    if (length < 1 || length > MAX_LOCK || !equal(lockMetadata(fs.fstatSync(fd)), lockMetadata(stat))) fail('Ownership bytes/metadata changed during inspection.');
+  } finally { fs.closeSync(fd); }
+  const after = statFile(root, name, MAX_LOCK).stat;
+  if (length !== stat.size || !equal(lockMetadata(after), lockMetadata(stat))) fail('Ownership path identity changed during inspection.');
+  const bytes = buffer.subarray(0, length);
+  return { path: name, sha256: crypto.createHash('sha256').update(bytes).digest('hex'), bytes, metadata: lockMetadata(stat) };
+}
+function createOwnership(root, name, value) {
+  const file = full(root, name), fd = fs.openSync(file, 'wx');
+  try { fs.writeFileSync(fd, encode(value)); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+  return ownershipBytes(root, name);
+}
+function exactOwnership(root, name, expected) {
+  const actual = ownershipBytes(root, name);
+  if (actual.sha256 !== expected.sha256 || !actual.bytes.equals(expected.bytes) || !equal(actual.metadata, expected.metadata))
+    fail('Ownership changed; a different owner or altered lock will never be removed.');
+  return actual;
+}
+function removeOwned(root, name, expected) {
+  exactOwnership(root, name, expected); fs.unlinkSync(full(root, name));
+}
+function ownerProbe(pid) {
+  try { process.kill(pid, 0); return { state: 'active', proof: 'signal-zero-live' }; }
+  catch (error) {
+    if (error.code === 'ESRCH') return { state: 'abandoned', proof: 'ESRCH' };
+    return { state: 'unverified', proof: error.code || 'unknown-process-probe-error' };
+  }
+}
+function ownershipEntry(root, name, recovery = false) {
+  try {
+    const file = full(root, name);
+    try { fs.lstatSync(file); } catch (error) { if (error.code === 'ENOENT') return { path: name, state: 'absent' }; throw error; }
+    const observed = ownershipBytes(root, name), value = documentBytes(observed.bytes, name);
+    shape(value, recovery ? ['schemaVersion', 'pid', 'startedAt', 'token'] : ['pid', 'startedAt'], recovery ? 'recovery ownership' : 'write ownership');
+    if (!Number.isSafeInteger(value.pid) || value.pid < 1 || value.pid > 2147483647 || typeof value.startedAt !== 'string'
+      || Number.isNaN(Date.parse(value.startedAt)) || new Date(value.startedAt).toISOString() !== value.startedAt
+      || (recovery && (value.schemaVersion !== 'hephaera-vfx-recovery-lock/v1' || !/^[a-f0-9-]{36}$/.test(value.token || ''))))
+      fail('Malformed ownership PID/time/identity; owner death is unverified.');
+    return { ...observed, ownerPid: value.pid, startedAt: value.startedAt, ...ownerProbe(value.pid) };
+  } catch (error) { return { path: name, state: 'unverified', reason: String(error.message).slice(0, 1024) }; }
+}
+function publicOwnership(value) {
+  const { bytes, ...safe } = value; return safe;
+}
+function recoveryClaims(root, directory) {
+  const scope = directory + '/.recovery-claims', folder = full(root, scope), claims = []; let temporary = 0;
+  if (!fs.existsSync(folder)) return { scope, claims, latest: null, temporary };
+  if (!fs.statSync(folder).isDirectory()) fail('Recovery claims must be a guarded directory.');
+  const names = fs.readdirSync(folder).sort();
+  if (names.length > 16384) fail('Recovery claim inventory exceeds its finite bound.');
+  for (const name of names) {
+    if (/^pending-[a-f0-9-]{36}$/.test(name)) { temporary++; continue; }
+    const ordinal = /^claim-(\d{6})$/.exec(name);
+    if (!ordinal || Number(ordinal[1]) !== claims.length + 1) fail('Recovery claim history has a gap or unexpected entry.');
+    const claimDirectory = scope + '/' + name, file = claimDirectory + '/intent.json';
+    const identity = ref(root, file, MAX_LOCK), value = read(root, file, identity.sha256);
+    shape(value, ['schemaVersion', 'sequence', 'pid', 'nonce', 'previousSha256', 'manifest', 'createdAt'], 'recovery claim intent');
+    if (value.schemaVersion !== 'hephaera-vfx-recovery-claim/v1' || value.sequence !== claims.length + 1
+      || !Number.isSafeInteger(value.pid) || value.pid < 1 || value.pid > 2147483647 || !/^[a-f0-9-]{36}$/.test(value.nonce || '')
+      || value.previousSha256 !== (claims.at(-1)?.identity.sha256 || null) || typeof value.createdAt !== 'string'
+      || Number.isNaN(Date.parse(value.createdAt)) || new Date(value.createdAt).toISOString() !== value.createdAt) fail('Recovery claim owner/ancestry is malformed.');
+    shape(value.manifest, ['path', 'sha256'], 'recovery claim manifest'); relative(value.manifest.path);
+    const version = path.posix.basename(path.posix.dirname(value.manifest.path)); id(version, 'claim version');
+    if (value.manifest.path !== directory + '/' + version + '/manifest.json' || !SHA.test(value.manifest.sha256 || '')) fail('Recovery claim manifest ownership differs.');
+    ref(root, value.manifest, MAX_JSON);
+    const claim = { directory: claimDirectory, identity, value, prepared: null, release: null, completion: null };
+    if (fs.existsSync(full(root, claimDirectory + '/prepared.json'))) {
+      claim.prepared = ref(root, claimDirectory + '/prepared.json', MAX_JSON);
+      const prepared = read(root, claim.prepared.path, claim.prepared.sha256);
+      shape(prepared, ['schemaVersion', 'intent', 'recovery', 'createdAt'], 'prepared recovery claim');
+      if (prepared.schemaVersion !== 'hephaera-vfx-recovery-prepared/v1' || !equal(prepared.intent, identity)) fail('Prepared recovery claim changed its intent.');
+      const report = ref(root, prepared.recovery, MAX_JSON), reportValue = read(root, report.path, report.sha256);
+      if (!equal(reportValue.claim, identity)) fail('Prepared recovery report differs from its exclusive claim.');
+      claim.preparedValue = prepared;
+    }
+    if (fs.existsSync(full(root, claimDirectory + '/writer-released.json'))) {
+      claim.release = ref(root, claimDirectory + '/writer-released.json', MAX_JSON);
+      const release = read(root, claim.release.path, claim.release.sha256);
+      shape(release, ['schemaVersion', 'intent', 'recovery', 'removedHere', 'confirmedAbsent', 'recordedAt'], 'recovery writer release');
+      if (release.schemaVersion !== 'hephaera-vfx-recovery-release/v1' || !equal(release.intent, identity) || !claim.preparedValue
+        || !equal(release.recovery, claim.preparedValue.recovery) || release.confirmedAbsent !== true || typeof release.removedHere !== 'boolean') fail('Recovery writer release differs from its prepared intent.');
+    }
+    if (fs.existsSync(full(root, claimDirectory + '/completed.json'))) {
+      claim.completion = ref(root, claimDirectory + '/completed.json', MAX_JSON);
+      const completion = read(root, claim.completion.path, claim.completion.sha256);
+      shape(completion, ['schemaVersion', 'intent', 'status', 'recovery', 'completion', 'reason', 'createdAt'], 'recovery claim completion');
+      if (completion.schemaVersion !== 'hephaera-vfx-recovery-claim-completed/v1' || !equal(completion.intent, identity)
+        || !['succeeded', 'refused'].includes(completion.status)) fail('Recovery claim completion changed its intent/status.');
+      if (completion.status === 'succeeded') {
+        if (!claim.preparedValue || !claim.release || !equal(completion.recovery, claim.preparedValue.recovery)) fail('A successful claim must bind its prepared recovery and writer release.');
+        const report = ref(root, completion.recovery, MAX_JSON), reportValue = read(root, report.path, report.sha256);
+        const finished = ref(root, completion.completion, MAX_JSON), finishedValue = read(root, finished.path, finished.sha256);
+        if (finished.path !== path.posix.dirname(report.path) + '/completed.json' || finishedValue.schemaVersion !== 'hephaera-vfx-recovery-completed/v1'
+          || !equal(finishedValue.recovery, report) || !equal(finishedValue.archivedLock, reportValue.archivedLock)) fail('Recovery claim completion differs from its actual release/archive receipt.');
+      } else if (completion.recovery !== null || completion.completion !== null || claim.prepared) fail('A refused claim cannot certify recovery.');
+      claim.completionValue = completion;
+    }
+    claims.push(claim);
+  }
+  return { scope, claims, latest: claims.at(-1) || null, temporary };
+}
+function claimOwnership(root, directory) {
+  try {
+    const inventory = recoveryClaims(root, directory), claim = inventory.latest;
+    if (!claim) return { state: 'absent', temporaryClaims: inventory.temporary };
+    const observed = claim.completion ? { state: 'completed', proof: 'immutable-completion' } : ownerProbe(claim.value.pid);
+    return { ...observed, sequence: claim.value.sequence, ownerPid: claim.value.pid, intent: claim.identity, prepared: claim.prepared,
+      completion: claim.completion, writerRelease: claim.release, result: claim.completionValue?.status || null, temporaryClaims: inventory.temporary,
+      receiptState: claim.completion ? 'completed' : claim.release ? 'writer-released' : claim.prepared ? 'prepared' : 'intent-only' };
+  } catch (error) { return { state: 'unverified', reason: String(error.message).slice(0, 1024) }; }
+}
+function requireNoRecoveryClaim(root, directory) {
+  const claim = claimOwnership(root, directory);
+  if (!['absent', 'completed'].includes(claim.state)) fail('VFX recovery claim is ' + claim.state + '; recover its retained ownership before writing.');
+}
+function acquireRecoveryClaim(state) {
+  const inventory = recoveryClaims(state.root, state.assetDirectory), prior = inventory.latest;
+  if (prior && !prior.completion && ownerProbe(prior.value.pid).state !== 'abandoned') fail('VFX asset recovery is already owned or unverified; only ESRCH-dead claims may be followed.');
+  const sequence = inventory.claims.length + 1;
+  if (sequence > 8192) fail('Recovery claim budget exhausted; preserve its history.');
+  const nonce = crypto.randomUUID(), pending = inventory.scope + '/pending-' + nonce;
+  const folder = full(state.root, pending); fs.mkdirSync(path.dirname(folder), { recursive: true }); runtime.components(folder); fs.mkdirSync(folder);
+  put(state.root, pending + '/intent.json', { schemaVersion: 'hephaera-vfx-recovery-claim/v1', sequence, pid: process.pid, nonce,
+    previousSha256: prior?.identity.sha256 || null, manifest: state.identity, createdAt: new Date().toISOString() });
+  const target = inventory.scope + '/claim-' + String(sequence).padStart(6, '0'), destination = full(state.root, target);
+  // A committed claim is always nonempty. Atomic directory rename therefore
+  // cannot replace a winner on Windows or POSIX. Losing pending intents stay.
+  if (fs.existsSync(destination)) fail('A competing recovery committed this ordinal; retained pending intent was not adopted.');
+  try { fs.renameSync(folder, destination); }
+  catch (error) { if (['EEXIST', 'ENOTEMPTY', 'EPERM', 'EACCES'].includes(error.code)) fail('A competing recovery claimed this ordinal; retained pending intent was not adopted.'); throw error; }
+  const acquired = recoveryClaims(state.root, state.assetDirectory).latest;
+  if (acquired.value.nonce !== nonce) fail('Recovery claim ownership changed.');
+  return { ...acquired, predecessors: inventory.claims };
+}
+function requireClaim(state, claim) {
+  const actual = recoveryClaims(state.root, state.assetDirectory).latest;
+  if (!actual || !equal(actual.identity, claim.identity) || actual.value.nonce !== claim.value.nonce || actual.completion) fail('Recovery claim is no longer the exclusive current intent.');
+}
+function finishClaim(state, claim, status, recovery, completion, reason) {
+  requireClaim(state, claim);
+  return put(state.root, claim.directory + '/completed.json', { schemaVersion: 'hephaera-vfx-recovery-claim-completed/v1', intent: claim.identity,
+    status, recovery, completion, reason, createdAt: new Date().toISOString() });
+}
+function ownership(state) {
+  const writer = ownershipEntry(state.root, state.assetDirectory + '/.write-lock');
+  const recovery = ownershipEntry(state.root, state.assetDirectory + '/.recovery-lock', true);
+  const claim = claimOwnership(state.root, state.assetDirectory);
+  const selected = !['absent', 'completed'].includes(claim.state) ? claim : recovery.state !== 'absent' ? recovery : writer;
+  if (claim.receiptState === 'prepared' && writer.state === 'absent') claim.receiptState = 'prepared-writer-absent';
+  return { state: selected.state === 'absent' ? 'available' : selected.state, writeLock: publicOwnership(writer), recovery: publicOwnership(recovery), claim,
+    writable: writer.state === 'absent' && recovery.state === 'absent' && ['absent', 'completed'].includes(claim.state),
+    childCleanup: 'unverified-no-tracked-child-identities', processTermination: false };
 }
 function references(root, values, label) {
   const result = list(values, label).map(value => ref(root, value));
@@ -284,7 +457,7 @@ function metadataReferences(state) {
 }
 function assetVersions(root, assetDirectory) {
   const folder = full(root, assetDirectory); if (!fs.existsSync(folder)) return [];
-  const entries = fs.readdirSync(folder, { withFileTypes: true }).filter(item => !['.write-lock', '.budget.json', '.history'].includes(item.name));
+  const entries = fs.readdirSync(folder, { withFileTypes: true }).filter(item => !['.write-lock', '.recovery-lock', '.recovery-claims', '.recoveries', '.budget.json', '.history'].includes(item.name));
   if (entries.length > 129) fail('VFX revision inventory exceeds its finite bound.');
   return entries.map(entry => {
     id(entry.name, 'version'); if (!entry.isDirectory()) fail('Unexpected VFX asset state entry.');
@@ -384,7 +557,8 @@ function load(options) {
       const identity = ref(root, owned.directory + '/events/' + name, MAX_JSON), event = read(root, identity.path, identity.sha256);
       shape(event, ['schemaVersion', 'sequence', 'manifestSha256', 'previousSha256', 'kind', 'data', 'recordedAt'], 'VFX event');
       if (event.schemaVersion !== 'hephaera-vfx-event/v1' || event.sequence !== index + 1 || event.manifestSha256 !== ref(root, options.manifest, MAX_JSON).sha256
-        || event.previousSha256 !== (eventRefs.at(-1)?.sha256 || null) || !['stage-started', 'stage-failed', 'stage-sealed', 'review'].includes(event.kind)) fail('VFX event ancestry differs.');
+        || event.previousSha256 !== (eventRefs.at(-1)?.sha256 || null)
+        || !['stage-started', 'stage-failed', 'stage-interrupted', 'lock-recovery-prepared', 'lock-recovered', 'stage-sealed', 'review'].includes(event.kind)) fail('VFX event ancestry differs.');
       events.push(event); eventRefs.push(identity);
     }
   }
@@ -420,8 +594,64 @@ function retained(state) {
     if (event.data.phaseDigest !== digest(packet) || packet.manifestSha256 !== state.identity.sha256) fail('Retained phase packet changed.');
     for (const copy of packet.copies) ref(state.root, copy);
   }
+  recoveryEvidence(state);
   if (state.asset.parent) ref(state.root, state.asset.parent, MAX_JSON);
   lineageBudgets(state, result); return result;
+}
+function recoveryEvidence(state) {
+  for (const event of state.events.filter(item => ['stage-interrupted', 'lock-recovery-prepared', 'lock-recovered'].includes(item.kind))) {
+    const checked = verifiedRecoveryReport(state, event.data.recovery), report = checked.identity, archived = checked.archivedLock;
+    if (!equal(event.data.archivedLock, archived)) fail('Recovery audit/archive ownership differs.');
+    if (event.kind === 'lock-recovered') {
+      const identity = ref(state.root, event.data.completion, MAX_JSON), completion = read(state.root, identity.path, identity.sha256);
+      if (identity.path !== path.posix.dirname(report.path) + '/completed.json' || completion.schemaVersion !== 'hephaera-vfx-recovery-completed/v1'
+        || !equal(completion.recovery, report) || !equal(completion.archivedLock, archived)) fail('Recovery completion lost its exact prepared audit/archive binding.');
+    }
+  }
+}
+function verifiedRecoveryReport(state, reference) {
+  const identity = ref(state.root, reference, MAX_JSON), value = read(state.root, identity.path, identity.sha256);
+  if (!identity.path.startsWith(state.assetDirectory + '/.recoveries/recovery-') || !identity.path.endsWith('/recovery.json')
+    || !['hephaera-vfx-recovery/v1', 'hephaera-vfx-recovery/v2'].includes(value.schemaVersion) || !equal(value.budget, state.asset.budget))
+    fail('Recovery report lost its exact asset/budget binding.');
+  const archivedLock = value.archivedLock === null ? null : ref(state.root, value.archivedLock, MAX_LOCK);
+  const archivedMarker = value.archivedMarker === null ? null : ref(state.root, value.archivedMarker, MAX_LOCK);
+  if ((archivedLock === null || archivedMarker === null) && value.schemaVersion === 'hephaera-vfx-recovery/v1') fail('Legacy recovery archives must be complete.');
+  if (value.schemaVersion === 'hephaera-vfx-recovery/v2') {
+    const intent = ref(state.root, value.claim, MAX_LOCK);
+    const relativeClaim = intent.path.slice((state.assetDirectory + '/.recovery-claims/').length), ordinal = /^claim-(\d{6})\/intent\.json$/.exec(relativeClaim);
+    const intentValue = read(state.root, intent.path, intent.sha256);
+    if (!intent.path.startsWith(state.assetDirectory + '/.recovery-claims/') || !ordinal || intentValue.schemaVersion !== 'hephaera-vfx-recovery-claim/v1'
+      || intentValue.sequence !== Number(ordinal[1]) || !equal(intentValue.manifest, value.manifest)) fail('Recovery report claim ownership differs.');
+    if (value.previousRecovery !== null) ref(state.root, value.previousRecovery, MAX_JSON);
+  }
+  for (const [reference, name] of [[archivedLock, 'write-lock.json'], [archivedMarker, 'recovery-marker.json']])
+    if (reference && (path.posix.dirname(reference.path) !== path.posix.dirname(identity.path) || path.posix.basename(reference.path) !== name)) fail('Recovery archive path ownership differs.');
+  if (archivedLock) {
+    const original = documentBytes(ownershipBytes(state.root, archivedLock.path).bytes, archivedLock.path);
+    shape(original, ['pid', 'startedAt'], 'archived write owner');
+    if (!Number.isSafeInteger(original.pid) || original.pid < 1 || original.pid > 2147483647 || value.owner?.ownerPid !== original.pid
+      || value.owner.startedAt !== original.startedAt || value.owner.sha256 !== archivedLock.sha256 || value.owner.proof !== 'ESRCH'
+      || value.owner.path !== state.assetDirectory + '/.write-lock') fail('Archived owner proof differs from its exact bytes.');
+  } else if (value.owner !== null) fail('A marker/claim-only recovery cannot invent a write owner.');
+  return { identity, value, archivedLock, archivedMarker };
+}
+function previousRecovery(state, claim, legacy) {
+  for (const prior of [...claim.predecessors].reverse()) {
+    if (prior.completionValue?.status === 'succeeded') break;
+    if (prior.preparedValue) return verifiedRecoveryReport(state, prior.preparedValue.recovery);
+  }
+  // Legacy static-marker recovery wrote the prepared audit before unlink.
+  // Its exact archived marker binds a post-unlink takeover to that operation.
+  if (legacy.state === 'abandoned') {
+    for (const version of assetVersions(state.root, state.assetDirectory).filter(item => item.state).map(item => item.state)) {
+      for (const event of [...version.events].reverse().filter(item => item.kind === 'lock-recovery-prepared')) {
+        const checked = verifiedRecoveryReport(state, event.data.recovery);
+        if (checked.archivedMarker?.sha256 === legacy.sha256) return checked;
+      }
+    }
+  }
+  return null;
 }
 function stageFiles(state, event) {
   const packetRef = ref(state.root, event.data.reviewPacket, MAX_JSON), packet = read(state.root, packetRef.path, packetRef.sha256);
@@ -438,6 +668,7 @@ function current(state) {
   if (!equal(policy, state.asset.policy)) fail('VFX policy changed; initialize a new version with retained ancestry.');
   for (const item of sourceReferences(state.asset, inputs)) ref(state.root, item);
   lineageBudgets(state, inputs);
+  recoveryEvidence(state);
   if (state.asset.parent) {
     const parent = read(state.root, state.asset.parent.path, state.asset.parent.sha256);
     if (parent.task !== state.asset.task || parent.asset !== state.asset.asset || parent.version === state.asset.version) fail('Revision parent task/asset differs.');
@@ -446,7 +677,8 @@ function current(state) {
   let build = null;
   if (stages.length) {
     const info = runtime.verified();
-    build = { revision: info.pinned.revision, buildSha256: digest(info.capability.build), resourceCatalogSha256: info.pinned.resourceCatalogSha256 };
+    build = { revision: info.pinned.revision, buildSha256: crypto.createHash('sha256').update(JSON.stringify(info.capability.build)).digest('hex'),
+      resourceCatalogSha256: info.pinned.resourceCatalogSha256 };
   }
   for (const event of stages) {
     const packet = stageFiles(state, event);
@@ -467,20 +699,127 @@ function readiness() {
   return { processingAvailable: false, renderingAvailable: false, promotionAvailable: false, mediaGenerationAvailable: false,
     runtimeAcceptanceAvailable: false, humanRuntimeAcceptance: false };
 }
+function phaseAttempts(state, ledger) {
+  const attempts = new Map(), finished = new Set(state.events.filter(event => ['stage-sealed', 'stage-failed', 'stage-interrupted'].includes(event.kind)).map(event => event.data.attempt));
+  for (const [index, event] of ledger.events.entries()) {
+    if (event.kind !== 'attempt-reserved' || event.data.version !== state.asset.version) continue;
+    const data = event.data;
+    if (!['provisional', 'detailed'].includes(data.phase) || typeof data.attempt !== 'string'
+      || !data.attempt.startsWith(state.staging + '/attempts/' + data.phase + '-') || !equal(data.manifest, state.identity)) fail('Attempt reservation ownership differs.');
+    relative(data.attempt, 'Reserved attempt');
+    if (attempts.has(data.attempt)) fail('Attempt reservation was repeated.');
+    attempts.set(data.attempt, { phase: data.phase, attempt: data.attempt, reservation: ledger.identities[index], started: null, finished: finished.has(data.attempt) });
+  }
+  for (const [index, event] of state.events.entries()) {
+    if (event.kind !== 'stage-started') continue;
+    const reserved = attempts.get(event.data.attempt);
+    if (!reserved || reserved.phase !== event.data.phase || reserved.started !== null) fail('Stage start lacks its unique immutable budget reservation.');
+    reserved.started = state.eventRefs[index];
+  }
+  return [...attempts.values()];
+}
 function status(options) {
   const state = load(options), stale = [];
   try { current(state); } catch (error) { stale.push(error.message); }
+  let attempts = [];
+  try { attempts = phaseAttempts(state, budgetLedger(state.root, state, state.asset.budget)); }
+  catch (error) { stale.push(error.message); }
+  const owner = ownership(state);
   const phases = Object.fromEntries(['provisional', 'detailed'].map(phase => {
     const stage = latest(state, 'stage-sealed', phase), review = latest(state, 'review', phase);
-    const started = state.events.filter(event => event.kind === 'stage-started' && event.data.phase === phase);
-    const finished = new Set(state.events.filter(event => ['stage-sealed', 'stage-failed'].includes(event.kind)).map(event => event.data.attempt));
-    return [phase, { staged: !!stage, review: review?.data.verdict || 'pending', accepted: stale.length === 0 && accepted(state, phase),
+    const reserved = attempts.filter(item => item.phase === phase), incomplete = reserved.filter(item => !item.finished);
+    return [phase, { staged: !!stage, review: review?.data.verdict || 'pending', accepted: stale.length === 0 && incomplete.length === 0 && accepted(state, phase),
       visualEvidence: stage ? (stage.data.visualAvailable ? 'supplied-external' : 'unavailable') : 'unavailable', reviewPacket: stage?.data.reviewPacket || null,
-      attempts: started.length, incompleteAttempts: started.filter(event => !finished.has(event.data.attempt)).map(event => event.data.attempt) }];
+      attempts: reserved.length, incompleteAttempts: incomplete.map(item => item.attempt),
+      reservationOnlyAttempts: incomplete.filter(item => item.started === null).map(item => item.attempt),
+      interruptedAttempts: state.events.filter(event => event.kind === 'stage-interrupted' && event.data.phase === phase).map(event => event.data.attempt) }];
   }));
   return { schemaVersion: 'hephaera-vfx-status/v1', manifest: state.identity.path, manifestSha256: state.identity.sha256,
     task: state.asset.task, asset: state.asset.asset, version: state.asset.version, creator: state.asset.creator,
-    fresh: stale.length === 0, stale, phases, readiness: readiness(), humanRuntimeAcceptance: false, promotionAvailable: false };
+    fresh: stale.length === 0, stale, phases, ownership: owner, readiness: readiness(), humanRuntimeAcceptance: false, promotionAvailable: false };
+}
+async function recover(options) {
+  const initial = load(options); transition.assertProductionAllowed(initial.root, 'VFX abandoned ownership recovery');
+  return maintenance.run(initial.root, async () => {
+    const claim = acquireRecoveryClaim(initial); let workStarted = false;
+    try {
+      const state = load(options), retainedInputs = retained(state), lineage = lineageBudgets(state, retainedInputs);
+      const writerName = state.assetDirectory + '/.write-lock', writer = ownershipEntry(state.root, writerName);
+      const markerName = state.assetDirectory + '/.recovery-lock', marker = ownershipEntry(state.root, markerName, true);
+      if (!['absent', 'abandoned'].includes(writer.state)) fail('Recovery requires a proven dead write owner (ESRCH); ownership is ' + writer.state + (writer.reason ? ': ' + writer.reason : '.'));
+      if (!['absent', 'abandoned'].includes(marker.state)) fail('Legacy recovery marker is live or unverified; only ESRCH proves its owner dead.');
+      const versions = lineage.versions.filter(item => item.state).map(item => item.state), pending = [];
+      for (const version of versions) {
+        retained(version);
+        for (const attempt of phaseAttempts(version, lineage.ledger).filter(item => !item.finished)) pending.push({ state: version, ...attempt });
+      }
+      const previous = previousRecovery(state, claim, marker);
+      let owner = writer.state === 'abandoned' ? publicOwnership(writer) : previous?.value.owner || null;
+      if (owner && ownerProbe(owner.ownerPid).state !== 'abandoned') fail('The archived write owner is not proven dead (ESRCH); takeover refused.');
+      if (writer.state === 'absent' && !previous && marker.state === 'absent' && claim.predecessors.at(-1)?.completion)
+        fail('No abandoned writer, marker or unfinished recovery is available.');
+      if (writer.state === 'absent' && !previous && marker.state === 'absent' && claim.predecessors.length === 0)
+        fail('No abandoned writer or unfinished recovery is available.');
+      if (!owner && pending.length) fail('Incomplete stage ownership has no retained dead writer proof; no attempt will be relabeled.');
+      // No native child PID is persisted by the current read-only inspection
+      // transport. Host-owner death never certifies unrecorded child cleanup.
+      const known = [];
+      if (owner) known.push({ role: 'host-lock-owner', pid: owner.ownerPid, state: 'dead', proof: 'ESRCH' });
+      if (marker.state === 'abandoned') known.push({ role: 'legacy-recovery-owner', pid: marker.ownerPid, state: 'dead', proof: 'ESRCH' });
+      const priorClaim = claim.predecessors.at(-1);
+      if (priorClaim && !priorClaim.completion) known.push({ role: 'recovery-claim-owner', pid: priorClaim.value.pid, state: 'dead', proof: 'ESRCH' });
+      const processes = { known,
+        childCleanup: 'unverified-no-tracked-child-identities', processTermination: false };
+      workStarted = true; requireClaim(state, claim);
+      const archive = state.assetDirectory + '/.recoveries/recovery-' + crypto.randomUUID(), archiveFull = full(state.root, archive);
+      fs.mkdirSync(path.dirname(archiveFull), { recursive: true }); runtime.components(archiveFull); fs.mkdirSync(archiveFull);
+      let archivedLock = null, archivedMarker = null;
+      if (writer.state === 'abandoned') archivedLock = copy(state.root, writerName, archive + '/write-lock.json', { sha256: writer.sha256, bytes: writer.bytes.length }, MAX_LOCK);
+      else if (previous?.archivedLock) archivedLock = copy(state.root, previous.archivedLock.path, archive + '/write-lock.json', previous.archivedLock, MAX_LOCK);
+      if (marker.state === 'abandoned') archivedMarker = copy(state.root, markerName, archive + '/recovery-marker.json', { sha256: marker.sha256, bytes: marker.bytes.length }, MAX_LOCK);
+      else if (previous?.archivedMarker) archivedMarker = copy(state.root, previous.archivedMarker.path, archive + '/recovery-marker.json', previous.archivedMarker, MAX_LOCK);
+      const report = put(state.root, archive + '/recovery.json', { schemaVersion: 'hephaera-vfx-recovery/v2', manifest: state.identity, budget: lineage.ledger.identity,
+        claim: claim.identity, previousRecovery: previous?.identity || null, writerPresentAtPreparation: writer.state !== 'absent',
+        archivedLock, archivedMarker, owner, processes,
+        interruptedAttempts: pending.map(item => ({ manifest: item.state.identity, phase: item.phase, attempt: item.attempt, reservation: item.reservation, started: item.started })),
+        countersReset: false, copiesRemoved: false, acceptanceInherited: false, preparedAt: new Date().toISOString() });
+      put(state.root, claim.directory + '/prepared.json', { schemaVersion: 'hephaera-vfx-recovery-prepared/v1', intent: claim.identity, recovery: report, createdAt: new Date().toISOString() });
+      requireClaim(state, claim);
+      for (const item of pending) append(item.state, 'stage-interrupted', { phase: item.phase, attempt: item.attempt,
+        reservation: item.reservation, started: item.started, recovery: report, archivedLock, reason: 'Write owner is proven dead (ESRCH); incomplete attempt remains retained.',
+        processes, humanRuntimeAcceptance: false });
+      // The requested version always receives the audit, including a lock
+      // abandoned outside a stage or immediately before stage-started.
+      const audited = load(options); append(audited, 'lock-recovery-prepared', { recovery: report, archivedLock, ownerPid: owner?.ownerPid || null, ownerDeath: owner ? 'ESRCH' : 'no-write-owner', processes });
+      requireClaim(state, claim);
+      if (writer.state === 'abandoned') {
+        exactOwnership(state.root, writerName, writer);
+        if (ownerProbe(writer.ownerPid).state !== 'abandoned') fail('Owner death changed before release; retained lock will not be removed.');
+        removeOwned(state.root, writerName, writer);
+      } else if (ownershipEntry(state.root, writerName).state !== 'absent') fail('A new write owner appeared; it will never be removed.');
+      put(state.root, claim.directory + '/writer-released.json', { schemaVersion: 'hephaera-vfx-recovery-release/v1', intent: claim.identity, recovery: report,
+        removedHere: writer.state === 'abandoned', confirmedAbsent: true, recordedAt: new Date().toISOString() });
+      if (marker.state === 'abandoned') {
+        requireClaim(state, claim); exactOwnership(state.root, markerName, marker);
+        if (ownerProbe(marker.ownerPid).state !== 'abandoned') fail('Legacy recovery marker owner is no longer proven dead.');
+        removeOwned(state.root, markerName, marker);
+      } else if (ownershipEntry(state.root, markerName, true).state !== 'absent') fail('A new static recovery owner appeared; it will never be removed.');
+      const completion = put(state.root, archive + '/completed.json', { schemaVersion: 'hephaera-vfx-recovery-completed/v1', recovery: report,
+        archivedLock, removedOwnerPid: owner?.ownerPid || null, interruptedAttempts: pending.map(item => item.attempt), countersReset: false,
+        copiesRemoved: false, processes, completedAt: new Date().toISOString() });
+      append(audited, 'lock-recovered', { recovery: report, completion, archivedLock, ownerPid: owner?.ownerPid || null, ownerDeath: owner ? 'ESRCH' : 'no-write-owner', processes });
+      const claimCompletion = finishClaim(state, claim, 'succeeded', report, completion, 'Recovery completed; all prior claims and artifacts remain retained.');
+      return { schemaVersion: 'hephaera-vfx-recover/v1', manifest: state.identity.path, recovered: true, archive, recovery: report, completion,
+        claim: claim.identity, claimCompletion, resumed: previous !== null || !!priorClaim && !priorClaim.completion,
+        interruptedAttempts: pending.map(item => item.attempt), processes, readiness: readiness(), humanRuntimeAcceptance: false, promotionAvailable: false };
+    } catch (error) {
+      // Precondition refusals release only this immutable claim. Once work has
+      // begun an interruption remains unfinished and an ESRCH-proven successor
+      // resumes it; no recursive takeover lock or force option is needed.
+      if (!workStarted) finishClaim(initial, claim, 'refused', null, null, String(error.message).slice(0, 2048));
+      throw error;
+    }
+  });
 }
 async function init(options) {
   const root = rootPath(options.root), owned = paths(options.task, options.asset, options.version);
@@ -680,7 +1019,7 @@ function parse(values) {
 function help() {
   return 'vfx-assets.sh init --task TASK --asset ASSET --version VERSION --creator NAME --brief JSON --rights JSON [--parent-manifest JSON] [--provenance JSON]\n'
     + 'vfx-assets.sh stage --manifest JSON --phase provisional|detailed --package JSON [--visual JSON]\n'
-    + 'vfx-assets.sh validate|inspect|status --manifest JSON\n'
+    + 'vfx-assets.sh validate|inspect|status|recover --manifest JSON\n'
     + 'vfx-assets.sh record --manifest JSON --phase provisional|detailed --reviewer NAME --evidence JSON\n'
     + 'vfx-assets.sh doctor\nAll operations require --root ROOT (supplied by the public wrapper). Processing, rendering, generation, installation and promotion are unavailable.';
 }
@@ -695,6 +1034,7 @@ async function run(operation, options) {
   if (operation === 'init') return init(options);
   if (operation === 'stage') return stage(options);
   if (operation === 'record') return record(options);
+  if (operation === 'recover') return recover(options);
   const root = rootPath(options.root);
   if (operation === 'status') {
     // A fenced historical installation may be diagnosed without creating a
@@ -705,7 +1045,7 @@ async function run(operation, options) {
   transition.assertProductionAllowed(root, 'VFX lifecycle ' + operation);
   return maintenance.run(root, () => inspect(options, operation));
 }
-module.exports = { parse, run, help, load, status };
+module.exports = { parse, run, help, load, status, recover };
 if (require.main === module) {
   const [operation, ...args] = process.argv.slice(2);
   if (operation === '--help' || operation === '-h' || operation === 'help') console.log(help());
