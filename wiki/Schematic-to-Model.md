@@ -52,6 +52,8 @@ The fixed part bundle supports parameter-driven boxes/cylinders, convex-profile 
 
 Coordinates use metres, right-handed XY and Z up, with explicit local frames and the documented Rz × Ry × Rx convention. Portable glTF uses the recorded Y-up conversion. Preserve approved local precision for small hardware inside large assemblies. Joint angles use degrees, sliders use metres and screw pitch uses signed metres per revolution.
 
+Portable animation translations use [single-precision glTF accessors](https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html); rounding during export/re-import can exceed a tightly declared tolerance. The verifier must reject that result. Keep the original failure and measured discrepancy. Only an explicit design-requirement revision, new version/parent ancestry and fresh whole-package approval may establish a different numerical policy before rebuilding; it does not satisfy the original precision requirement.
+
 ## Rights, limits and immutable host policy
 
 Initialization requires an exact design plus two project-local records:

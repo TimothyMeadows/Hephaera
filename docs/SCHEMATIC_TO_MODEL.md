@@ -69,6 +69,10 @@ Source coordinates are right-handed XY metres with Z up. Frames rotate about fix
 
 Choose numerical tolerances, geometry/detail limits, sample counts, contact exemptions and preview/export-byte allowances during design. Very strict tolerances can be unrepresentable in Blender or a portable export; failure does not widen them automatically. Small hardware must retain local precision even in a large assembly.
 
+glTF animation translations use single-precision floating-point accessors, so export and re-import can introduce rounding differences across a hierarchy. Measure the actual result against the approved tolerance at the chosen scale; a schema-valid design does not guarantee that a portable format can meet every precision requirement. See the [glTF accessor specification](https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html).
+
+A precision failure leaves that design requirement unmet. Preserve the failed version and measured error; do not relax the verifier or round away the discrepancy. If the requirement is explicitly revised, create a new version with its parent ancestry, declare the new numerical policy and obtain fresh whole-package approval before rebuilding. A successful revised design does not turn the original failed requirement into a pass.
+
 ## Rights and process limits
 
 `init` requires the design plus two project-local JSON records. Their exact bytes, referenced permission evidence, STYLE/selection and runtime identities become immutable per-version policy inputs. Duplicate/unknown properties, stale hashes and linked or escaping input paths are rejected.
