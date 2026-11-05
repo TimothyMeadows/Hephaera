@@ -341,7 +341,7 @@ async function main() {
   for (const tool of ['three-quarks-runtime', 'three-vfx-runtime', 'vfx-package'])
     await drift('.hephaera/.engine/threejs/particles/' + tool + '.mjs', tool + ' production engine tool drift');
   await drift('.hephaera/commands/lib/bubo-vfx-adapter.cjs', 'native VFX boundary tool drift');
-  for (const tool of ['engine-contract', 'style-contract', 'installation-maintenance', 'state-transition', 'bubo-mechanical-handoff'])
+  for (const tool of ['engine-contract', 'style-contract', 'installation-maintenance', 'state-transition', 'bubo-mechanical-handoff', 'action-vfx-admission'])
     await drift('.hephaera/commands/lib/' + tool + '.cjs', tool + ' transitive host tool drift');
   for (const tool of ['maintenance', 'files']) await drift('.hephaera/installer/core/' + tool + '.cjs', tool + ' installer gate drift');
   for (const kind of ['model', 'rig', 'clip', 'marker', 'transform'])

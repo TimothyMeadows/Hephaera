@@ -78,7 +78,7 @@ export function createThreeQuarksRuntime({THREE, Quarks, scene, renderer, engine
   const defaultMaterial = new THREE.MeshBasicMaterial({transparent: true, depthWrite: false});
   const records = new Map();
   const constraints = new Set();
-  let disposed = false, disposing = false, paused = false, updating = false, allocated = 0, elapsed = 0, generation = 0, quality = 2, reducedMotion = false;
+  let disposed = false, disposing = false, paused = false, updating = false, allocated = 0, elapsed = 0, generation = 0, quality = 2, reducedMotion = false, clockClaim = null;
   scene.add(batchRenderer);
   const alive = () => { if (disposed||disposing) fail('Particle runtime is disposed.'); };
   const recordAlive = record => !disposed && !record.disposed && records.get(record.id) === record;
@@ -238,8 +238,13 @@ export function createThreeQuarksRuntime({THREE, Quarks, scene, renderer, engine
       stats() { return Object.freeze({id: c.id, disposed: !recordAlive(record), generation: record.generation, active: recordAlive(record) && record.active, paused: system.paused, particles: system.particleNum, pooledParticles: system.particles.length, capacity: c.capacity, time: record.elapsed}); }
     });
   }
-  function update(deltaSeconds) {
+  function update(deltaSeconds, clockToken) {
     alive(); finite(deltaSeconds, 0, maxDelta, 'deltaSeconds');
+    if (clockClaim && clockToken !== clockClaim) fail('The scene presentation scheduler owns this particle clock.');
+    let activeMaximum=maxDelta;
+    for(const constraint of constraints)if(constraint.maxUpdateSeconds!==undefined)activeMaximum=Math.min(activeMaximum,constraint.maxUpdateSeconds);
+    for(const record of records.values())if(record.profileBudgets?.maxUpdateSeconds!==undefined)activeMaximum=Math.min(activeMaximum,record.profileBudgets.maxUpdateSeconds);
+    finite(deltaSeconds,0,activeMaximum,'active profile deltaSeconds');
     if (updating) fail('Particle update cannot be reentrant.');
     if (paused || deltaSeconds === 0) return api.stats();
     checkBounds();
@@ -270,13 +275,13 @@ export function createThreeQuarksRuntime({THREE, Quarks, scene, renderer, engine
     return api.stats();
   }
   const api = Object.freeze({
-    createEmitter, update,
+    createEmitter, update(deltaSeconds) { return update(deltaSeconds); },
     pause() { alive(); paused = true; }, resume() { alive(); paused = false; },
     clear() { alive(); for (const record of records.values()) stop(record); generation++; },
     reset() { alive(); for (const record of records.values()) stop(record); elapsed = 0; generation++; },
     remove(id) { alive(); const record = records.get(id); return record ? remove(record) : false; },
-    setQuality(value) { alive(); integer(value, 0, 2, 'quality'); quality = value; for (const record of records.values()) { updateEmission(record); record.currentCount = record.burst?.value ?? 0; } },
-    setReducedMotion(value) { alive(); if (typeof value !== 'boolean') fail('reducedMotion must be boolean.'); reducedMotion = value; for (const record of records.values()) { updateEmission(record); record.currentCount = record.burst?.value ?? 0; } },
+    setQuality(value) { alive(); integer(value, 0, 2, 'quality'); quality = value; for (const record of records.values()) { updateEmission(record); if(!record.production)record.currentCount = record.burst?.value ?? 0; } },
+    setReducedMotion(value) { alive(); if (typeof value !== 'boolean') fail('reducedMotion must be boolean.'); reducedMotion = value; for (const record of records.values()) { updateEmission(record); if(!record.production)record.currentCount = record.burst?.value ?? 0; } },
     stats() { return Object.freeze({disposed, paused, generation, systems: records.size, capacity: allocated, particles: [...records.values()].reduce((n, r) => n + (r.system?.particleNum ?? 0), 0), pooledParticles: [...records.values()].reduce((n, r) => n + (r.system?.particles.length ?? 0), 0), batches: batchRenderer.batches.length, time: elapsed, quality, reducedMotion, ...bufferStats()}); },
     dispose() {
       if (disposed||disposing) return; disposing=true;
@@ -289,6 +294,12 @@ export function createThreeQuarksRuntime({THREE, Quarks, scene, renderer, engine
   });
   owners.set(scene, api);
   internals.set(api, Object.freeze({THREE, Quarks, scene, renderer, maxDelta,
+    claimClock() {
+      alive(); if (clockClaim || updating) fail('The scene particle clock is already claimed or updating.');
+      const token = {}; clockClaim = token; let released = false;
+      return Object.freeze({update(delta) { if (released || clockClaim !== token) fail('Particle clock claim is retired.'); return update(delta, token); },
+        release() { if (released) return; released = true; if (clockClaim === token) clockClaim = null; }});
+    },
     limits: Object.freeze({maxSystems,maxParticles,maxBufferBytes,maxVertices,maxIndices,maxDrawCalls,maxTrailPoints,maxTextureBytes,maxDurationSeconds}),
     checkBounds, stats: api.stats,
     constrain(limits) { alive(); const value=Object.freeze({...limits});constraints.add(value);try{checkBounds();}catch(error){constraints.delete(value);throw error;}return()=>constraints.delete(value); },

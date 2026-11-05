@@ -20,6 +20,7 @@ node ./tests/test-state-transition.cjs
 ./tests/test-runtime-cache-layout.sh
 node ./tests/test-bubo-installation.cjs
 node ./tests/test-bubo-host-context.cjs
+node ./tests/test-action-vfx-host-admission.cjs
 node ./tests/test-schematic-selection.cjs
 node ./tests/test-schematic-host.cjs
 node ./tests/test-mechanical-host-context.cjs
@@ -45,6 +46,9 @@ node ./tests/test-maui-engine-selection.cjs
 node ./tests/test-threejs-quarks-selection.cjs
 node ./tests/test-threejs-particles.cjs
 node ./tests/test-threejs-quarks-runtime.mjs
+node ./tests/test-vfx-threejs-runtime.mjs
+node ./tests/test-action-vfx-package.mjs
+node ./tests/test-action-vfx-runtime.mjs
 node ./tests/test-threejs-postprocessing-selection.cjs
 node ./tests/test-threejs-postprocessing.cjs
 node ./tests/test-threejs-postprocessing-runtime.mjs

@@ -2,11 +2,19 @@
 
 // Real host policy resolution with owned metadata fixtures; no runtime/native launch.
 const assert = require('assert/strict'), fs = require('fs'), path = require('path');
-const runtime = require('../commands/lib/bubo-runtime.cjs');
-const host = require('../commands/lib/bubo-host-adapter.cjs');
-const cache = path.basename(runtime.BASE) === '.hephaera' ? path.join(runtime.BASE, '.cache') : path.join(runtime.BASE, '.hephaera/.cache');
+const sourceRuntime = require('../commands/lib/bubo-runtime.cjs');
+const cache = path.basename(sourceRuntime.BASE) === '.hephaera' ? path.join(sourceRuntime.BASE, '.cache') : path.join(sourceRuntime.BASE, '.hephaera/.cache');
 const folder = path.join(cache, 'tasks/hephaera-integrate-bubo-runtime/evidence/context'); fs.mkdirSync(folder, { recursive: true });
 const root = fs.mkdtempSync(path.join(folder, 'p-'));
+// Every resolver must run from this fixture's actual canonical mount. An
+// adapter imported from the outer checkout cannot resolve a child project.
+const installation = path.join(root, '.hephaera');
+for (const name of ['commands/lib', '.engine', '.styles', '.architecture'])
+  fs.cpSync(path.join(sourceRuntime.BASE, name), path.join(installation, name), { recursive: true });
+for (const name of ['commands/resolve-art-pipeline.sh', 'STYLE.md'])
+  fs.copyFileSync(path.join(sourceRuntime.BASE, name), path.join(installation, name));
+const runtime = require(path.join(installation, 'commands/lib/bubo-runtime.cjs'));
+const host = require(path.join(installation, 'commands/lib/bubo-host-adapter.cjs'));
 let checks = 0;
 const check = (value, reason) => { assert(value, reason); checks++; };
 function write(name, value) { const file = path.join(root, name); fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, typeof value === 'string' ? value : JSON.stringify(value)); return name; }
@@ -51,6 +59,9 @@ let style = fs.readFileSync(path.join(root, 'STYLE.md'), 'utf8');
 style = style.replace('Primary Hephaera art pipeline:\n- PROOF_TO_MODEL', 'Primary Hephaera art pipeline:\n- BLENDER').replace('- Use PROOF_TO_MODEL unless', '- Use BLENDER unless');
 write('STYLE.md', style);
 const selection = host.policyCommand('resolve-art-pipeline.sh', ['--style', path.join(root, 'STYLE.md'), '--override', 'PROOF_TO_MODEL', '--json'], root);
+assert.throws(() => require('../commands/lib/bubo-host-adapter.cjs').policyCommand('resolve-art-pipeline.sh',
+  ['--style', path.join(root, 'STYLE.md'), '--override', 'PROOF_TO_MODEL', '--json'], root),
+  /must match the direct parent|Unable to resolve a safe project root/); checks++;
 write(path.posix.join(path.posix.dirname(manifest), 'pipeline-selection.json'), selection);
 context = host.contextFor('proof-to-model', 'status', options(), info).context;
 check(context.policy.pipeline === 'PROOF_TO_MODEL', 'Current task-owned prompt selection continues after init');

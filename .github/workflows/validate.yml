@@ -45,6 +45,7 @@ jobs:
           node tests/test-schematic-selection.cjs
           node tests/test-schematic-host.cjs
           node tests/test-vfx-assets.cjs
+          node tests/test-action-vfx-host-admission.cjs
           node tests/test-bubo-execution-lifecycle.cjs
           node tests/test-mechanical-host-context.cjs
           node tests/test-schematic-examples.cjs
@@ -78,6 +79,8 @@ jobs:
           node tests/test-threejs-particles.cjs
           node tests/test-threejs-quarks-runtime.mjs
           node tests/test-vfx-threejs-runtime.mjs
+          node tests/test-action-vfx-package.mjs
+          node tests/test-action-vfx-runtime.mjs
           node tests/test-threejs-postprocessing-selection.cjs
           node tests/test-threejs-postprocessing.cjs
           node tests/test-threejs-postprocessing-runtime.mjs

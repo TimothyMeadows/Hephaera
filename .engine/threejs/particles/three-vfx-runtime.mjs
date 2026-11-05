@@ -2,6 +2,13 @@ import {createThreeQuarksRuntime, acquireThreeQuarksProductionOwner, getThreeQua
 import {validateVfxPackage, inspectVfxGeometry, atlasFrameIndex, atlasFrameUv, sha256, fields, number, integer, identifier, hash, fail} from './vfx-package.mjs';
 
 const services = new WeakMap();
+const serviceInternals = new WeakMap();
+/** Cooperative clock ownership: callers retain assets and host lifecycle control. */
+export function acquireThreeVfxSceneScheduler(service, {THREE, scene} = {}) {
+  const internal = serviceInternals.get(service);
+  if (!internal || internal.THREE !== THREE || internal.scene !== scene) fail('An actual VFX service for this exact THREE/Scene is required.');
+  return internal.claim();
+}
 const vector = (value,n,name,limit=1000000) => {
   if(!Array.isArray(value)||value.length!==n)fail(`${name} must contain ${n} components.`);
   value.forEach(v=>number(v,-limit,limit,name)); return [...value];
@@ -66,7 +73,7 @@ export function createThreeVfxRuntime({THREE,Quarks,scene,renderer,engineSelecti
   const limits={...host.limits,maxUpdateSeconds:host.maxDelta,...budgets};
   limits.maxDurationSeconds=Math.min(host.limits.maxDurationSeconds,limits.maxDurationSeconds);
   const releaseConstraint=host.constrain(limits);
-  const packages=new Map(),records=new Map();let disposed=false,closing=false,generation=0;
+  const packages=new Map(),records=new Map();let disposed=false,closing=false,generation=0,schedulerClaim=null;
   const alive=()=>{if(disposed||closing||owner.stats().disposed)fail('VFX service is disposed.');};
   const valid=r=>!disposed&&!r.disposed&&records.get(r.id)===r&&host.isAlive(r);
   function parentTransform(parent) {
@@ -91,7 +98,7 @@ export function createThreeVfxRuntime({THREE,Quarks,scene,renderer,engineSelecti
       if(JSON.stringify(parsed)!==JSON.stringify(declaration.package))fail('Native parsed snapshot differs from exact package bytes.');
     }
     for(const key of ['contractSha256','definitionSha256','registrySha256'])if(engineSelection[key]!==undefined&&engineSelection[key]!==declaration.package.engine[key])fail('Native package engine identity differs from the selected host.');
-    if(declaration.profile.budgets.maxUpdateSeconds<host.maxDelta)fail('Profile maxUpdateSeconds must cover the owner maximum delta.');
+    if(declaration.profile.budgets.maxUpdateSeconds<host.maxDelta&&!schedulerClaim)fail('Profile maxUpdateSeconds must cover the owner maximum delta unless a bounded scene scheduler owns the clock.');
     for(const layer of declaration.layers)if(layer.emission.durationSeconds+layer.maxTailSeconds>Math.min(limits.maxDurationSeconds,declaration.profile.budgets.maxDurationSeconds,layer.native.durationSeconds))fail('Production emission and tail exceed scene, owner, profile or native duration.');
     const resources=validateBindings(THREE,declaration,input.bindings);
     const handle=Object.freeze({id:declaration.package.id,version:declaration.package.version,packageSha256:declaration.packageSha256,preparationSha256:declaration.preparationSha256});
@@ -124,19 +131,29 @@ export function createThreeVfxRuntime({THREE,Quarks,scene,renderer,engineSelecti
     const object=r.system?.emitter??r.object;if(position)object.position.fromArray(position);if(quaternion)object.quaternion.fromArray(quaternion);if(scale)object.scale.fromArray(scale);return true;
   }
   function endpoints(r,input) {
-    if(!valid(r))return false;if(r.layer.family!=='beam')fail('Only beam leases accept endpoints.');fields(input,['start','end'],'endpoints');
+    if(!valid(r))return false;if(r.layer.family!=='beam')fail('Only beam leases accept endpoints.');fields(input,['start','end','widthScale'],'endpoints');
+    const widthScale=number(input.widthScale??1,.0001,1000,'beam world width scale');
     const a=vector(input.start,3,'beam start'),b=vector(input.end,3,'beam end'),start=new THREE.Vector3(...a),end=new THREE.Vector3(...b);
     number(start.distanceTo(end),.000001,1000000,'beam length');
     // Endpoint coordinates are explicitly world-space. Geometry remains under
     // the scene, independent of the separate attachment lifetime sentinel.
     parentTransform(scene);scene.worldToLocal(start);scene.worldToLocal(end);const direction=end.clone().sub(start),length=direction.length(),e=scene.matrixWorld.elements,scale=Math.hypot(e[0],e[1],e[2]);
-    r.object.position.copy(start).add(end).multiplyScalar(.5);r.object.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),direction.normalize());r.object.scale.set(r.layer.size/scale,length,r.layer.size/scale);r.endpointData={start:a,end:b};return true;
+    r.object.position.copy(start).add(end).multiplyScalar(.5);r.object.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),direction.normalize());r.object.scale.set(r.layer.size*widthScale/scale,length,r.layer.size*widthScale/scale);r.endpointData={start:a,end:b,widthScale};return true;
   }
   function acquire(input) {
-    alive();if(host.isUpdating())fail('Cannot acquire effects during scene update.');fields(input,['package','effectId','layerId','id','ownerId','parent','transform','endpoints'],'lease');identifier(input.id);identifier(input.ownerId);
+    alive();if(host.isUpdating())fail('Cannot acquire effects during scene update.');fields(input,['package','effectId','layerId','id','ownerId','parent','transform','endpoints','overrides','maxHistoryPoints','schedulerTiming'],'lease');identifier(input.id);identifier(input.ownerId);
+    if(input.schedulerTiming!==undefined&&(typeof input.schedulerTiming!=='boolean'||input.schedulerTiming&&!schedulerClaim))fail('Explicit lease timing requires the claimed scene scheduler.');
     const admitted=packages.get(input.package);if(!admitted)fail('Package handle belongs to a different service or was not admitted.');
     if(records.has(input.id))fail('Effect lease id already exists.');
-    const {declaration,resources}=admitted,layer=declaration.layers.find(c=>c.effectId===input.effectId&&c.layerId===input.layerId);if(!layer)fail('Exact admitted effect/layer required.');
+    const {declaration,resources}=admitted,originalLayer=declaration.layers.find(c=>c.effectId===input.effectId&&c.layerId===input.layerId);if(!originalLayer)fail('Exact admitted effect/layer required.');
+    const reduction=input.overrides??{};fields(reduction,['sizeMultiplier','colorMultiplier','emissionMultiplier'],'lease reductions');
+    const sizeMultiplier=number(reduction.sizeMultiplier??1,.0001,1,'size reduction'),emissionMultiplier=number(reduction.emissionMultiplier??1,0,1,'emission reduction');
+    const colorMultiplier=reduction.colorMultiplier===undefined?[1,1,1,1]:vector(reduction.colorMultiplier,4,'color reduction',1);colorMultiplier.forEach(v=>number(v,0,1,'color reduction'));
+    if(input.maxHistoryPoints!==undefined&&(originalLayer.family!=='trail'||!Number.isInteger(input.maxHistoryPoints)||input.maxHistoryPoints<2||input.maxHistoryPoints>originalLayer.historyPoints))fail('Trail history reduction must fit the admitted history.');
+    // Per-lease copies only reduce presentation. Native capacity/reservations
+    // remain intact, and neither source profile nor borrowed resource mutates.
+    const layer={...originalLayer,size:originalLayer.size*sizeMultiplier,color:originalLayer.color.map((v,i)=>v*colorMultiplier[i]),historyPoints:input.maxHistoryPoints??originalLayer.historyPoints,
+      emission:{...originalLayer.emission,count:Math.floor(originalLayer.emission.count*emissionMultiplier),rate:originalLayer.emission.rate*emissionMultiplier}};
     const expiresAfterSeconds=layer.emission.durationSeconds+layer.maxTailSeconds;
     if(expiresAfterSeconds>Math.min(limits.maxDurationSeconds,declaration.profile.budgets.maxDurationSeconds,layer.native.durationSeconds))fail('Production lifetime exceeds current scene, owner, profile or native duration.');
     const parent=input.parent??scene;if(!parent?.isObject3D||!host.sameScene(parent))fail('Lease parent must be attached beneath its Scene.');
@@ -214,7 +231,7 @@ export function createThreeVfxRuntime({THREE,Quarks,scene,renderer,engineSelecti
       const token=++generation,ownedSettings=system?{...system.getRendererSettings()}:null,ownedGenerators=system?{life:system.startLife,speed:system.startSpeed,size:system.startSize,color:system.startColor,rate:system.emissionOverTime,distance:system.emissionOverDistance,bursts:system.emissionBursts,trail:system.rendererEmitterSettings?.startLength}:null;
       record={id:input.id,ownerId:input.ownerId,token,production:true,system,object,layer,declaration,profileBudgets:declaration.profile.budgets,config:{capacity:em.capacity},reservation,estimatedBufferBytes,
         preallocation:extra,
-        disposed:false,paused:false,draining:false,tailRemaining:0,time:0,expiresAfterSeconds,parent,currentRate:em.rate,currentCount:em.count,
+        disposed:false,paused:false,draining:false,tailRemaining:0,time:0,expiresAfterSeconds,parent,currentRate:em.rate,currentCount:em.count,schedulerTiming:input.schedulerTiming===true,
         assert(){
           if(!valid(record))return;if(!host.sameScene(parent))fail('Lease attachment left its Scene.');parentTransform(parent);
           if(system){const settings=system.getRendererSettings(),g=ownedGenerators;
@@ -227,8 +244,8 @@ export function createThreeVfxRuntime({THREE,Quarks,scene,renderer,engineSelecti
           if(system&&(system.particleNum>em.capacity||system.particles.length>em.capacity)){retire(record);fail('Production particle capacity breached; lease retired.');}
           const points=system?.particles.reduce((n,p)=>n+(p.previous?.length??0),0)??0;if(points>reservation.trailPoints){retire(record);fail('Production trail history capacity breached.');}
           if(record.time>=record.expiresAfterSeconds){retire(record);return;}
-          if(record.draining){record.tailRemaining-=delta;if(record.tailRemaining<=1e-10||(!beam&&system.particleNum===0))retire(record);}
-          else if(record.time+1e-10>=em.durationSeconds)stopEmission(record);
+          if(record.draining){record.tailRemaining-=delta;if(record.tailRemaining<=(record.schedulerTiming?0:1e-10)||(!beam&&system.particleNum===0))retire(record);}
+          else if(!record.schedulerTiming&&record.time+1e-10>=em.durationSeconds)stopEmission(record);
         },
         quality(q,reduced){if(system){system.emitter.visible=q!==0;if(!record.draining){record.currentRate=em.rate*[0,.5,1][q]*(reduced?.25:1);system.emissionOverTime.value=record.currentRate;record.currentCount=Math.floor(em.count*[0,.5,1][q]*(reduced?.25:1));if(q>0&&em.count>0&&['ring','ground-indicator'].includes(layer.family))record.currentCount=Math.max(1,record.currentCount);if(system.emissionBursts[0])system.emissionBursts[0].count.value=record.currentCount;}}else object.visible=q!==0;},
         unlink(){if(records.get(record.id)===record)records.delete(record.id);},
@@ -250,10 +267,17 @@ export function createThreeVfxRuntime({THREE,Quarks,scene,renderer,engineSelecti
   }
   const api=Object.freeze({admit,acquire,
     releasePackage(handle){alive();if(!packages.has(handle))return false;const entry=packages.get(handle);if([...records.values()].some(r=>r.declaration===entry.declaration))fail('Cannot release a package while its layer leases are live.');packages.delete(handle);return true;},
-    update(delta){alive();number(delta,0,limits.maxUpdateSeconds,'deltaSeconds');return owner.update(delta);},stats(){const state=owner.stats();return Object.freeze({...state,disposed:disposed||state.disposed,ownerDisposed:state.disposed,productionSystems:records.size,packages:packages.size});},
+    update(delta){alive();if(schedulerClaim)fail('The scene presentation scheduler owns this VFX clock.');number(delta,0,limits.maxUpdateSeconds,'deltaSeconds');return owner.update(delta);},stats(){const state=owner.stats();return Object.freeze({...state,disposed:disposed||state.disposed,ownerDisposed:state.disposed,productionSystems:records.size,packages:packages.size});},
     pause(){alive();owner.pause();},resume(){alive();owner.resume();},
     setQuality(value){alive();owner.setQuality(value);},setReducedMotion(value){alive();owner.setReducedMotion(value);},
     clear(){alive();for(const r of [...records.values()])retire(r);},reset(){alive();for(const r of [...records.values()])retire(r);generation++;},
     dispose(){if(disposed||closing)return;closing=true;let error;for(const r of [...records.values()])try{retire(r);}catch(e){error??=e;}packages.clear();services.delete(owner);releaseConstraint();try{if(ownsOwner)owner.dispose();}catch(e){error??=e;}disposed=true;closing=false;generation++;if(error)throw error;}
-  });services.set(owner,api);return api;
+  });services.set(owner,api);
+  serviceInternals.set(api,{THREE,scene,claim(){
+    alive();if(schedulerClaim)fail('The VFX scene clock already has a scheduler.');
+    const clock=host.claimClock(),token={};schedulerClaim=token;let released=false;
+    return Object.freeze({get maxUpdateSeconds(){let maximum=Math.min(host.maxDelta,limits.maxUpdateSeconds);for(const r of records.values())maximum=Math.min(maximum,r.declaration.profile.budgets.maxUpdateSeconds);return maximum;},
+      update(delta){alive();if(released||schedulerClaim!==token)fail('VFX scheduler claim is retired.');number(delta,0,this.maxUpdateSeconds,'deltaSeconds');return clock.update(delta);},
+      stats:api.stats,release(){if(released)return;released=true;if(schedulerClaim===token)schedulerClaim=null;clock.release();}});
+  }});return api;
 }

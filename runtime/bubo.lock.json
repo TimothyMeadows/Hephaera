@@ -2,11 +2,11 @@
   "schemaVersion": 1,
   "repository": "https://github.com/TimothyMeadows/Bubo.git",
   "path": "runtime/bubo",
-  "revision": "012d602d2e2621b97e332bc5a119f1b79c9a5574",
+  "revision": "19df3c9c9be3982a444cbb71f5ade32aa7e4a303",
   "apiVersion": 2,
-  "resourceCatalogSha256": "7c52b59ee15e7661d9b8970f886b789c7b7bf51709a023cca1f0790bfebd43fe",
+  "resourceCatalogSha256": "c93a6a37e65658ba39860ba89854dd265eb892b63966629a48609fe7cafe7ec1",
   "buildReceipt": "artifacts/bubo/build-info.json",
-  "trackingIssue": "https://github.com/TimothyMeadows/Hephaera/issues/210",
+  "trackingIssue": "https://github.com/TimothyMeadows/Hephaera/issues/212",
   "acceptedPrerequisite": {
     "originalMerge": "7881c49429b3303acd7fa3a8675ac81b403ef226",
     "pullRequest": "https://github.com/TimothyMeadows/Bubo/pull/36",
@@ -98,6 +98,19 @@
           "https://github.com/TimothyMeadows/Bubo/actions/runs/41921765505/job/126895780728"
         ],
         "linuxAssertions": 619
+      },
+      "actionV2": {
+        "trackingIssue": "https://github.com/TimothyMeadows/Hephaera/issues/212",
+        "pullRequest": "https://github.com/TimothyMeadows/Bubo/pull/51",
+        "reviewedHead": "853d4c5815db967cc90bc77b3de150f56a19f0d2",
+        "mergedRevision": "19df3c9c9be3982a444cbb71f5ade32aa7e4a303",
+        "qa": "https://github.com/TimothyMeadows/Bubo/pull/51#issuecomment-6647230492",
+        "requiredCi": [
+          "https://github.com/TimothyMeadows/Bubo/actions/runs/41948903592/job/126987878500",
+          "https://github.com/TimothyMeadows/Bubo/actions/runs/41948903592/job/126987878969"
+        ],
+        "executionApi": 2,
+        "resourceCatalogSha256": "c93a6a37e65658ba39860ba89854dd265eb892b63966629a48609fe7cafe7ec1"
       }
     }
   }
