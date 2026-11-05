@@ -6,8 +6,8 @@ const sourceRuntime = require('../commands/lib/bubo-runtime.cjs');
 const cache = path.basename(sourceRuntime.BASE) === '.hephaera' ? path.join(sourceRuntime.BASE, '.cache') : path.join(sourceRuntime.BASE, '.hephaera/.cache');
 const folder = path.join(cache, 'tasks/hephaera-integrate-bubo-runtime/evidence/context'); fs.mkdirSync(folder, { recursive: true });
 const root = fs.mkdtempSync(path.join(folder, 'p-'));
-// Every resolver must run from this fixture's actual canonical mount. An
-// adapter imported from the outer checkout cannot resolve a child project.
+// Host resolvers must run from this fixture's actual canonical mount. A
+// standalone maintainer checkout may resolve explicit test fixture projects.
 const installation = path.join(root, '.hephaera');
 for (const name of ['commands/lib', '.engine', '.styles', '.architecture'])
   fs.cpSync(path.join(sourceRuntime.BASE, name), path.join(installation, name), { recursive: true });
@@ -59,9 +59,10 @@ let style = fs.readFileSync(path.join(root, 'STYLE.md'), 'utf8');
 style = style.replace('Primary Hephaera art pipeline:\n- PROOF_TO_MODEL', 'Primary Hephaera art pipeline:\n- BLENDER').replace('- Use PROOF_TO_MODEL unless', '- Use BLENDER unless');
 write('STYLE.md', style);
 const selection = host.policyCommand('resolve-art-pipeline.sh', ['--style', path.join(root, 'STYLE.md'), '--override', 'PROOF_TO_MODEL', '--json'], root);
-assert.throws(() => require('../commands/lib/bubo-host-adapter.cjs').policyCommand('resolve-art-pipeline.sh',
-  ['--style', path.join(root, 'STYLE.md'), '--override', 'PROOF_TO_MODEL', '--json'], root),
-  /must match the direct parent|Unable to resolve a safe project root/); checks++;
+const wrongRoot = path.join(root, 'wrong-project'); fs.mkdirSync(wrongRoot);
+assert.throws(() => host.policyCommand('resolve-art-pipeline.sh',
+  ['--style', path.join(root, 'STYLE.md'), '--override', 'PROOF_TO_MODEL', '--json'], wrongRoot),
+  /must match the direct parent/); checks++;
 write(path.posix.join(path.posix.dirname(manifest), 'pipeline-selection.json'), selection);
 context = host.contextFor('proof-to-model', 'status', options(), info).context;
 check(context.policy.pipeline === 'PROOF_TO_MODEL', 'Current task-owned prompt selection continues after init');
