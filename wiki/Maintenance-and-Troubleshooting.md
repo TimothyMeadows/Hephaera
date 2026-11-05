@@ -77,7 +77,7 @@ A local documentation build, accepted asset or compiled native package does not 
 
 ## Advanced manual baseline updates
 
-This is the Git fallback for existing manual installations while package distribution remains unreleased. It is not the managed installer's update/recovery path. Review and stop active work first, preserve `.hephaera/.cache` and check local source changes.
+This is the Git update path for deliberately managed manual installations. It is not the managed installer's update/recovery path. Review and stop active work first, preserve `.hephaera/.cache` and check local source changes.
 
 For a manual submodule, explicitly select the baseline update and review the changed host gitlink:
 
