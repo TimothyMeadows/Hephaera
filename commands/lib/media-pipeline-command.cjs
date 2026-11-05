@@ -198,7 +198,7 @@ async function runOwned(spec,values) {
     required(options,'workspace','media-state');
     const request=spec.request(context.brief,{root,asset:context.state.asset});
     const policyReferences=typeof spec.generationReferences==='function'?spec.generationReferences(context.brief,{root,asset:context.state.asset}):[];
-    const result=await lifecycle.dispatch({...stateOptions,provider:selected,request,workspace:options.workspace,mediaState:options['media-state'],controls:controls(options),policyReferences});
+    const result=await lifecycle.dispatch(stateOptions,{provider:selected,request,workspace:options.workspace,mediaState:options['media-state'],controls:controls(options),policyReferences});
     lifecycle.recordCandidate({...stateOptions,provider:selected,manifests:result.hostMediaProvenance,referenceMapper:referenceMapper(spec,root,context.brief,'neutral')});
     return {schemaVersion:1,domain:spec.domain,status:'staged',stateFile:context.state.stateFile,
       provenance:result.hostMediaProvenance,assetStatus:lifecycle.status(stateOptions),promotion:false};

@@ -29,7 +29,7 @@ function initialize(domain='AUDIO',version='v1',asset='same human asset',extra={
 const options=asset=>({root,stateFile:asset.stateFile});
 function request(asset,extra={}) {
   const item=asset.asset.domain==='MUSIC'?{id:'owned',music:{instrumental:true}}:asset.asset.domain==='VOICE'?{id:'owned',voice:{preset:'Owned'}}:{id:'owned',durationSeconds:1};
-  return state.nativeRequest({...options(asset),provider:'LOCAL',workspace,mediaState,request:{schemaVersion:'bubo-media-request/v1',backend:'owned-nonexecutable',items:[item],...extra}});
+  return state.nativeRequest(options(asset),{provider:'LOCAL',workspace,mediaState,request:{schemaVersion:'bubo-media-request/v1',backend:'owned-nonexecutable',items:[item],...extra}});
 }
 function candidate(asset,name='owned',extra={}) {
   const output=write(`${workspace}/staging/${asset.asset.domain.toLowerCase()}/${asset.asset.nativeRequestId}/${name}.wav`,'OWNED nonaudio bytes; no acoustic quality claim');
@@ -88,15 +88,31 @@ async function main() {
   check(prepared.every(x=>x.finalOutput===x.request.outputDirectory+'/'+x.request.requestId),'Native final output correctly includes native-appended requestId');
   check(state.status(options(assets[0])).stage==='planned','Initialization creates planning state without outputs or inference');
   check(state.status(options(assets[0])).executionAvailable===(contracts.registry().domains.AUDIO.implementation.status==='implemented'),'Configured domain execution readiness follows its actual declaration without certifying native readiness');
+  const generation={provider:'LOCAL',workspace,mediaState,request:{schemaVersion:'bubo-media-request/v1',items:[{id:'owned'}]}};
+  let ownershipGetterRead=false;
+  const getterPayload=Object.defineProperty({...generation},'root',{get(){ownershipGetterRead=true;return root;}});
+  for (const payload of [{...generation,root},{...generation,stateFile:assets[1].stateFile},Object.create({root}),getterPayload,{...generation,[Symbol('owner')]:root}]) {
+    rejects(()=>state.nativeRequest(options(assets[0]),payload),/plain data|protected/,'Native preparation rejects generation-supplied ownership before reading state');
+    await assert.rejects(state.dispatch(options(assets[0]),payload),/plain data|protected/);
+    observations.push('Dispatch rejects generation-supplied ownership before reading state');
+  }
+  check(!ownershipGetterRead,'Ownership accessors are rejected without invoking them');
+  for (const owner of [null,[],{root},{...options(assets[0]),request:generation.request},Object.create(options(assets[0]))]) {
+    rejects(()=>state.nativeRequest(owner,generation),/plain data|protected|requires/,'Native preparation requires a distinct exact lifecycle owner');
+    await assert.rejects(state.dispatch(owner,generation),/plain data|protected|requires/);
+    observations.push('Dispatch requires a distinct exact lifecycle owner');
+  }
+  for(const key of ['root','stateFile'])rejects(()=>request(assets[0],{[key]:root}),/ownership/,'Native request data cannot supply lifecycle '+key);
+  check(state.load(options(assets[0])).events.length===0,'Rejected ownership payloads create no lifecycle events or native attempt');
   fs.unlinkSync(path.join(root,'MEDIA.md'));
   const unavailableAsset=initialize('AUDIO','no-provider','no provider');
-  await assert.rejects(state.dispatch({...options(unavailableAsset)}),/unavailable/);observations.push('Domain execution without shared provider policy rejects before dispatch');
+  await assert.rejects(state.dispatch(options(unavailableAsset),{}),/unavailable/);observations.push('Domain execution without shared provider policy rejects before dispatch');
   write('MEDIA.md',media);
   for(const controls of [{timeout:0},{timeout:86401},{'max-log-bytes':0},{'max-private-bytes':Number.MAX_SAFE_INTEGER+1},{'max-private-bytes':Infinity}]) {
-    await assert.rejects(state.dispatch({...options(assets[0]),controls}),/Invalid finite/);observations.push('Invalid finite dispatch control is rejected before native start');
+    await assert.rejects(state.dispatch(options(assets[0]),{controls}),/Invalid finite/);observations.push('Invalid finite dispatch control is rejected before native start');
   }
-  await assert.rejects(state.dispatch({...options(assets[0]),controls:{execute:true}}),/protected/);observations.push('Setup/protected controls cannot enter generation dispatch');
-  await assert.rejects(state.dispatch({...options(assets[0]),timeout:123}),/Unknown/);observations.push('Undocumented top-level execution options are rejected instead of ignored');
+  await assert.rejects(state.dispatch(options(assets[0]),{controls:{execute:true}}),/protected/);observations.push('Setup/protected controls cannot enter generation dispatch');
+  await assert.rejects(state.dispatch(options(assets[0]),{timeout:123}),/Unknown/);observations.push('Undocumented top-level execution options are rejected instead of ignored');
   rejects(()=>initialize(),/EEXIST|owned/,'Duplicate versions preserve immutable asset records');
   const revision=initialize('AUDIO','v2','same human asset',{parent:ref(assets[0].stateFile)});
   check(revision.asset.nativeRequestId!==assets[0].asset.nativeRequestId,'Revisions get fresh native identities with retained parent ancestry');
@@ -107,7 +123,7 @@ async function main() {
   rejects(()=>request(assets[0],{task:'wrong'}),/owned/,'Caller cannot override version-owned native task');
   rejects(()=>request(assets[0],{items:[{id:'owned',music:{}}]}),/conflicts/,'Cross-domain native payload is rejected');
   rejects(()=>request(assets[0],{outputDirectory:'assets/audio'}),/owned/,'Caller cannot redirect native staging into runtime');
-  rejects(()=>state.nativeRequest({...options(assets[0]),provider:'CLOUD',workspace,mediaState,request:{}}),/explicit LOCAL/,'Native preparation never silently falls back from CLOUD');
+  rejects(()=>state.nativeRequest(options(assets[0]),{provider:'CLOUD',workspace,mediaState,request:{}}),/explicit LOCAL/,'Native preparation never silently falls back from CLOUD');
   const directory=path.posix.dirname(assets[0].stateFile), lockFile=write(directory+'/.write-lock','Owned active-write fixture');
   rejects(()=>initialize(),/already owned/,'Exclusive state lock rejects another writer');fs.unlinkSync(path.join(root,lockFile));
   const voiceBefore=fs.readFileSync(path.join(root,'VOICE.md'));
@@ -185,6 +201,22 @@ async function main() {
   rejects(()=>state.status(options(broken)),/JSON|Expected/,'Interrupted event JSON is visible corruption, never silently dropped');
   const gap=initialize('AUDIO','gap','gap');write(path.posix.dirname(gap.stateFile)+'/events/000002.json',{});
   rejects(()=>state.status(options(gap)),/Incomplete/,'Event sequence gaps block replay');
+  const malformed=initialize('AUDIO','malformed-name','malformed journal name');write(path.posix.dirname(malformed.stateFile)+'/events/backup.json',{});
+  rejects(()=>state.status(options(malformed)),/Incomplete/,'Unexpected journal entries are retained as visible corruption');
+  const nonregular=initialize('AUDIO','nonregular-event','nonregular event');
+  fs.mkdirSync(path.join(root,path.posix.dirname(nonregular.stateFile),'events/000001.json'),{recursive:true});
+  rejects(()=>state.status(options(nonregular)),/regular file/,'Nonregular journal entries cannot masquerade as events');
+  const overfull=initialize('AUDIO','overfull-journal','overfull journal'),overfullDirectory=path.join(root,path.posix.dirname(overfull.stateFile),'events');
+  fs.mkdirSync(overfullDirectory,{recursive:true});
+  const oldOpen=fs.opendirSync;let entriesRead=0,handleClosed=false;
+  try {
+    fs.opendirSync=(directory,config)=>{
+      check(directory===overfullDirectory&&config.bufferSize===32,'Journal enumeration opens only the owned events directory with a fixed buffer');
+      return {readSync(){entriesRead++;return {name:String(entriesRead).padStart(6,'0')+'.json'};},closeSync(){handleClosed=true;}};
+    };
+    rejects(()=>state.status(options(overfull)),/event bound/,'Overfull journals stop before unbounded directory enumeration');
+    check(entriesRead===4097&&handleClosed,'Overfull enumeration reads only the bound plus one and closes its handle');
+  } finally {fs.opendirSync=oldOpen;}
   const alias=path.join(root,'linked-input');
   try {fs.symlinkSync(path.join(root,'inputs'),alias,process.platform==='win32'?'junction':'dir');
     rejects(()=>initialize('AUDIO','linked','linked',{brief:'linked-input/brief.json'}),/symbolic|junction/,'Native path reader rejects linked input ancestors');
@@ -202,23 +234,26 @@ async function main() {
   try {
     contracts.resolve=options=>({...oldResolve(options),executionAvailable:true});
     adapter.invoke=async()=>{throw new Error('Owned simulated publication failure after native boundary');};
-    await assert.rejects(state.dispatch({...options(failed),request:{schemaVersion:'bubo-media-request/v1',items:[{id:'owned'}]},provider:'LOCAL',workspace,mediaState}),/simulated/);
+    await assert.rejects(state.dispatch(options(failed),{request:{schemaVersion:'bubo-media-request/v1',items:[{id:'owned'}]},provider:'LOCAL',workspace,mediaState}),/simulated/);
     observations.push('Failed native/publication simulation retains started attempt event');
     check(state.status(options(failed)).eventCount===2,'Started and failed dispatch remain immutable history');
     rejects(()=>request(failed),/already exists or started/,'Failed host publication never permits a fresh same-version attempt');
     const nativeAsset=initialize('AUDIO','native','native owned'),otherAsset=initialize('AUDIO','other-native','different asset');
     const otherCandidate=candidate(otherAsset,'other',{provider:'LOCAL',record:false});
     let generated;
+    const nativeOwner=options(nativeAsset);
     const platformModules=write('inputs/platform-modules.json',{schemaVersion:'hephaera-platform-modules/v1',modules:[]});
     const controls={timeout:120,'max-log-bytes':65536,'max-private-bytes':1048576,'platform-modules':platformModules};
     adapter.invoke=async(operation,parsed)=>{
       check(operation==='generate' && parsed.get('media-state')===mediaState,'Dispatch forwards the original physical shared allowance root');
       check(Object.entries(controls).every(([key,value])=>parsed.get(key)===String(value)),'Every selected bounded/platform control reaches the existing adapter unchanged');
       generated=candidate(nativeAsset,'native',{provider:'LOCAL',record:false,runId:nativeAsset.asset.nativeRequestId+'-0',parameters:{sourceRequest:ref(parsed.get('manifest'))}});
+      nativeOwner.root=root+'/missing-owner';nativeOwner.stateFile=otherAsset.stateFile;
       return {status:'succeeded',hostMediaProvenance:[generated.manifestFile]};
     };
-    await state.dispatch({...options(nativeAsset),request:{schemaVersion:'bubo-media-request/v1',items:[{id:'owned'}]},provider:'LOCAL',workspace,mediaState,controls});
+    await state.dispatch(nativeOwner,{request:{schemaVersion:'bubo-media-request/v1',items:[{id:'owned'}]},provider:'LOCAL',workspace,mediaState,controls});
     const started=state.load(options(nativeAsset)).events.find(event=>event.kind==='dispatch-started');
+    check(state.load(options(nativeAsset)).events.some(event=>event.kind==='dispatch-returned')&&state.load(options(otherAsset)).events.length===0,'Async owner mutation cannot redirect completion into another asset journal');
     check(started.data.budgets.timeoutSeconds===120 && started.data.controlReferences[0].sha256===ref(platformModules).sha256,'Dispatch retains enforced bounds and exact platform manifest identity');
     rejects(()=>state.recordCandidate({...options(nativeAsset),provider:'LOCAL',manifest:otherCandidate.manifestFile}),/exact completed native dispatch/,'Same-domain candidate transplant cannot replace another native asset version');
     rejects(()=>state.recordCandidate({...options(nativeAsset),provider:'CLOUD',manifest:generated.manifestFile}),/cannot switch/,'A started LOCAL run cannot import a CLOUD fallback');

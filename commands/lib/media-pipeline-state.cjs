@@ -8,6 +8,8 @@ const host = require('./bubo-host-adapter.cjs');
 const contracts = require('./media-pipeline-contract.cjs');
 const engines = require('./engine-contract.cjs');
 const CACHE = '.hephaera/.cache', ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/, SHA = /^[a-f0-9]{64}$/;
+const MAX_EVENTS = 4096;
+const GENERATION_FIELDS = ['provider','request','workspace','mediaState','controls','policyReferences'];
 const fail = message => { throw new Error(message); };
 const canonical = value => JSON.stringify(runtime.canonical(value));
 const digest = value => crypto.createHash('sha256').update(typeof value === 'string' ? value : canonical(value)).digest('hex');
@@ -119,8 +121,17 @@ function load(options) {
   const events = []; let previous = null;
   if (fs.existsSync(eventsDirectory)) {
     if (!fs.statSync(eventsDirectory).isDirectory()) fail('Lifecycle events must be a directory.');
-    const files = fs.readdirSync(eventsDirectory).sort();
-    if (files.length > 4096) fail('Lifecycle event bound exceeded.');
+    // Stop enumeration at the limit instead of allocating an unbounded listing.
+    // Keep every entry: malformed names, links and sequence gaps must reject.
+    const handle = fs.opendirSync(eventsDirectory,{bufferSize:32}), files = [];
+    try {
+      let entry;
+      while ((entry = handle.readSync()) !== null) {
+        if (files.length === MAX_EVENTS) fail('Lifecycle event bound exceeded.');
+        files.push(entry.name);
+      }
+    } finally { handle.closeSync(); }
+    files.sort();
     for (let index=0;index<files.length;index++) {
       const expected = String(index+1).padStart(6,'0')+'.json';
       if (files[index] !== expected) fail('Incomplete or unexpected lifecycle event; inspect retained state.');
@@ -178,6 +189,7 @@ function fresh(state) {
   return observed;
 }
 function append(state,kind,data) {
+  if (state.events.length >= MAX_EVENTS) fail('Lifecycle event bound exceeded.');
   const previous = state.events.length ? identity(state.root,state.directory+'/events/'+String(state.events.length).padStart(6,'0')+'.json').sha256 : null;
   const sequence = state.events.length+1;
   const record = {schemaVersion:'hephaera-media-event/v1',sequence,assetSha256:state.identity.sha256,previousSha256:previous,kind,data,recordedAt:new Date().toISOString()};
@@ -212,13 +224,38 @@ function cacheChild(root,name,label) {
   if (!runtime.within(cache,full) || runtime.samePath(cache,full)) fail(label+' must be a confined cache child.');
   return relative(root,full);
 }
-function nativeRequest(options) {
-  const state=load(options), observed=fresh(state), {root,asset}=state;
+function dataRecord(value,allowed,label) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)
+      || ![Object.prototype,null].includes(Object.getPrototypeOf(value))) fail(label+' must be a plain data object.');
+  const descriptors=Object.getOwnPropertyDescriptors(value), result={};
+  for (const key of Reflect.ownKeys(descriptors)) {
+    const descriptor=descriptors[key];
+    if (typeof key !== 'string' || !allowed.includes(key) || !Object.hasOwn(descriptor,'value'))
+      fail('Unknown or protected '+label+' field.');
+    result[key]=descriptor.value;
+  }
+  return result;
+}
+function dispatchOwner(value) {
+  const owner=dataRecord(value,['root','stateFile'],'dispatch owner');
+  if (Object.keys(owner).length !== 2 || typeof owner.root !== 'string' || typeof owner.stateFile !== 'string')
+    fail('Dispatch owner requires explicit root and stateFile paths.');
+  return Object.freeze(owner);
+}
+function generationPayload(value) {
+  // Generation data cannot choose lifecycle roots, state files or native tools.
+  // Read only own data properties; inherited fields and accessors are rejected.
+  return dataRecord(value,GENERATION_FIELDS,'generation payload');
+}
+function nativeRequest(owner,payload) {
+  const selection=dispatchOwner(owner), options=generationPayload(payload);
+  const state=load(selection), observed=fresh(state), {root,asset}=state;
   if (observed.candidate) fail('This version already owns an imported or generated candidate; initialize a new version instead of starting another attempt.');
   if (options.provider !== 'LOCAL') fail('Native dispatch requires explicit LOCAL; CLOUD import is separate and never falls back.');
   if (!observed.context.media) fail('Shared MEDIA policy is required before dispatch preparation.');
   require('./bubo-media-adapter.cjs').validateMedia(runtime.projectPath(root,observed.context.media.path));
   const workspace=cacheChild(root,options.workspace,'Workspace'), mediaState=cacheChild(root,options.mediaState,'Shared media state');
+  if (options.request && ['root','stateFile'].some(key=>Object.hasOwn(options.request,key))) fail('Native request cannot supply lifecycle ownership fields.');
   const request=JSON.parse(JSON.stringify(options.request));
   if (!request || request.schemaVersion !== 'bubo-media-request/v1' || !Array.isArray(request.items) || !request.items.length) fail('A supported native request is required.');
   if ((request.requestId && request.requestId !== asset.nativeRequestId) || (request.task && request.task !== asset.task)) fail('Native task/request identity is owned by this asset version.');
@@ -240,8 +277,8 @@ function nativeRequest(options) {
   return {request:{...request,requestId:asset.nativeRequestId,task:asset.task,outputDirectory},workspace,mediaState,
     finalOutput:relative(root,finalOutput),nativeState:relative(root,nativeState),media:observed.context.media.path};
 }
-async function dispatch(options) {
-  if (Object.keys(options).some(key=>!['root','stateFile','provider','request','workspace','mediaState','controls','policyReferences'].includes(key))) fail('Unknown or protected dispatch option; use the documented controls whitelist.');
+async function dispatch(owner,payload) {
+  const selection=dispatchOwner(owner), options=generationPayload(payload);
   const controls=options.controls || {};
   if (typeof controls!=='object' || Array.isArray(controls)
       || Object.keys(controls).some(key=>!['timeout','max-log-bytes','max-private-bytes','platform-modules'].includes(key))) fail('Unknown or protected dispatch control.');
@@ -251,7 +288,8 @@ async function dispatch(options) {
     controlArguments.push('--'+key,String(value));
   }
   const parsedControls=adapter.parse(controlArguments), budgets=adapter.executionBudgets(parsedControls);
-  const initial=load(options), context=fresh(initial).context;
+  const initial=load(selection), context=fresh(initial).context;
+  const stateOwner=Object.freeze({root:initial.root,stateFile:initial.stateFile});
   const suppliedPolicies=options.policyReferences||[];
   if(!Array.isArray(suppliedPolicies)||suppliedPolicies.length>128)fail('Bounded domain generation policy identities are required.');
   const policyInputs=[initial.identity,initial.asset.brief,...initial.asset.references,
@@ -265,9 +303,9 @@ async function dispatch(options) {
   if(policyReferences.length>256)fail('Combined generation policy reference bound exceeded.');
   const controlReferences=controls['platform-modules']?[identity(initial.root,controls['platform-modules'])]:[];
   if (!context.executionAvailable) fail('Selected domain execution is unavailable; its domain workflow is not implemented.');
-  const prepared=nativeRequest(options);
+  const prepared=nativeRequest(stateOwner,options);
   let manifest;
-  mutate(options,(state)=>{
+  mutate(stateOwner,(state)=>{
     if (latest(state,'dispatch-started')) fail('This version already started dispatch.');
     manifest=state.directory+'/native-request.json';put(state.root,manifest,prepared.request);
     append(state,'dispatch-started',{request:identity(state.root,manifest),provider:'LOCAL',workspace:prepared.workspace,mediaState:prepared.mediaState,
@@ -278,12 +316,12 @@ async function dispatch(options) {
       '--workspace',prepared.workspace,'--media-state',prepared.mediaState,'--media',prepared.media,...controlArguments]),{emit:false,policyReferences});
     if (result.status!=='succeeded' || !Array.isArray(result.hostMediaProvenance) || !result.hostMediaProvenance.length)
       fail('Successful native dispatch requires complete retained host provenance.');
-    mutate(options,state=>append(state,'dispatch-returned',{request:identity(state.root,manifest),status:result.status,
+    mutate(stateOwner,state=>append(state,'dispatch-returned',{request:identity(state.root,manifest),status:result.status,
       provenance:result.hostMediaProvenance.map(file=>identity(state.root,file))}));
     return result;
   } catch (error) {
     // Keep the started event even when later evidence publication fails. No retry or claim reset.
-    try { mutate(options,state=>append(state,'dispatch-failed',{reason:'Native dispatch or host evidence publication failed; inspect private retained receipts.'})); } catch { /* The retained start still prevents a fresh attempt. */ }
+    try { mutate(stateOwner,state=>append(state,'dispatch-failed',{reason:'Native dispatch or host evidence publication failed; inspect private retained receipts.'})); } catch { /* The retained start still prevents a fresh attempt. */ }
     throw error;
   }
 }
