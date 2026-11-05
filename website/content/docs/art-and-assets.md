@@ -57,6 +57,12 @@ External libraries are optional. If `STYLE.md` already configures one and the ta
 
 No configured library means no extra startup question. A library also does not bypass the selected pipeline's rules.
 
+## Make effects that belong to the action
+
+Use [game effects and model actions](game-effects-and-actions.md) for a charge at a real hand anchor, a traveling effect with a trail, an impact, or a beam with an explicit endpoint. Start with simple effects so timing and placement can be reviewed before detail. Reusable VFX packages keep their own rights, finite budgets and independent reviews; MODEL_TO_ACTION v2 connects them to actual exported clips through one shared Three.js/Quarks clock.
+
+The current production bridge is Three.js. It preserves the project's visual pipeline and keeps gameplay hits and damage outside presentation. Other engines, packaged-device readiness and authored accessibility alternatives need their own evidence. Published `5.1.0-rc.1` installers predate these source features.
+
 ## Add motion as a later handoff
 
 A static model is not automatically ready to animate. Inspect articulation, topology, scale, rights, and any existing rig first. Model-to-animation creates reviewed motion; model-to-action composes clips into sequences. Neither decides combat damage, targeting, or movement authority just because an animation played.

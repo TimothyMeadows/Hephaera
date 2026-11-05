@@ -56,6 +56,7 @@ Read [Work modes and delivery](Work-Modes-and-Delivery). Automatic publication i
 | Floor-plan buildings | `floor-plan-to-model.sh` | [Floor plan to model](Floor-Plan-to-Model) |
 | Mechanical assemblies | `schematic-to-model.sh` | [Schematic to model](Schematic-to-Model) |
 | Motion/actions | `model-to-animation.sh`, `model-to-action.sh` | [Animation and actions](Animation-and-Actions) |
+| Reusable VFX | `vfx-assets.sh` | [VFX and action v2](VFX-and-Action-v2); brief/rights, immutable versions, provisional/detail reviews and bounded preparation |
 | CODE models | `create-code-model-manifest.sh`, `validate-code-model-manifest.sh`, `next-code-model-pass.sh`, `record-code-model-review.sh` | THREEJS source-authoring contract |
 | CODE characters | `create-code-character-profile.sh`, `validate-code-character-profile.sh`, `measure-code-character-evidence.sh`, `record-code-character-calibration.sh`, `record-code-character-gate.sh` | Ordered gates and independent calibrated evidence |
 | Blender | `print-blender-production-brief.sh`, `inspect-blender-scene.sh`, `validate-blender-scene-report.sh`, `validate-blender-python.sh` | [Visual pipelines](Visual-Pipelines) |

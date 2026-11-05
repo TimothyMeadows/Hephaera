@@ -37,7 +37,7 @@ Use copied examples with host-installed APIs. Read the exact [particle helper co
 
 The particle helper owns one BatchedRenderer for its scene, while the host owns renderer, canvas, scene, camera and simulation. Use the existing presentation clock. Update particles once; a second loop must not advance them again.
 
-The bounded helper covers point/sphere-emitter billboard effects. Broader Quarks trails, mesh particles, shaders, JSON and custom behaviors need separately reviewed integration and budgets. Define finite emission, lifetime, capacity, system/instance and delta limits. Upstream 0.17.1 has no public hard `maxParticle` cap and batch buffers can grow; buffer capacity is not a safety policy. Unsupported sub-emitters or hidden emission cannot bypass helper bounds.
+The starter helper covers point/sphere-emitter billboards. The separate bounded [production VFX profile](VFX-and-Action-v2) adds sprites/atlases, bursts, rings, static mesh effects, projectile bodies, trails, impacts, ground indicators and beams, with exact resource correspondence and native closure. It does not expose arbitrary upstream shaders, JSON or custom behaviors. Define finite emission, lifetime, history, capacity, system/instance, decoded-resource and delta limits. Upstream 0.17.1 has no public hard `maxParticle` cap and batch buffers can grow; buffer capacity is not a safety policy. Unsupported sub-emitters or hidden emission cannot bypass helper bounds.
 
 Pause freezes emission/simulation. Resume consumes ordinary bounded delta rather than the whole hidden interval. Cancel/reset/pool reuse retire old generations and clear particles while retaining bounded pools. Final disposal releases owned batch geometry/materials; borrowed textures, models and materials remain with their owners. Test repeated disposal, zero delta, world transforms, shared scenes, ID reuse and stale callbacks.
 
@@ -53,7 +53,7 @@ Bloom, HDR, depth/outline/SSAO, LUTs, multisampling and custom passes require a 
 
 ## Motion ancestry and packaged targets
 
-Pinned Bubo motion/action sample adapters retain their historical CPU Points code and hashes. A new registry capability does not rewrite them or inherit a Quarks approval. Reuse requires explicit reviewed host integration/migration; new particle production uses the selected Quarks owner.
+Pinned legacy Bubo motion/action-v1 sample adapters retain their historical CPU Points code and hashes. A registry capability does not rewrite them or inherit a Quarks approval. Reuse requires explicit reviewed host integration/migration. The reviewed action-v2 bridge instead borrows the selected Quarks service and claims its one Scene clock across actors, finite tails and ambient effects. While claimed, update that scheduler rather than separately updating the service or underlying owner. See [VFX and action v2](VFX-and-Action-v2).
 
 MAUI packages the static host normally. Route lifecycle suspend/resume into presentation owners. Test real packaged assets on Windows, Mac Catalyst, Android and iOS: context creation, shader compilation, particle/composer interaction, alpha/color, UI readability, DPR/orientation, context loss, sustained frame time and memory. Browser or CPU-fixture success cannot certify native GPU behavior. Do not bypass GPU blocklists or select software rendering to manufacture acceptance.
 

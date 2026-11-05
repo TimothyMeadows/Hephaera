@@ -59,6 +59,11 @@ withEdgeReview({edge, source: ROOT, modules, fixture: path.join(ROOT, 'tests/fix
     check(!item.action || pkg.actions.length === 1, 'Receiving cannot omit other exported actions selected out of a package');
     const row = {id: item.id, profile: pkg.profile, modelSha256: pkg.model.sha256, packageSha256: hash(packageBytes), runtimeBuildSha256: nativeAdmission.runtimeBuildSha256,
       effectClosureSha256: pkg.effectClosureSha256, engineIdentity: pkg.engine, coverage: [], layerCoverage: [], actions: [], lifecycle: null, concurrency: null};
+    if (item.variant !== undefined) {
+      check(['normal', 'low-cost', 'static-cues'].includes(item.variant) && typeof item.variantOf === 'string' && /^[A-Za-z0-9._-]{1,80}$/.test(item.variantOf), 'Explicit bounded authored-variant identity required');
+      check(typeof item.readabilityIntent === 'string' && item.readabilityIntent.length > 0 && item.readabilityIntent.length <= 2048, 'Authored variant needs a bounded readability intent');
+      row.authoredVariant = {id: item.variant, variantOf: item.variantOf, intent: item.readabilityIntent, humanVerdict: 'not-recorded', captures: []};
+    }
     for (let actionIndex = 0; actionIndex < pkg.actions.length; actionIndex++) {
       const action = pkg.actions[actionIndex], plan = buildCapturePlan(pkg, action.id, captureFps), prefix = 'case-' + caseIndex + '-action-' + actionIndex, frames = []; let peakEffectPixels = 0, lastEvents = [];
       await browser.evaluate(`window.__actionVfxReview.select(${JSON.stringify(item.id)},${JSON.stringify({actionId: action.id})})`);
@@ -97,6 +102,24 @@ withEdgeReview({edge, source: ROOT, modules, fixture: path.join(ROOT, 'tests/fix
         samples: frames.map(frame => ({time: frame.time, artifact: frame.artifact, maximumOccupancy: frame.occupancyPeaks.length > 0})), cleanup: normal.cleanup};
       row.coverage.push(coverage); row.actions.push({action: action.id, expectedFamilies: plan.expectedFamilies, peakEffectPixels, maximumObservedEffects: maximum, peakObservations, frames, transitionEvents: saveJson(prefix + '-transition-events.json', lastEvents),
         normal: {...normal, video: {...normal.video, artifact: coverage.normalSpeed, webm: inspection}, final: summary(normal.final)}});
+      if (row.authoredVariant) {
+        check(Array.isArray(item.readabilitySamples) && item.readabilitySamples.length > 0 && item.readabilitySamples.length <= 4 && new Set(item.readabilitySamples).size === item.readabilitySamples.length,
+          'Authored variant needs at most four distinct explicit readability sample times');
+        for (const [sampleIndex, time] of item.readabilitySamples.entries()) {
+          check(Number.isFinite(time) && time >= 0 && time <= action.retireAt, 'Readability sample lies outside the real action envelope');
+          await browser.evaluate(`window.__actionVfxReview.select(${JSON.stringify(item.id)},${JSON.stringify({actionId: action.id})})`);
+          const pose = await browser.evaluate(`window.__actionVfxReview.advanceTo(${JSON.stringify(time)})`);
+          check(pose.effectPixels > 5 && pose.poseOracles.every(value => value.status === 'passed'), 'Readability sample has no actual effects or lacks the independent GLB pose oracle');
+          const views = {};
+          for (const background of ['neutral', 'dark', 'light']) {
+            const frame = await browser.evaluate(`window.__actionVfxReview.combinedBackground(${JSON.stringify(background)})`);
+            check(frame.glError === 0 && frame.shaderErrors.length === 0 && frame.effectPixels > 5 && frame.framing.projection.status === 'passed', 'Actual combined readability view failed on ' + background);
+            check(frame.actors.every((actor, index) => actor.state.time === pose.actors[index].state.time), 'Changing review background advanced an actor');
+            views[background] = {artifact: await png(prefix + '-readability-' + sampleIndex + '-' + background + '.png'), observation: summary(frame)};
+          }
+          row.authoredVariant.captures.push({action: action.id, time, views});
+        }
+      }
       console.log(JSON.stringify({case: item.id, action: action.id, pngFrames: frames.length, normalFrames: normal.frames, videoBytes: movie.bytes, peakEffectPixels}));
     }
     let layerIndex = 0;
@@ -144,7 +167,9 @@ withEdgeReview({edge, source: ROOT, modules, fixture: path.join(ROOT, 'tests/fix
   check(hash(fs.readFileSync(path.join(assets, 'fixture.json'))) === hash(fixtureBytes), 'Native fixture changed during evidence');
   const libraryInventory = saveJson('library-inventory.json', {versions: exact, modules, requests: browser.requests.filter(request => request.path.startsWith('/deps/'))});
   const cameraIdentity = saveJson('camera.json', {cases: cases.map(row => ({id: row.id, actions: row.actions.map(action => ({action: action.action, frames: action.frames.map(frame => ({time: frame.time, captureEpoch: frame.captureEpoch, camera: frame.camera, framing: frame.framing}))})),
-    isolated: row.layerCoverage.map(layer => ({source: layer.sourceId, layer: layer.layerId, camera: layer.observations.isolated.camera, framing: layer.observations.isolated.framing})), concurrent: {camera: row.concurrency.camera, framing: row.concurrency.framing}}))});
+    isolated: row.layerCoverage.map(layer => ({source: layer.sourceId, layer: layer.layerId, camera: layer.observations.isolated.camera, framing: layer.observations.isolated.framing})), concurrent: {camera: row.concurrency.camera, framing: row.concurrency.framing},
+    readability: (row.authoredVariant?.captures || []).map(sample => ({action: sample.action, time: sample.time, views: Object.fromEntries(Object.entries(sample.views).map(([background, view]) =>
+      [background, {artifact: view.artifact, camera: view.observation.camera, framing: view.observation.framing, captureEpoch: view.observation.captureEpoch}]))}))}))});
   const settingsIdentity = saveJson('capture-settings.json', {pngFps: captureFps, width: 960, height: 540, capabilities, artifactLimits: {bytes: 67108864, files: 512}, normalSpeedPaddingSeconds: .2,
     contrastBackgrounds: {neutral: '#344150', dark: '#070b10', light: '#f4f5f7'}, sourceHashes: before, clockPolicy: 'Observed absolute actor time, explicit representable scene ticks, no epsilon-early runtime transitions'});
   const deviceIdentity = saveJson('target-device.json', {browser: browser.version, driver, platform: process.platform, arch: process.arch, scope: 'Existing default desktop Edge on this host; no device class, MAUI or physical QA claim'});

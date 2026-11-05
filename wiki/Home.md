@@ -4,7 +4,7 @@ Hephaera is a shared AI production baseline for video game development. It gives
 
 Use the [practical documentation](https://hephaera.com/docs/) for a guided first installation or an everyday task. This Wiki explains the contracts, command families, evidence requirements and failure boundaries behind those guides. The [repository README](https://github.com/TimothyMeadows/Hephaera/blob/main/README.md) is the source overview; [AGENTS.md](https://github.com/TimothyMeadows/Hephaera/blob/main/AGENTS.md) is the shared operating contract.
 
-The current full GitHub release is `5.1.0-rc.1`, with both authenticated GitHub npm and NuGet packages published. Its immutable package version still carries the SemVer prerelease suffix; public-registry mirror status remains separate. Follow [Installation and layout](Installation-and-Layout) for exact availability and authentication. Floor-plan and schematic production were added afterward on main. A later package version must explicitly include their commands and reviewed native pin; a source merge does not update existing pinned installations or publish a package.
+The current full GitHub release is `5.1.0-rc.1`, with both authenticated GitHub npm and NuGet packages published. Its immutable package version still carries the SemVer prerelease suffix; public-registry mirror status remains separate. Follow [Installation and layout](Installation-and-Layout) for exact availability and authentication. Floor-plan, schematic and reusable VFX/action-v2 production were added afterward on main. A later package version must explicitly include their commands and reviewed native pin; a source merge does not update existing pinned installations or publish a package.
 
 ## Start and configure
 
@@ -28,6 +28,7 @@ The current full GitHub release is `5.1.0-rc.1`, with both authenticated GitHub 
 | [Schematic to model](Schematic-to-Model) | Complete mechanical schematics, independent components, assembled articulation and portable model review |
 | [Proof to model](Proof-to-Model) | Source classification, six approved views, reconstruction and measured Blender finishing |
 | [Animation and actions](Animation-and-Actions) | Model readiness, real clips, action composition and presentation ownership |
+| [VFX and action v2](VFX-and-Action-v2) | Reusable layered effects, exact action timing, shared Scene ownership and receiving evidence |
 | [Web-game packaging](Web-Game-Packaging) | MAUI hosts and explicit Windows, macOS, Android and iOS packages |
 | [Three.js extensions](Threejs-Extensions) | Quarks particles and pmndrs postprocessing without changing the host renderer |
 

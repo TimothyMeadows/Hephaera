@@ -20,6 +20,7 @@
 - [Schematic to model](Schematic-to-Model)
 - [Proof to model](Proof-to-Model)
 - [Animation and actions](Animation-and-Actions)
+- [VFX and action v2](VFX-and-Action-v2)
 - [Web-game packaging](Web-Game-Packaging)
 - [Three.js extensions](Threejs-Extensions)
 

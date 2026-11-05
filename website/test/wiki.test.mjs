@@ -15,9 +15,10 @@ test('wiki images validate their exact raw URL, alt text and local public bytes'
 
 test('all detailed-reference pages and source anchors resolve locally', async () => {
   const result = await checkWiki();
-  assert.equal(result.pages, 19);
+  assert.equal(result.pages, 20);
   assert.ok(result.names.includes('Floor-Plan-to-Model.md'));
   assert.ok(result.names.includes('Schematic-to-Model.md'));
+  assert.ok(result.names.includes('VFX-and-Action-v2.md'));
   assert.ok(result.links > 100);
 });
 
@@ -30,11 +31,12 @@ test('wiki preparation is read-only and rejects a foreign publication origin', a
   const plan = await publishWiki(folder);
   assert.equal(plan.execute, false);
   assert.equal(plan.preserveOtherPages, true);
-  assert.equal(plan.files.length, 19);
+  assert.equal(plan.files.length, 20);
   assert.ok(plan.files.includes('Floor-Plan-to-Model.md'));
   assert.ok(plan.files.includes('Schematic-to-Model.md'));
+  assert.ok(plan.files.includes('VFX-and-Action-v2.md'));
   assert.equal(typeof plan.sourceDirty, 'boolean');
-  assert.equal(plan.sourceFiles.length, 19);
+  assert.equal(plan.sourceFiles.length, 20);
   assert.ok(plan.sourceFiles.every(file => /^[a-f0-9]{64}$/.test(file.sha256)));
   assert.deepEqual((await fs.readdir(folder)).sort(), before);
   execFileSync('git', ['-C', folder, 'config', 'remote.origin.url', 'https://github.com/another-owner/unrelated.wiki.git']);

@@ -8,4 +8,11 @@ The floor-plan and schematic SVGs are original explanatory diagrams. They help r
 
 The fixture is [`resources/schematic-to-model/examples-v2/device.json`](https://github.com/TimothyMeadows/Bubo/blob/7ab99a9f12761095e5a3ee5cfb37d2a679b026a7/resources/schematic-to-model/examples-v2/device.json), rendered by the reviewed Bubo revision `7ab99a9f12761095e5a3ee5cfb37d2a679b026a7`. These are project-authored QA outputs, with no private references, recordings or third-party image inputs. The source and these project illustrations use the repository's MIT license, copyright Timothy D Meadows II.
 
+`vfx/caster-trail.png` and `vfx/rigid-beam.png` are byte-identical copies of the original 960 × 540 engineering captures in `docs/images/model-to-action/`. They use reviewed native exports from Bubo `a47896d730b32d00b165e61820060e7c73d1ec4a` and the Three.js/Quarks shared owner with LDR postprocessing. Their recorded target is Windows x64, Edge 156.0.4314.58 and WebGL2 through ANGLE/Intel Direct3D11; this one observed desktop configuration supplies no device-class or MAUI certification. The first is a synthetic skinned caster; the second is a rigid fixture with an explicit supplied beam endpoint. Both are project-authored QA outputs with no private references or third-party media. They illustrate selected moments, not finished art, complete motion review, accessibility acceptance, human runtime acceptance or promotion. The project illustrations use this repository's MIT license, copyright Timothy D Meadows II.
+
+| VFX image | SHA-256 |
+| --- | --- |
+| `caster-trail.png` | `fd8c27bc2385a48164fa55714c0c2ffc6544140a09f1e4951eeaa640050a387b` |
+| `rigid-beam.png` | `0fab7f0d306f6b3babd12f01cc5f607aeda59a5a3018e29aa76793e527504945` |
+
 Only images referenced by guide Markdown enter the Pages output. This provenance note and local task evidence are not copied into the site automatically.
