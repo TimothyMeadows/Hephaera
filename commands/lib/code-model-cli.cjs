@@ -9,6 +9,12 @@ const DECISIONS = new Set(['pass', 'revise-spec', 'revise-code', 'request-input'
 const EVIDENCE_VIEWS = new Set(['front', 'orbit-left', 'orbit-right', 'runtime', 'report']);
 const SHA_PATTERN = /^[a-f0-9]{64}$/;
 const MODEL_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const MAX_MANIFEST_BYTES = 8 * 1024 * 1024;
+const MAX_SOURCE_BYTES = 8 * 1024 * 1024;
+const MAX_FACTORY_LENGTH = 128;
+// A fixed identifier grammar keeps literal dollar signs and Unicode neighbours
+// out of dynamic regular expressions. This checks identity, not JS execution.
+const SOURCE_IDENTIFIERS = /[$_\p{ID_Start}][$\u200C\u200D\p{ID_Continue}]*/gu;
 
 function fail(message) {
   throw new Error(message);
@@ -138,10 +144,35 @@ function detectThreeVersion(root) {
   return unavailable('The host does not have a detectable installed Three.js version.');
 }
 
+function boundedText(file, maximumBytes, label) {
+  const before = fs.lstatSync(file);
+  if (!before.isFile() || before.isSymbolicLink() || before.size > maximumBytes) fail(`${label} must be a regular file of at most ${maximumBytes} bytes.`);
+  const signature = stat => [stat.dev, stat.ino, stat.size, stat.mtimeMs, stat.ctimeMs].join(':');
+  const fd = fs.openSync(file, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0) | (fs.constants.O_NONBLOCK || 0));
+  try {
+    const stat = fs.fstatSync(fd);
+    if (!stat.isFile() || signature(before) !== signature(stat)) fail(`${label} changed before it could be read.`);
+    const chunks = [];
+    let total = 0;
+    while (total <= maximumBytes) {
+      const block = Buffer.allocUnsafe(Math.min(65536, maximumBytes + 1 - total));
+      const count = fs.readSync(fd, block, 0, block.length, null);
+      if (count === 0) break;
+      total += count;
+      if (total > maximumBytes) fail(`${label} exceeds its ${maximumBytes}-byte limit.`);
+      chunks.push(block.subarray(0, count));
+    }
+    const after = fs.fstatSync(fd), current = fs.lstatSync(file);
+    if (!current.isFile() || current.isSymbolicLink() || signature(stat) !== signature(after)
+        || signature(after) !== signature(current)) fail(`${label} changed while it was being read.`);
+    return Buffer.concat(chunks, total).toString('utf8');
+  } finally { fs.closeSync(fd); }
+}
+
 function readJson(file, label) {
   let parsed;
   try {
-    parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+    parsed = JSON.parse(boundedText(file, MAX_MANIFEST_BYTES, label));
   } catch (error) {
     fail(`${label} is not valid JSON: ${error.message}`);
   }
@@ -210,7 +241,8 @@ function validateManifest(root, manifestPath, mode = 'base') {
 
   onlyKeys(manifest.target, ['sourcePath', 'factoryExport'], 'target');
   requireString(manifest.target?.sourcePath, 'target.sourcePath');
-  if (!/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(manifest.target?.factoryExport ?? '')) fail('target.factoryExport is invalid.');
+  if (typeof manifest.target?.factoryExport !== 'string' || manifest.target.factoryExport.length > MAX_FACTORY_LENGTH
+      || !/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(manifest.target.factoryExport)) fail(`target.factoryExport must be a JavaScript identifier of at most ${MAX_FACTORY_LENGTH} characters.`);
   const source = relativeInside(root, manifest.target.sourcePath, 'Target source path', mode === 'complete');
   onlyKeys(manifest.renderer, ['library', 'installedVersion', 'language'], 'renderer');
   if (manifest.renderer?.library !== 'three') fail('renderer.library must be three.');
@@ -295,10 +327,14 @@ function validateManifest(root, manifestPath, mode = 'base') {
     if (typeof installedVersion !== 'string') fail('Complete validation requires an installed host Three.js version.');
     if (manifest.renderer.installedVersion !== installedVersion) fail('The manifest Three.js version no longer matches the installed host version.');
     if (!manifest.passes.every((pass) => pass.status === 'passed')) fail('Every CODE pass must be passed for complete validation.');
-    const code = fs.readFileSync(source.absolute, 'utf8');
+    const code = boundedText(source.absolute, MAX_SOURCE_BYTES, 'Target source');
     if (/\b(?:GLTFLoader|FBXLoader|OBJLoader)\b|\.(?:glb|gltf|fbx|obj)(?:['"?]|\b)/i.test(code)) fail('Target source depends on a loaded mesh/model asset.');
     if (!/from\s+['"]three['"]|require\(['"]three['"]\)/.test(code)) fail('Target source must use the host Three.js package.');
-    if (!new RegExp(`\\b${manifest.target.factoryExport}\\b`).test(code)) fail('Target source does not expose the recorded factory export.');
+    let factoryFound = false;
+    for (const identifier of code.matchAll(SOURCE_IDENTIFIERS)) {
+      if (identifier[0] === manifest.target.factoryExport) { factoryFound = true; break; }
+    }
+    if (!factoryFound) fail('Target source does not expose the recorded factory export.');
     if (!/\bdispose\s*\(/.test(code)) fail('Target source does not implement disposal.');
   }
   return { manifest, located, totalAttempts };
