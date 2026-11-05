@@ -86,4 +86,4 @@ Use the selected project-local copy at `assets/models/<library-id>/<source-relat
 
 ## Review and downstream work
 
-Validate budgets, transforms, dependencies, materials, topology and exports appropriate to the pipeline. Review actual views or complete motion ranges, then obtain independent and separate human acceptance where required. Runtime promotion remains an explicit operation on exact accepted bytes. [Animation and actions](Animation-and-Actions) are downstream workflows; they preserve the selected primary pipeline, engine and source ancestry.
+Validate budgets, transforms, dependencies, materials, topology and exports appropriate to the pipeline. Review actual views or complete motion ranges, then obtain independent and separate human acceptance where required. Runtime promotion remains an explicit operation on exact accepted bytes. [Animation and actions](Animation-and-Actions) and [reusable VFX/action v2](VFX-and-Action-v2) are downstream workflows; they preserve the selected primary pipeline, engine and source ancestry. VFX is not another primary STYLE selection.

@@ -52,7 +52,8 @@ The command checks the initialized dependency and catalog; it does not install t
 | `floor-plan-to-model.sh` | Dimensioned architecture, approved construction, portable export and complete model review | Current STYLE/rights/budgets, whole-design approval, supported Windows enforcement and selected Blender 4.5 LTS for native modeling |
 | `schematic-to-model.sh` | Complete mechanical schematics, independent parts, assembled articulation and portable export/review | Current STYLE/rights/budgets, approved v2 design, independently verified parts, supported Windows enforcement and selected Blender 4.5 LTS for native modeling |
 | `model-to-animation.sh` | Model readiness, rigs/hierarchies, real clips and export | Reviewed GLB, selected profile, Blender and current motion evidence |
-| `model-to-action.sh` | Compound timelines from actual reviewed clips | Compatible motion package, source-motion selection, recipe and anchors |
+| `model-to-action.sh` | Compound timelines and v2 effect closure from actual reviewed clips | Compatible motion package, source-motion selection, recipe, real anchors and current VFX/native receiving evidence |
+| `vfx-assets.sh` | Host VFX lifecycle with native resource validation/preparation | Exact fixed-input rights, finite brief/budgets, current phase reviews and renderer correspondence for visual acceptance |
 | `inspect-blender-scene.sh` | Read-only Blender scene reporting | Existing Blender 4.5.x and selected inspection profile |
 | `bubo-media.sh` | Explicit LOCAL setup, inspection and generation | MEDIA policy, selected domain/style where applicable, verified installation and approval |
 

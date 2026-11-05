@@ -7,6 +7,7 @@
   { "slug": "art-and-assets", "file": "art-and-assets.md", "title": "Art and assets", "summary": "Take a prop or character from a brief to a reviewed asset." },
   { "slug": "floor-plan-to-model", "file": "floor-plan-to-model.md", "title": "Floor plans to buildings", "summary": "Design every floor, approve the whole building and review an editable model package." },
   { "slug": "schematic-to-model", "file": "schematic-to-model.md", "title": "Schematics to assembled models", "summary": "Approve a complete mechanical design, build separate parts and review their assembled movement." },
+  { "slug": "game-effects-and-actions", "file": "game-effects-and-actions.md", "title": "Game effects and model actions", "summary": "Build reusable effects, time them to real clips and review the complete action." },
   { "slug": "audio-music-voice", "file": "audio-music-voice.md", "title": "Audio, music and voice", "summary": "Find the right workflow for the sound your game needs." },
   { "slug": "delivery-and-troubleshooting", "file": "delivery-and-troubleshooting.md", "title": "Review, deliver and troubleshoot", "summary": "Check the result, prepare delivery and handle missing tools." }
 ]

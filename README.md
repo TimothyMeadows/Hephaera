@@ -1006,6 +1006,7 @@ Or run the command directly:
 | Dimensioned building models | `floor-plan-to-model.sh` |
 | Independent mechanical parts and assemblies | `schematic-to-model.sh` |
 | Native model-to-animation production | `model-to-animation.sh` |
+| Reusable VFX assets and independent phase review | `vfx-assets.sh` |
 | Native model-to-action composition | `model-to-action.sh` |
 | Code-first Three.js models | `create-code-model-manifest.sh`, `validate-code-model-manifest.sh`, `next-code-model-pass.sh`, `record-code-model-review.sh` |
 | Code-first Three.js characters | `create-code-character-profile.sh`, `validate-code-character-profile.sh`, `measure-code-character-evidence.sh`, `record-code-character-calibration.sh`, `record-code-character-gate.sh` |
@@ -1405,7 +1406,7 @@ Downstream production pipelines compose with model creation:
 | Pipeline | Primary output | Boundary |
 | --- | --- | --- |
 | [`MODEL_TO_ANIMATION`](#model-to-animation) | Reviewed skinned, articulated or rigid motion packages with selected-engine playback and effects | Reviewed model input, rig/motion approvals, independent review and separate human runtime acceptance |
-| [`MODEL_TO_ACTION`](#model-to-action) | Ordered compound animations with timed model-attached effects and fixed-target presentation | Reviewed source clips, explicit timing/blends, sequence review and separate runtime acceptance; gameplay retains authority |
+| [`MODEL_TO_ACTION`](#model-to-action) | Reviewed compound clips with reusable layered effects, fixed targets or explicit live beam endpoints | Exact clip/effect ancestry, one shared presentation clock, complete review and separate runtime acceptance; gameplay retains authority |
 
 `MODEL_TO_ANIMATION` follows `PROOF_TO_MODEL`, `BLENDER`, a copied library model, an explicitly compatible `CODE` handoff or a reviewed `SCHEMATIC_TO_MODEL` mechanical-assembly handoff. It keeps the selected `STYLE.md` pipeline and `ENGINE.md` engine; use `build-model-animations` and `model-to-animation.sh` for this stage. See the [production catalog](.styles/.pipelines/INDEX.md).
 
@@ -1665,7 +1666,13 @@ flowchart TB
 
 Recipes declare clip trims, rates, bounded repetitions, incoming blends and effect cues tied to step offsets or actual source markers. The native compiler preserves source clip hashes and produces editable Blender sequences, real composite GLB animations and an action package with timing, anchors, target bindings and effect ownership. Full sequence review covers transitions and cue timing; source clip approval alone does not approve a composed action.
 
-The Three.js presentation adapter plays actual exported actions and owns attached charge effects, bounded particles and fixed-target visual projectiles. Pause freezes the sequence; cancellation, restart and disposal retire old callbacks and release owned resources. The fixed target is captured at action start. Gameplay controls valid targets, movement, collisions, damage, costs and projectile outcomes; animation and VFX callbacks remain presentation signals.
+**V2 connects reusable VFX packages to those actual clips.** Its Three.js/Quarks profile covers sprites/atlases, bursts, rings, mesh effects, projectile bodies, trails, impacts, ground indicators and beams. Use `create-game-vfx` and `vfx-assets.sh` to define rights and finite budgets, review inexpensive provisional effects, then stage and independently review detail. These are bounded production families, not the entire upstream Quarks API. Existing v1 actions keep their original `orb`, `particles` and `projectile` cues and historical primitive behavior.
+
+One Scene scheduler borrows the existing Quarks service and advances actors, ambient effects and finite tails from the same presentation clock. It samples the actual release anchor, releases rig ownership when motion completes and lets declared tails drain. Pause, cancellation, replacement and disposal retain scoped cleanup. Fixed targets are captured at action start; live beams instead require explicitly bounded fresh endpoint inputs. Rehearsal may show an authored impact, while a real game supplies its own contact outcome. Gameplay keeps targeting, movement, collisions, damage, costs and outcomes.
+
+The initial v2 bridge supports THREEJS with reviewed skinned, articulated and rigid motion packages; mechanical-assembly actions and other-engine bridges remain unavailable. Exact source-export admission, technical checks, complete visual review, independent review, human runtime acceptance and native promotion remain separate. Authored accessibility variants need actual readability review. Browser/software-renderer evidence does not certify a physical GPU or packaged Windows, Mac Catalyst, Android or iOS game.
+
+Read the [practical guide](website/content/docs/game-effects-and-actions.md), [VFX asset guide](docs/VFX_ASSETS.md), [action technical reference](docs/MODEL_TO_ACTION.md), [walkthrough](examples/action-vfx/README.md) and [wiki source](wiki/VFX-and-Action-v2.md). This feature requires newer source containing the reviewed integration merge `6b8c8e6ad6080783763f8fe94e982e248af18807`; published immutable `5.1.0-rc.1` installers predate it. Keep [package installation](#install) first and use the [manual source option](#advanced-manual-installation) deliberately when needed.
 
 Use the policy contract under `.styles/.workflows/model-to-action/WORKFLOW.md` with an existing reviewed motion package, explicit source review and budgets. Runtime schemas, recipes, audited scripts and engine adapters live in `runtime/bubo/resources/model-to-action/`. Initial shared composition uses in-place clips; root-motion actions require an explicitly compatible movement implementation. The primary `STYLE.md` pipeline and `ENGINE.md` selection remain authoritative. Adobe integrations, hidden downloads and automatic acceptance are excluded. Action selection, independent review and human runtime acceptance remain separate from explicit promotion.
 
@@ -1673,8 +1680,8 @@ Use the policy contract under `.styles/.workflows/model-to-action/WORKFLOW.md` w
 %%{init: {"theme":"base","themeVariables":{"primaryColor":"#202A32","primaryTextColor":"#FFF4D6","primaryBorderColor":"#C69A52","lineColor":"#C69A52","secondaryColor":"#46535E","tertiaryColor":"#202A32","edgeLabelBackground":"#FFF4D6"}}}%%
 flowchart LR
     Clips["Reviewed individual clips"] --> Sequence["Ordered steps, trims and blends"]
-    Sequence --> Cues["Anchored effects and fixed-target cues"]
-    Cues --> Export["Editable source and actual compound clips"]
+    Sequence --> Cues["Reviewed effects and explicit target policies"]
+    Cues --> Export["Editable source, compound clips and exact effect closure"]
     Export --> Review["Complete sequence and engine review"]
     Review --> Accept["Separate human runtime acceptance"]
 ```

@@ -2,7 +2,9 @@
 
 Build an effect as a reusable asset, check how it reads with the real camera, then attach it to a game event. The first production bridge uses the project's selected Three.js renderer, three.quarks and existing LDR postprocessing. It covers sprites and atlases, bursts, rings, static mesh effects, projectile bodies, trails, impacts, ground indicators and beams.
 
-The effect provides presentation. The game supplies real anchors, targets and outcomes. A projectile reaching its visual destination does not cause a hit, and an impact animation cannot award damage.
+The effect provides presentation. The game supplies real anchors, targets and outcomes. A projectile reaching its visual destination does not cause a hit, and an impact animation cannot award damage. For a guided start, read [game effects and model actions](../website/content/docs/game-effects-and-actions.md); the [action-v2 guide](MODEL_TO_ACTION.md) covers shared scheduling of these assets.
+
+This bounded production profile extends the earlier point/sphere starter helper. It does not certify arbitrary upstream Quarks behaviors, custom shaders or JSON. It requires newer source than the published `5.1.0-rc.1` installers; keep version-pinned installation and explicit native build requirements separate from renderer readiness.
 
 ![Original technical fixtures showing sprite, burst, ring, mesh, projectile body, trail, impact, ground indicator and beam layers](images/vfx/layer-families.png)
 

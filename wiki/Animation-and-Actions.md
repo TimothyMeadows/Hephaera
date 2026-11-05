@@ -19,7 +19,7 @@ Readiness checks include scale, topology, pose, missing hidden parts, fused equi
 
 Existing rigged-actor/v1 remains valid for its actual character/monster consumers. It is not a universal vehicle or prop schema. CODE remains source-authored and THREEJS-specific; downstream motion cannot replace its primary implementation with an unrelated generated mesh.
 
-For `mechanical-assembly`, use `rig.mode: preserve`, the exact canonical rest GLB and current `--handoff`. The descriptor binds the real node/skin graph, component inventory, numerical policy, complete package/reviews and current source states. Receiving preserves local pivots and per-rig ownership. Changes to design/parts/assembly/export state or payloads invalidate it; do not silently refresh expected hashes. Diagnostic readiness clips remain separate from finished production motion, and this profile does not relax existing profiles or later rig/motion/independent/human runtime reviews.
+For MODEL_TO_ANIMATION's `mechanical-assembly` profile, use `rig.mode: preserve`, the exact canonical rest GLB and current `--handoff`. MODEL_TO_ACTION, including v2, still rejects this mixed profile; the animation handoff does not grant action support. The descriptor binds the real node/skin graph, component inventory, numerical policy, complete package/reviews and current source states. Receiving preserves local pivots and per-rig ownership. Changes to design/parts/assembly/export state or payloads invalidate it; do not silently refresh expected hashes. Diagnostic readiness clips remain separate from finished production motion, and this profile does not relax existing profiles or later rig/motion/independent/human runtime reviews.
 
 ## Native preparation and limits
 
@@ -64,7 +64,7 @@ Initial shared composition requires in-place clips. Inspect original root and an
 
 `inspect`, `compose`, `export`, `review`, `record`, `validate`, `status` and `promote` retain their stage boundaries. Export actual baked composite GLB clips and editable timelines, then independently re-import. Full-frame bounded geometry verification retains hash-bound artifacts outside the runtime package; technical verification is separate from visual acceptance.
 
-The `hephaera-action-package/v1` records expanded steps, resolved cues, source clip ancestry, composite motion identity, anchors, fixed-target policies and engine/tool/recipe budgets. GLB contains clips, not a portable engine state machine or native particle system.
+The `hephaera-action-package/v1` records expanded steps, resolved cues, source clip ancestry, composite motion identity, anchors, fixed-target policies and engine/tool/recipe budgets. Its original `orb`, `particles` and `projectile` cues retain their historical primitive backend and semantics. `hephaera-action-package/v2` adds exact reusable VFX/profile/resource references, typed transforms and finite lifetime/target policies. GLB contains clips, not a portable engine state machine or native particle system. Read [VFX and action v2](VFX-and-Action-v2) for the current Three.js bridge, rights/phase reviews, source-export admission, shared Scene clock, receiving evidence and explicit limitations.
 
 ## Selected-engine presentation
 
@@ -72,7 +72,7 @@ The Three.js adapter uses the host's locked APIs and actual GLB, with a visual c
 
 Only one full-body presentation owner writes a rig at a time. Arbitrate locomotion and action mixers; no implicit masking, IK, aiming or combat controller is supplied. Effects use real anchors. Fixed target points are copied at action start; release detaches visual projectiles from the sampled pose. Pause freezes presentation time. Cancel, restart, replacement and disposal retire callbacks and release owned attachments, particles and projectiles, including reentrant interruption.
 
-Gameplay owns movement, targeting, collisions, damage, costs, cooldowns and actual projectile outcomes. Animation markers and GPU effect replay cannot grant those outcomes. New Three.js particles use the selected Quarks owner; pinned legacy point-based sample adapters retain historical ancestry and require explicit reviewed integration.
+V2 uses one Scene scheduler borrowing the selected Quarks service across actors, ambient effects and bounded tails. Motion completion releases rig ownership before normal tails finish. Live beam endpoints require explicit fresh game inputs; host-outcomes mode suppresses automatic rehearsal impacts and accepts only a current reviewed impact request within its declared window. Gameplay owns movement, targeting, collisions, damage, costs, cooldowns and actual projectile outcomes. Animation markers and GPU effect replay cannot grant those outcomes. Legacy point-based v1 adapters retain historical ancestry and require explicit reviewed integration; they are not relabeled Quarks.
 
 ## Rights and acceptance
 

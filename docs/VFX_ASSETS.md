@@ -1,6 +1,6 @@
 # Reusable VFX assets
 
-Use this workflow when an effect needs its own brief, source files and review history: a charge, impact, trail, beam or another piece of game feedback. It also prepares effect assets for later model-action integration.
+Use this workflow when an effect needs its own brief, source files and review history: a charge, impact, trail, beam or another piece of game feedback. A reviewed package can also supply [MODEL_TO_ACTION v2](MODEL_TO_ACTION.md) effects timed to actual model clips. Start with the [practical effects-and-actions guide](../website/content/docs/game-effects-and-actions.md) for a complete worked conversation.
 
 Start with inexpensive provisional work. Review its placement, timing and readability before spending time on detail. Keep the complete effect together so a change to one input cannot leave an old review looking current.
 
@@ -8,7 +8,9 @@ Start with inexpensive provisional work. Review its placement, timing and readab
 
 `vfx-assets.sh` manages briefs, rights, immutable versions, staging and independent reviews. Bubo validates data-only effect packages and their exact PNG/GLB dependency inventory. The host and native runtime remain separate: Hephaera owns production policy and reviews; Bubo owns package/resource validation.
 
-This workflow admits **owned or licensed fixed inputs**, prepares native atlases and masks, and provides a bounded Three.js presentation bridge. Reusable-package action scheduling and asset promotion are separate deliveries. Generated-receipt admission is explicitly unavailable. Existing image generation remains governed by STYLE, MEDIA, its provider permissions and shared attempt ledger. A new VFX version grants no generation allowance.
+This workflow admits **owned or licensed fixed inputs**, prepares native atlases and masks, and provides a bounded Three.js presentation bridge. MODEL_TO_ACTION v2 adds reusable-package scheduling through the shared Three.js/Quarks Scene owner. Standalone `vfx-assets.sh` staging has no promotion operation; an action follows its existing native review, separate human runtime acceptance and explicit promotion path. Generated-receipt admission and video decoding remain unavailable. Existing image generation remains governed by STYLE, MEDIA, its provider permissions and shared attempt ledger. A new VFX version grants no generation allowance.
+
+These features are in newer `main` source, including the reviewed action-v2 integration merged as `6b8c8e6ad6080783763f8fe94e982e248af18807`. Published `5.1.0-rc.1` installers predate them; the full GitHub release classification does not change their immutable contents. Follow the [installation guide](INSTALLER.md) for version-pinned updates and deliberate source installation.
 
 Run the prerequisite check first:
 
@@ -114,3 +116,11 @@ An optional `stage --production PROFILE` seals a data-only `hephaera-three-vfx-p
 Preparation records launch intent, actual native PID and close evidence. Recovery refuses a live or unknown child; a missing PID is not proof that nothing launched. Managed installer readers remain fenced after parent death until separate explicit quiescence recovery. No VFX recovery clears an installer lease or supplies that confirmation.
 
 Pure data staging does not import renderer packages and reports renderer readiness unverified. Actual selected-engine construction fails when prerequisites are absent, without installation or fallback. Keep complete real captures and source/dependency correspondence in independent review evidence; human acceptance and promotion remain separate.
+
+## Use an effect in a model action
+
+Use a compatible reviewed skinned, articulated or rigid motion package and the native v2 recipe contract. Keep exact effect/profile/resource hashes, rights, preparation ancestry, actual source clips and real anchors. The [action guide](MODEL_TO_ACTION.md) covers `inspect-effects`, source-export admission and receiving evidence; the [walkthrough](../examples/action-vfx/README.md) shows how these records fit together. Mechanical-assembly actions remain unavailable.
+
+One action Scene scheduler borrows the existing VFX service and advances all actors and ambient effects once. Motion completion releases rig ownership before bounded tails drain; cancellation, replacement and disposal retire the affected generation immediately. Live beams require explicit fresh game-supplied endpoint inputs. Rehearsal impacts and game-supplied contact presentation have separate policies; neither grants hit authority.
+
+Capture the whole action and important isolated layers, exact release/end boundaries and cleanup. Review authored reduced-motion/reduced-flash, contrast and color-independent alternatives as actual outputs. Lower emission and configuration fields alone are insufficient. Keep measured CPU/software-renderer results distinct from physical GPU and packaged MAUI evidence, and preserve pending human accessibility/runtime decisions.

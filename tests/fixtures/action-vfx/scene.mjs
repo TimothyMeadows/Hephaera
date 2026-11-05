@@ -231,6 +231,10 @@ try {
   }
   const backgrounds = {neutral: 0x344150, dark: 0x070b10, light: 0xf4f5f7};
   function isolationBackground(name) { if (!(name in backgrounds)) throw Error('Explicit isolated/dark/light background required'); scene.background.set(backgrounds[name]); render(); return {...metrics(), background: name}; }
+  function combinedBackground(name) {
+    if (!actors.length || !currentAction) throw Error('A real selected action pose is required for combined readability views');
+    return {...isolationBackground(name), scope: 'Same actual actor/action pose on a declared contrasting background; no presentation time advanced or human readability verdict supplied.'};
+  }
   function isolate(id, sourceId, layerId) {
     reset(); current = loaded.get(id); if (!current) throw Error('Original isolated case required'); currentAction = null;
     const descriptor = effectDescriptor(current, sourceId, layerId), {layer} = descriptor, pkg = admitStandalone(descriptor), extent = Math.max(.35, layer.size * 3 + layer.speed * layer.emission.lifetimeSeconds);
@@ -325,10 +329,18 @@ try {
   }
   function timed(operation) { gl.finish(); const started = performance.now(), value = operation(), cpuEnd = performance.now(); gl.finish(); return {value, cpuMs: cpuEnd - started, finishWallMs: performance.now() - started}; }
   function phase() {
-    const samples = []; let maxSystems = 0, maxParticles = 0; gl.finish(); const started = performance.now();
+    const resourceKeys = ['systems', 'capacity', 'particles', 'pooledParticles', 'batches', 'bufferBytes', 'reservedBufferBytes', 'vertices', 'indices', 'reservedVertices', 'reservedIndices', 'trailPoints', 'textureBytes', 'unboundedTextures', 'drawCalls', 'productionSystems', 'packages'];
+    const counters = value => Object.fromEntries(resourceKeys.map(key => { if (!Number.isFinite(value[key]) || value[key] < 0) throw Error('Invalid actual owned resource counter: ' + key); return [key, value[key]]; }));
+    const initialService = service.stats(), resourceMaxima = counters(initialService), resourceMaximaAt = Object.fromEntries(resourceKeys.map(key => [key, 'initial'])), resourceSamples = [];
+    const samples = []; let maxSystems = initialService.systems, maxParticles = initialService.particles; gl.finish(); const started = performance.now();
     for (let index = 0; index < 32; index++) { const a = performance.now(); step(1 / 120); const b = performance.now(); render(); const c = performance.now(); gl.finish(); const d = performance.now();
-      samples.push({updateCpuMs: b - a, renderSubmitCpuMs: c - b, finishWaitMs: d - c, frameFinishWallMs: d - a}); const observed = service.stats(); maxSystems = Math.max(maxSystems, observed.systems); maxParticles = Math.max(maxParticles, observed.particles); }
-    return {samples, perFrameWallMs: (performance.now() - started) / 32, maxSystems, maxParticles, finalService: service.stats(), draws: {...renderer.info.render}, memory: {...renderer.info.memory}};
+      samples.push({updateCpuMs: b - a, renderSubmitCpuMs: c - b, finishWaitMs: d - c, frameFinishWallMs: d - a}); const observed = service.stats(); maxSystems = Math.max(maxSystems, observed.systems); maxParticles = Math.max(maxParticles, observed.particles);
+      const measured = counters(observed); resourceSamples.push({sampleIndex: index, serviceTime: observed.time, counters: measured});
+      for (const key of resourceKeys) if (measured[key] > resourceMaxima[key]) { resourceMaxima[key] = measured[key]; resourceMaximaAt[key] = index; }
+    }
+    return {samples, perFrameWallMs: (performance.now() - started) / 32, maxSystems, maxParticles, initialService, resourceMaxima, resourceMaximaAt, resourceSamples,
+      finalService: service.stats(), draws: {...renderer.info.render}, memory: {...renderer.info.memory},
+      instrumentation: 'Initial counter snapshot precedes the timed loop. Resource observations reuse the existing service.stats call after each update/render/finish timing span. Whole-loop perFrameWallMs includes stats and counter accumulation; per-update/render samples exclude that instrumentation.'};
   }
   async function benchmark(id) {
     if (playing) throw Error('Normal playback owns the presentation clock'); reset(); const value = loaded.get(id); if (!value) throw Error('Explicit benchmark model missing'); const previousGuard = projectionGuardEnabled; projectionGuardEnabled = false;
@@ -366,7 +378,7 @@ try {
         frames: samples.length, frameCpuMs: samples, activeEffects: counts, peak, particlePeak, recording, video, cleanup, final: metrics()}; return lastNormal;
     } finally { playing = false; if (captureArtifacts.stats().recording) await captureArtifacts.abortVideo(); }
   }
-  window.__actionVfxReview = {driver, cases: [...loaded.keys()], fixture, select, advance, advanceTo, metrics, normal, benchmark, isolate, isolationBackground, concurrent, lifecycle, cleanupCounts, cloneResetStability,
+  window.__actionVfxReview = {driver, cases: [...loaded.keys()], fixture, select, advance, advanceTo, metrics, normal, benchmark, isolate, isolationBackground, combinedBackground, concurrent, lifecycle, cleanupCounts, cloneResetStability,
     capturePng: () => captureArtifacts.png('canvas-png-' + (++artifactSerial)), artifactInfo: id => captureArtifacts.info(id), artifactChunk: (id, offset, length) => captureArtifacts.chunk(id, offset, length), artifactRelease: id => captureArtifacts.release(id), captureCapabilities: () => captureArtifacts.capabilities(),
     reset, traces: () => [...traces], dispose() { reset(); runtime.dispose(); const preserved = borrowed.every(value => !value.disposed()), composerPreserved = !composer.inspect().disposed, framesBefore = composer.inspect().frames; service.dispose(); composer.render(0); const composerSurvivesActionDisposal = composer.inspect().frames === framesBefore + 1; const composerFirstDispose = composer.dispose(), composerSecondDispose = composer.dispose(); for (const value of borrowed) value.resource.dispose();
       const geometries = new Set(), materials = new Set(); for (const value of loaded.values()) for (const source of [value.source, value.oracleSource]) source.scene.traverse(node => { if (node.geometry) geometries.add(node.geometry); for (const material of Array.isArray(node.material) ? node.material : [node.material]) if (material) materials.add(material); });
