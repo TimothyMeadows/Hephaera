@@ -25,8 +25,7 @@ function project(value) {
 }
 function document(root, name) {
   const file = runtime.projectPath(root, name);
-  if (!fs.statSync(file).isFile() || fs.statSync(file).size > 1048576) fail('Missing or oversized lifecycle JSON.');
-  const value = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const value = runtime.json(file,1048576);
   if (!value || typeof value !== 'object' || Array.isArray(value)) fail('Lifecycle JSON must be an object.');
   return value;
 }

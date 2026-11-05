@@ -226,6 +226,13 @@ async function invokeOwned(workflow, operation, options) {
   return execute(workflow, operation, options, prepared, info);
 }
 async function execute(workflow, operation, options, prepared, info, emit = true, lifecycle) {
+  // Every compiled caller (including media/VFX preparation) shares this final
+  // launch boundary. Reject malformed delays before creating state or a child;
+  // Node otherwise coerces invalid timer delays into a one-millisecond timer.
+  const budgets = prepared.context?.budgets;
+  if (!Number.isSafeInteger(budgets?.timeoutSeconds) || budgets.timeoutSeconds < 1 || budgets.timeoutSeconds > 86400
+      || !Number.isSafeInteger(budgets?.maxLogBytes) || budgets.maxLogBytes < 1 || budgets.maxLogBytes > 1073741824)
+    fail('Native execution requires finite admitted timeout and log bounds.');
   // Trusted compiled callers may persist ownership. Hooks are never accepted
   // through recipe JSON, CLI options or the native execution contract.
   if (lifecycle !== undefined && (!lifecycle || typeof lifecycle !== 'object' || Array.isArray(lifecycle)

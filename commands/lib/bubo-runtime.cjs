@@ -35,16 +35,51 @@ function projectPath(root, value, allowRoot = false) {
   if (!within(root, full) || (!allowRoot && samePath(root, full))) fail('Path escapes or selects the whole project root.');
   components(full); return full;
 }
-function hash(file) {
-  const digest = crypto.createHash('sha256'), buffer = Buffer.allocUnsafe(65536);
-  const fd = fs.openSync(file, 'r');
-  try { let count; while ((count = fs.readSync(fd, buffer, 0, buffer.length, null))) digest.update(buffer.subarray(0, count)); }
-  finally { fs.closeSync(fd); }
-  return digest.digest('hex');
+function regularFile(file, action) {
+  const before = fs.lstatSync(file);
+  if (!before.isFile() || before.isSymbolicLink()) fail('Expected a regular file, not a link or special file.');
+  const signature = stat => [stat.dev, stat.ino, stat.size, stat.mtimeMs, stat.ctimeMs].join(':');
+  // POSIX nonblocking/no-follow flags close the special-file open window.
+  // Windows still uses descriptor/path identity checks; callers retain the
+  // project-component guard and cooperative filesystem ownership contract.
+  const flags = fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0) | (fs.constants.O_NONBLOCK || 0);
+  const fd = fs.openSync(file, flags);
+  try {
+    const opened = fs.fstatSync(fd);
+    if (!opened.isFile() || signature(before) !== signature(opened)) fail('File changed before it could be read.');
+    const value = action(fd, opened.size);
+    const current = fs.lstatSync(file), after = fs.fstatSync(fd);
+    if (!current.isFile() || current.isSymbolicLink() || signature(opened) !== signature(after)
+        || signature(after) !== signature(current)) fail('File changed while it was being read.');
+    return value;
+  } finally { fs.closeSync(fd); }
 }
-function json(file) {
-  if (!fs.statSync(file).isFile() || fs.statSync(file).size > 8 * 1024 * 1024) fail('Missing or oversized JSON: ' + file);
-  return JSON.parse(fs.readFileSync(file, 'utf8'));
+function hash(file) {
+  return regularFile(file, (fd, size) => {
+    const digest = crypto.createHash('sha256'), buffer = Buffer.allocUnsafe(65536);
+    let total = 0, count;
+    while ((count = fs.readSync(fd, buffer, 0, Math.min(buffer.length, size + 1 - total), null))) {
+      total += count;
+      if (total > size) fail('File grew while it was being hashed.');
+      digest.update(buffer.subarray(0, count));
+    }
+    if (total !== size) fail('File shrank while it was being hashed.');
+    return digest.digest('hex');
+  });
+}
+function json(file, maximumBytes = 8 * 1024 * 1024) {
+  if (!Number.isSafeInteger(maximumBytes) || maximumBytes < 1 || maximumBytes > 8 * 1024 * 1024) fail('Invalid JSON byte limit.');
+  return regularFile(file, (fd, size) => {
+    if (size > maximumBytes) fail('Missing or oversized JSON: ' + file);
+    const bytes = Buffer.alloc(size + 1);
+    let total = 0, count;
+    while ((count = fs.readSync(fd, bytes, total, bytes.length - total, null))) {
+      total += count;
+      if (total > size) fail('JSON grew while it was being read.');
+    }
+    if (total !== size) fail('JSON shrank while it was being read.');
+    return JSON.parse(bytes.subarray(0, total).toString('utf8'));
+  });
 }
 function canonical(value) {
   if (Array.isArray(value)) return value.map(canonical);

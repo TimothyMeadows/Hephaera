@@ -11,7 +11,7 @@ fs.writeFileSync(script, `const fs=require('node:fs'),crypto=require('node:crypt
 const args=process.argv.slice(2),context=args[args.indexOf('--host-context')+1];
 if(args[0]==='wait')setInterval(()=>{},1000);
 else console.log(JSON.stringify({schemaVersion:'bubo-execution-result/v1',apiVersion:2,status:'succeeded',hostContextSha256:crypto.createHash('sha256').update(fs.readFileSync(context)).digest('hex'),data:{ownedFixture:true}}));\n`);
-const prepared = { root, stateRoot: '.hephaera/.cache/tasks/transport', context: { budgets: { timeoutSeconds: 1 } } };
+const prepared = { root, stateRoot: '.hephaera/.cache/tasks/transport', context: { budgets: { timeoutSeconds: 1, maxLogBytes: 1048576 } } };
 const dead = pid => { try { process.kill(pid, 0); return false; } catch (error) { return error.code === 'ESRCH'; } };
 let checks = 0;
 const check = (value, reason) => { assert(value, reason); checks++; };

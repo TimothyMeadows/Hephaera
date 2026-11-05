@@ -55,9 +55,8 @@ function required(options,...keys) {
   for(const key of keys)if(!options[key])fail('Explicit --'+key+' is required.');
 }
 function read(root,name,{array=false}={}) {
-  const full=runtime.projectPath(root,name), stat=fs.statSync(full);
-  if(!stat.isFile() || stat.size>1048576)fail('Pipeline input must be a bounded regular JSON file.');
-  const value=JSON.parse(fs.readFileSync(full,'utf8'));
+  const full=runtime.projectPath(root,name);
+  const value=runtime.json(full,1048576);
   if(!value || typeof value!=='object' || (array?!Array.isArray(value):Array.isArray(value)))fail(array?'Expected a JSON array.':'Expected a JSON object.');
   return value;
 }
