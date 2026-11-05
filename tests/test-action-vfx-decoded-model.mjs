@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {pathToFileURL,fileURLToPath} from 'node:url';
 import {createThreeVfxRuntime} from '../.engine/threejs/particles/three-vfx-runtime.mjs';
+import {getThreeQuarksRuntime} from '../.engine/threejs/particles/three-quarks-runtime.mjs';
 import {createThreeActionScene} from '../.engine/threejs/actions/action-scene.mjs';
 import {sha256} from '../.engine/threejs/particles/vfx-package.mjs';
 import {originalFixture,originalActor,engineSelection,vfxBudgets,deltaPolicy,jsonBytes} from './fixtures/action-vfx/original-fixture.mjs';
@@ -22,7 +23,7 @@ function harness({fixtureOptions,budgets}={}){
   const service=createThreeVfxRuntime({THREE,Quarks,scene,renderer:{isWebGLRenderer:true},engineSelection,budgets:vfxBudgets});
   const runtime=createThreeActionScene({THREE,scene,vfxRuntime:service,engineSelection,deltaPolicy,...(budgets?{budgets}:{})});
   const handle=runtime.admit(fixture.input);
-  function actor(id='actor-a',prepare,onEvent=()=>{}){const m=originalActor(THREE,scene);prepare?.(m,owned);m.actor=runtime.createActor({id,visualRoot:m.visual,movementRoot:m.movement,animations:m.animations,package:handle,onEvent:e=>onEvent(e,m)});return m;}
+  function actor(id='actor-a',prepare,onEvent=()=>{},options={}){const m=originalActor(THREE,scene);prepare?.(m,owned);m.actor=runtime.createActor({id,visualRoot:m.visual,movementRoot:m.movement,animations:m.animations,package:handle,onEvent:e=>onEvent(e,m),...options});return m;}
   const start=(m,options={})=>m.actor.start('cast',{targets:{fixed:[15,0,0]},outcomeMode:'rehearsal',...options});
   const dispose=()=>{runtime.dispose();service.dispose();fixture.release();for(const resource of owned)resource.dispose();};
   return {scene,fixture,service,runtime,actor,start,dispose};
@@ -130,8 +131,35 @@ for(const normal of [[0,1,0],[0,0,1]]){
   const h=harness({fixtureOptions:{families:['beam'],mutate(pkg){pkg.targets[0]={id:'fixed',mode:'continuous-world-point',maxDistance:20,maxAgeSeconds:1,maxUpdatesPerSecond:100,clock:'presentation-seconds',generation:'match-action',sampleAt:'interval-end-before-fx',onInvalid:'retire-effect'};}}});
   let calls=0;const invalid=m=>({target:'fixed',generation:m.actor.generation-1,timestamp:h.runtime.stats().time,point:[15,0,0]});
   const a=h.actor('actor-a',undefined,(event,m)=>{if(event.type==='endpoint-invalid'){calls++;m.actor.setEndpoint(invalid(m));}}),b=h.actor('actor-b');h.start(a,{targets:{}});h.start(b,{targets:{}});
+  const ambient=getThreeQuarksRuntime(h.scene).createEmitter({id:'unrelated-ambient',capacity:8,kind:'rate',rate:2,lifetime:.5,duration:3,looping:true,speed:0});
   const before=h.runtime.stats().time;let failure;try{a.actor.setEndpoint(invalid(a));}catch(error){failure=error;}
-  ok(failure&&!(failure instanceof RangeError)&&/mutations.*budget/i.test(failure.message),'original mutation budget error propagates');equal(calls,64,'reentrant invalid endpoint callbacks respect 64-mutation limit');equal(a.actor.state,'idle','recursive generation retired');equal(h.runtime.stats().time,before,'callback recursion does not move Scene time');equal(b.actor.stats().time,0,'callback recursion preserves other actor');h.runtime.update(.1);near(b.actor.stats().time,.1,'other actor continues after isolated recursion');h.dispose();
+  ok(failure&&!(failure instanceof RangeError)&&/mutations.*budget/i.test(failure.message),'original mutation budget error propagates');equal(calls,64,'reentrant invalid endpoint callbacks respect 64-mutation limit');equal(a.actor.state,'idle','recursive generation retired');equal(h.runtime.stats().time,before,'callback recursion does not move Scene time');equal(b.actor.stats().time,0,'callback recursion preserves other actor');equal(ambient.stats().time,0,'callback recursion preserves ambient time');ok(ambient.stats().active&&!ambient.stats().paused,'callback recursion preserves ambient ownership/state');h.runtime.update(.1);near(b.actor.stats().time,.1,'other actor continues after isolated recursion');near(ambient.stats().time,.1,'ambient continues through the same accepted interval');h.dispose();
+}
+
+// Teardown fences admission and actor commands before synchronous rig-release
+// callbacks. A callback can neither recursively tear down nor start a new
+// generation that escapes the original actor snapshot. Original errors escape
+// only after all old resources and the borrowed clock claim are released.
+for(const mode of ['handled','unhandled']){
+  const h=harness();let releases=0,blocked,b;
+  const a=h.actor('actor-a',(m,owned)=>mesh(m,owned),undefined,{rigOwnership:{acquire(){return {};},release(){
+    releases++;equal(h.runtime.stats().closing,true,'closing fence is visible before rig release');h.runtime.dispose();
+    try{h.actor('late-actor');}catch(error){blocked=error;if(mode==='unhandled')throw error;}
+    rejects(()=>h.start(b),/disposed|closing/i,'closing rejects an existing actor restart');
+    rejects(()=>h.runtime.admit(h.fixture.input),/disposed|closing/i,'closing rejects package admission');
+  }}});
+  b=h.actor('actor-b');h.start(a);h.start(b);
+  const ambient=getThreeQuarksRuntime(h.scene).createEmitter({id:'dispose-ambient',capacity:8,kind:'rate',rate:2,lifetime:.5,duration:3,looping:true,speed:0});h.runtime.update(.1);
+  if(mode==='handled')h.runtime.dispose();else{let failure;try{h.runtime.dispose();}catch(error){failure=error;}equal(failure,blocked,'original release-callback error surfaces after cleanup');}
+  ok(blocked&&/disposed|closing/i.test(blocked.message),'closing rejects newly registered actor');
+  const state=h.runtime.stats();equal(state.disposed,true,'Scene disposal completes');equal(state.closing,false,'closing finishes even after callback failure');equal(state.actors,[],'no old or callback-created actor survives');equal(state.packages,0,'all owned package admissions released');equal(state.decodedModelBytes,0,'all decoded snapshots released');equal(state.activeEffects,0,'all owned generation handles retired');equal(h.service.stats().productionSystems,0,'no production system survives disposal');equal(h.service.stats().packages,0,'no production package lease survives disposal');
+  ok(ambient.stats().active&&!ambient.stats().paused,'borrowed ambient remains active');near(ambient.stats().time,.1,'disposal does not advance ambient');h.service.update(.05);near(ambient.stats().time,.15,'caller regains the one borrowed clock after disposal');h.runtime.dispose();equal(releases,1,'recursive/repeated disposal releases each rig lease once');
+  const replacement=createThreeActionScene({THREE,scene:h.scene,vfxRuntime:h.service,engineSelection,deltaPolicy});replacement.update(.05);near(ambient.stats().time,.2,'Scene registry and clock claim can be reused after cleanup');replacement.dispose();h.dispose();
+}
+{
+  const h=harness({budgets:{maxMutations:1}}),a=h.actor('midframe',undefined,(event,m)=>{if(event.type==='marker'){m.actor.pause();h.runtime.dispose();}});h.start(a);
+  const ambient=getThreeQuarksRuntime(h.scene).createEmitter({id:'midframe-ambient',capacity:8,kind:'rate',rate:2,lifetime:.5,duration:3,looping:true,speed:0});h.runtime.update(.425);
+  equal(h.runtime.stats().actors,[],'internal teardown succeeds after current mutation allowance is consumed');equal(h.runtime.stats().packages,0,'mid-update disposal releases packages');near(ambient.stats().time,.375,'mid-update disposal preserves ambient at the explicit disposal boundary');h.service.update(.05);near(ambient.stats().time,.425,'ambient clock returns after mid-update disposal');h.dispose();
 }
 
 const sourceFiles=['.engine/threejs/actions/action-scene.mjs','.engine/threejs/actions/action-package.mjs','.engine/threejs/particles/three-vfx-runtime.mjs','.engine/threejs/particles/three-quarks-runtime.mjs','tests/fixtures/action-vfx/original-fixture.mjs','tests/test-action-vfx-decoded-model.mjs'];

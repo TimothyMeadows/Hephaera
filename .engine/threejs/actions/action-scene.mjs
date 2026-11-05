@@ -109,12 +109,12 @@ export function createThreeActionScene({THREE,scene,vfxRuntime,engineSelection,b
   const policy=plainActionData(deltaPolicy);fields(policy,['exceptionalDelta','maxDeltaSeconds','maxSubstepSeconds','hidden','resume'],'presentation delta policy');
   if(!['reject','pause','cancel'].includes(policy.exceptionalDelta)||!['pause','cancel'].includes(policy.hidden)||policy.resume!=='discard-backlog')fail('Explicit bounded exceptional/hidden/resume policy required.');number(policy.maxDeltaSeconds,.001,30,'maxDeltaSeconds');number(policy.maxSubstepSeconds,.001,.1,'maxSubstepSeconds');
   const clock=acquireThreeVfxSceneScheduler(vfxRuntime,{THREE,scene}),actors=new Map(),packages=new Map();
-  let disposed=false,suspended=false,updating=false,sceneTime=0,serial=0,frame=0,transactionDepth=0,counts=null,failures=[],history=[],endpointHistory=[],totalUpdates=0,totalSubsteps=0,decodedModelBytes=0;
-  const alive=()=>{if(disposed||clock.stats().disposed)fail('Action scene or borrowed VFX service is disposed.');};
+  let disposed=false,closing=false,suspended=false,updating=false,sceneTime=0,serial=0,frame=0,transactionDepth=0,counts=null,failures=[],history=[],endpointHistory=[],totalUpdates=0,totalSubsteps=0,decodedModelBytes=0;
+  const alive=()=>{if(disposed||closing||clock.stats().disposed)fail('Action scene or borrowed VFX service is disposed or closing.');};
   function consume(kind,amount=1){if(!counts)return;if(kind!=='work')counts[kind]+=amount;counts.work+=amount;if(counts[kind]>budgets[{events:'maxEvents',callbacks:'maxCallbacks',substeps:'maxSubsteps',mutations:'maxMutations',work:'maxWork'}[kind]]||counts.work>budgets.maxWork)fail(`Aggregate scene ${kind} work budget exceeded.`);}
   function transaction(fn){const outer=transactionDepth++===0;if(outer&&!updating){counts={events:0,callbacks:0,substeps:0,mutations:0,work:0};failures=[];}try{return fn();}finally{transactionDepth--;if(outer&&!updating)counts=null;}}
   function remember(event){history.push(event);if(history.length>budgets.maxHistory)history.shift();}
-  function valid(a,g,c){return!disposed&&!a.disposed&&a.generation===g&&a.current===c;}
+  function valid(a,g,c){return!disposed&&!closing&&!a.disposed&&a.generation===g&&a.current===c;}
   function pausedEffect(a,r){return a.paused&&r.cue.lifetime.pause==='follow-action'||a.blockedFrame===frame&&updating&&r.cue.lifetime.pause==='follow-action';}
   function syncPause(a){for(const r of a.effects.values()){if(pausedEffect(a,r))r.lease.pause();else r.lease.resume();}}
   function releaseRig(a,preserve=true){
@@ -338,7 +338,7 @@ export function createThreeActionScene({THREE,scene,vfxRuntime,engineSelection,b
         const generation=a.generation;try{for(const layer of cue.layers){if(!valid(a,generation,c))return false;const delay=layer.start-cue.start;if(delay>EPS)a.pending.push({cue,layer,snapshot,remaining:delay});else acquireLayer(a,c,cue,layer,snapshot);}if(valid(a,generation,c))emit(a,'presentation-outcome',{cue:cue.id,position,normal},generation,c);return valid(a,generation,c);}catch(error){if(valid(a,generation,c))halt(a,'action-failed',false);throw error;}
       });},
       stats(){return deepFreeze({id,state:api.state,generation:a.generation,time:a.current?.time??0,motionEnded:a.current?.motionEnded??false,activeEffects:a.effects.size,effects:[...a.effects.values()].map(r=>({id:r.id,cue:r.cue.id,layer:r.layer.id,family:r.layer.family,generation:r.generation,age:r.lease.stats().time,tailRemaining:r.tailRemaining,paused:r.lease.stats().paused,draining:r.stopped,worldPosition:r.carrier.getWorldPosition(new THREE.Vector3()).toArray(),origin:[...r.snapshot.origin],target:r.currentTarget?[...r.currentTarget]:null,handle:r.lease.stats()}))});},
-      dispose(){if(a.disposed)return;transaction(()=>{consume('mutations');a.disposed=true;try{halt(a,'actor-disposed',false);}finally{actors.delete(id);registeredRoots.delete(visualRoot);decodedModelBytes-=a.modelBytes;a.modelBytes=0;a.model=null;a.clips.clear();a.sourceRecords=[];a.materialRecords=[];}});}
+      dispose(){if(a.disposed)return;transaction(()=>{if(!closing)consume('mutations');a.disposed=true;try{halt(a,'actor-disposed',false);}finally{actors.delete(id);registeredRoots.delete(visualRoot);decodedModelBytes-=a.modelBytes;a.modelBytes=0;a.model=null;a.clips.clear();a.sourceRecords=[];a.materialRecords=[];}});}
     });a.api=api;assertActor(a);decodedModelBytes+=a.modelBytes;actors.set(id,a);registeredRoots.set(visualRoot,a);return api;
   }
   const api=Object.freeze({admit,createActor,
@@ -374,7 +374,18 @@ export function createThreeActionScene({THREE,scene,vfxRuntime,engineSelection,b
     suspend(reason='hidden'){alive();if(!['hidden','exceptional-delta','host'].includes(reason))fail('Explicit suspension reason required.');if(reason==='hidden'&&policy.hidden==='cancel')for(const a of [...actors.values()])a.api.cancel();suspended=true;vfxRuntime.pause();for(const a of actors.values())a.endpoints.clear();},
     resume(){alive();for(const a of actors.values())assertActor(a);vfxRuntime.resume();suspended=false;},
     reset(){alive();for(const a of [...actors.values()])a.api.reset();history=[];},
-    stats(){return deepFreeze({disposed,suspended,time:sceneTime,updates:totalUpdates,substeps:totalSubsteps,decodedModelBytes,actors:[...actors.values()].sort((a,b)=>compare(a.id,b.id)).map(a=>a.api.stats()),activeEffects:[...actors.values()].reduce((n,a)=>n+a.effects.size,0),packages:packages.size,vfx:clock.stats(),history:[...history]});},
-    dispose(){if(disposed)return;let error;for(const a of [...actors.values()])try{a.api.dispose();}catch(e){error??=e;}for(const e of packages.values())for(const s of e.sources.values())try{vfxRuntime.releasePackage(s.handle);}catch(e2){error??=e2;}packages.clear();clock.release();scenes.delete(scene);disposed=true;if(error)throw error;}
+    stats(){return deepFreeze({disposed,closing,suspended,time:sceneTime,updates:totalUpdates,substeps:totalSubsteps,decodedModelBytes,actors:[...actors.values()].sort((a,b)=>compare(a.id,b.id)).map(a=>a.api.stats()),activeEffects:[...actors.values()].reduce((n,a)=>n+a.effects.size,0),packages:packages.size,vfx:clock.stats(),history:[...history]});},
+    dispose(){
+      if(disposed||closing)return;closing=true;const errors=[];
+      try{
+        // Fence public admission/mutations before any synchronous rig release.
+        // Internal actor teardown remains available even after work exhaustion.
+        for(const a of [...actors.values()])try{a.api.dispose();}catch(error){errors.push(error);}
+        for(const e of packages.values())for(const s of e.sources.values())try{vfxRuntime.releasePackage(s.handle);}catch(error){errors.push(error);}
+      }finally{
+        packages.clear();try{clock.release();}catch(error){errors.push(error);}scenes.delete(scene);disposed=true;closing=false;
+      }
+      if(errors.length===1)throw errors[0];if(errors.length)throw new AggregateError(errors,'Action Scene disposal failed after owned cleanup.');
+    }
   });scenes.set(scene,api);return api;
 }

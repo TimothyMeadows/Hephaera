@@ -70,6 +70,8 @@ The receiving owner also snapshots decoded model attributes, indices, morph and 
 
 At motion end, the final delivered pose is saved, mixer bindings are stopped/uncached, that pose is reapplied under the rig lease, and ownership is released. Tails never write the rig. An actor's next start hard-retires its previous generation, including any tail. Cancellation, reset and disposal retire owned handles and invalidate stale callbacks. They do not restore or dispose caller assets. Scene disposal returns clock ownership and preserves unrelated ambient leases; the host still owns global pause state and final asset/service teardown.
 
+Scene disposal closes admission and actor commands before invoking any synchronous release callback. Recursive disposal is idempotent; callbacks cannot register or restart an escaping generation. All old actors, copied snapshots, owned handles and packages are cleaned up, and clock ownership is released in a final cleanup path before any originating release error is reported. Internal teardown still runs when the current update's mutation allowance has already been consumed.
+
 ## One clock and exact boundaries
 
 While the Scene scheduler holds its branded clock claim, direct `effects.update` and direct underlying owner updates fail. The scheduler advances actors, draining tails and unrelated ambient effects together. Every accepted subinterval `[a,b]` samples needed delivered poses/anchors/endpoints at `b`, advances previously active FX to `b` once, then applies ordered transitions. A new layer receives no time preceding its release; a stopping layer receives its final interval first. Absolute authored deadlines prevent accumulated subtraction from delaying a stop.
