@@ -6,7 +6,7 @@ Use the [practical guide source](https://github.com/TimothyMeadows/Hephaera/blob
 
 ## Availability and selection
 
-The promoted GitHub release uses package version `5.1.0-rc.1`; that version predates this workflow and does not supply these commands. GitHub's full-release classification neither adds newer source nor removes the package's SemVer prerelease suffix. A baseline version must include the workflow and its reviewed Bubo `7ab99a9f12761095e5a3ee5cfb37d2a679b026a7` pin, verified API/resource/build identity; a later package must explicitly contain those changes. Source merges do not publish a package or move an existing pinned installation. Preserve [package-first installation order](Installation-and-Layout) and the normal managed-update workflow. Do not replace a managed installation with an unrecorded checkout to obtain a new feature.
+Included in stable `5.2.0`, with the recorded Bubo revision containing the reviewed schematic implementation. The installed gitlink, lock, API/resource identity and verified build must agree; this page is not a second pin. Follow [package installation and managed updates](Installation-and-Layout), then explicitly initialize/build the native runtime. Source merges and tooling downloads do not move an existing pinned installation. Do not replace a managed host with an unrecorded checkout to obtain a feature.
 
 Read `STYLE.md`, resolve `build-schematic-models` and require compatibility. Select the primary pipeline through an agreed STYLE contract, or record a task-local prompt override without rewriting that contract:
 

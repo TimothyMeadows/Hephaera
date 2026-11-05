@@ -1,6 +1,8 @@
-# Publish the verified release to npmjs and NuGet.org
+# Future public-registry publication reference
 
-GitHub Packages remains the first publication. `5.1.0-rc.1` is the [current full GitHub release](https://github.com/TimothyMeadows/Hephaera/releases/tag/5.1.0-rc.1), with both GitHub packages confirmed. GitHub promotion preserves its exact tag, source and package bytes; its package version still carries the SemVer prerelease suffix `-rc.1`. Its npmjs.com and NuGet.org mirrors are **not published yet**. npm account recovery is pending, so configure NuGet-only delivery first; leave npm pending until the owner can sign in again.
+Public npmjs.com and NuGet.org publication is deferred. The stable `5.2.0` rollout selects GitHub Releases and GitHub Packages only, with `publish_public=false`; neither public account is ready. Do not configure or launch these steps as part of that release. GitHub package installation does not need an npmjs.com or NuGet.org account.
+
+This reference preserves the existing public workflow for a separately authorized future rollout. Historical [`5.1.0-rc.1`](https://github.com/TimothyMeadows/Hephaera/releases/tag/5.1.0-rc.1) was published to both GitHub feeds and later classified as a full GitHub release without changing its immutable source, package version or files. Its public mirrors were not confirmed; the old catch-up tuple below identifies that release only.
 
 This guide covers maintainer account setup. Consumers use [installation instructions](INSTALLER.md). The full source/artifact contract is in [release maintenance](INSTALLER_RELEASE.md).
 
@@ -10,9 +12,9 @@ Use the existing `package-release` environment. Confirm its allowed branch is `m
 
 In repository **Settings > Secrets and variables > Actions > Variables**, set:
 
-| Variable | Value for this rollout | Purpose |
+| Variable | Future configuration | Purpose |
 | --- | --- | --- |
-| `PUBLIC_PACKAGE_REGISTRIES` | `nuget` | Automatic launches select `npm`, `nuget` or `both`; default is `both` |
+| `PUBLIC_PACKAGE_REGISTRIES` | Future reviewed selection | Automatic launches can select `npm`, `nuget` or `both`; not enabled for `5.2.0` |
 | `PUBLIC_NPM_AUTH_MODE` | `trusted` | Default npm mode; select `bootstrap` for the first npmjs upload after account recovery |
 | `NUGET_PUBLIC_USER` | `TimothyMeadows` | NuGet.org profile that creates the trusted-publishing policy |
 
@@ -50,11 +52,11 @@ The npm account is **timothymeadows** and the package is `@timothymeadows/hephae
 
 The workflow uses its supported pinned npm CLI; do not run a global npm upgrade to obtain account-configuration commands. Use the npm website for this setup. See [trusted publishing](https://docs.npmjs.com/trusted-publishers/), [granular tokens](https://docs.npmjs.com/creating-and-viewing-access-tokens/) and [publishing 2FA](https://docs.npmjs.com/requiring-2fa-for-package-publishing-and-settings-modification/).
 
-## Run the current catch-up
+## Historical catch-up example: 5.1.0-rc.1
 
-After the reviewed workflow is merged and the selected service policy is configured, open `publish-public-packages.yml` in GitHub Actions, choose `main`, and enter:
+These are historical inputs for the old release, not the `5.2.0` rollout. Do not combine one version's source/release/run values with another version. For a separately approved future catch-up, derive the complete tuple from that exact published GitHub release and successful upstream receipt before opening `publish-public-packages.yml`:
 
-| Input | Current first-release value |
+| Input | Historical first-release value |
 | --- | --- |
 | `version` | `5.1.0-rc.1` |
 | `source_sha` | `f819d9a9c7d641d8c7e14b59560a4fd358ec4630` |
@@ -70,10 +72,10 @@ Prepare downloads the already published release files and verifies upstream succ
 
 ## Automatic delivery and recovery
 
-Future `publish-packages.yml` runs default `publish_public` to true. After GitHub publication succeeds, a separate narrow `actions: write` job dispatches the same standalone public workflow using the repository variables above. It does not depend on a release-event recursion chain. Manual catch-up uses that same canonical identity and gate.
+The existing `publish-packages.yml` defaults `publish_public` to true. Explicitly set it to false for the GitHub-only `5.2.0` rollout; this leaves the downstream phase unlaunched. When a later public rollout is separately approved and GitHub publication succeeds, a separate narrow `actions: write` job dispatches the same standalone public workflow using the repository variables above. It does not depend on a release-event recursion chain. Manual catch-up uses that same canonical identity and gate.
 
 All selected registries are reconciled before selected writes. Matching versions are skipped; collisions stop. Keep `public-publication.json` and its `public-publication.lock` evidence, including per-channel history. A later 404 after write intent, pending or uncertainty does not permit another upload: automatic resubmission stops, with no force/reset option. Reconcile service state before continuing; never delete history. Unselected historical confirmations are retained, but no fresh unselected check is claimed. The upstream GitHub release remains available if a public mirror is pending or fails.
 
 NuGet.org repository-signs downloads, so its served `.nupkg` hash differs from the original unsigned GitHub file. Confirmation requires a real trusted NuGet.org signature check and identical names/bytes for every original ZIP entry, allowing only the added root `.signature.p7s`. Record unsigned-input and signed-download digests separately. npm readback must retain the exact tarball bytes/SRI. See [repository signing](https://devblogs.microsoft.com/dotnet/introducing-repository-signatures/).
 
-NuGet validation/indexing can take time. The workflow polls read-only within its bound and preserves unresolved state instead of uploading again. NuGet clients/search may still need **Include prerelease** for the unchanged `5.1.0-rc.1` package version. [GitHub's latest-release link](https://github.com/TimothyMeadows/Hephaera/releases/latest) selects this promoted full release; registry clients classify its version independently. Mark a public destination available only after its exact selected version and download are verified. Public reads need no publisher token; installing from GitHub Packages remains the separate authenticated alternative.
+NuGet validation/indexing can take time. The workflow polls read-only within its bound and preserves unresolved state instead of uploading again. NuGet clients/search may still need **Include prerelease** for the unchanged `5.1.0-rc.1` package version. GitHub release classification and registry version classification remain separate. Mark a public destination available only after its exact selected version and download are verified. Public reads need no publisher token; installing from GitHub Packages remains the separate authenticated alternative.

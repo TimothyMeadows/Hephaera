@@ -2,7 +2,7 @@
 
 `FLOOR_PLAN_TO_MODEL` produces detailed, unfurnished building architecture from an explicitly dimensioned design. Design floors individually, review the whole architectural package, then construct and verify editable Blender source and portable visual/collision models.
 
-The feature is available on repository `main` after the floor-plan integration. Published `5.1.0-rc.1` predates it. Use a source version containing this feature until a later reviewed package includes it; the normal [installation order](../README.md#install) remains unchanged. This feature does not publish a new installer release.
+Included in stable `5.2.0`. Follow [package installation and managed updates](INSTALLER.md), then explicitly initialize/build the recorded Bubo runtime before construction. A package download or source merge does not update an existing pinned host; native tool readiness and human model acceptance remain separate.
 
 For a practical start, use the [example walkthrough](../examples/floor-plan-to-model/README.md). The [wiki reference](../wiki/Floor-Plan-to-Model.md) explains design and review decisions, and the [command argument reference](../commands/BUBO_ARGUMENTS.md#floor-plan-to-model) is the host interface authority.
 

@@ -2,7 +2,7 @@
 
 Use `SCHEMATIC_TO_MODEL` when an object needs real parts: a lid that opens around its hinge, screws that move separately, or wires with their own geometry and attachments. Design and approve the complete object, build its part definitions, then assemble the individual occurrences. The delivered model looks assembled while its components remain separately addressable.
 
-**Availability:** the promoted GitHub release contains package version `5.1.0-rc.1`, which predates this workflow. Its full-release classification does not add newer `main` features or remove the package's SemVer prerelease suffix. Use a baseline revision containing this workflow and its reviewed Bubo pin. For a new source installation, follow the [advanced manual option](install.md#advanced-manual-fallback); keep an existing managed installation under its normal update and recovery workflow.
+**Availability:** included in `5.2.0`. Use [installation and managed updates](install.md), then explicitly prepare the recorded native runtime and existing Blender. Keep design approval, complete model review and runtime acceptance separate.
 
 Open any illustration at full size to inspect labels on a smaller screen.
 

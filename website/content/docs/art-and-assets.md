@@ -35,13 +35,13 @@ That records the choice. It does not authorize generation or install a provider.
 
 ## Design a building floor by floor
 
-Use [floor plans to buildings](floor-plan-to-model.md) for dimension-driven architecture. Design each floor, then review all floor plans, the roof, elevations and stair sections as one complete package before modeling. The result includes editable source and separate visual/collision exports; rooms stay unfurnished and game integration comes later. This pipeline is in newer `main` source; the published `5.1.0-rc.1` packages predate it.
+Use [floor plans to buildings](floor-plan-to-model.md) for dimension-driven architecture. Design each floor, then review all floor plans, the roof, elevations and stair sections as one complete package before modeling. The result includes editable source and separate visual/collision exports; rooms stay unfurnished and game integration comes later. Included in `5.2.0`; follow [installation and managed updates](install.md) and explicitly prepare the native runtime.
 
 ## Design an object with separate parts
 
 Use [schematics to assembled models](schematic-to-model.md) for vehicles, devices, vessels and similar objects. Review dimensioned views, internal sections, the component list and connections as one complete design before construction. Build each part first, then assemble the instances and check their declared movement. Identical wheels can share geometry while remaining separately movable; wires and hoses keep their own deformation rigs.
 
-The result includes editable source, a canonical rest GLB and separate diagnostic-motion evidence. Manufacturing/circuit simulation, finished animation and game integration remain separate. This requires a baseline revision containing the workflow and its reviewed native pin; the published `5.1.0-rc.1` packages predate it.
+The result includes editable source, a canonical rest GLB and separate diagnostic-motion evidence. Manufacturing/circuit simulation, finished animation and game integration remain separate. Included in `5.2.0`, with its reviewed native pin. Follow [installation and managed updates](install.md); native builds and model acceptance remain separate.
 
 ## Review the right thing at each step
 
@@ -61,7 +61,7 @@ No configured library means no extra startup question. A library also does not b
 
 Use [game effects and model actions](game-effects-and-actions.md) for a charge at a real hand anchor, a traveling effect with a trail, an impact, or a beam with an explicit endpoint. Start with simple effects so timing and placement can be reviewed before detail. Reusable VFX packages keep their own rights, finite budgets and independent reviews; MODEL_TO_ACTION v2 connects them to actual exported clips through one shared Three.js/Quarks clock.
 
-The current production bridge is Three.js. It preserves the project's visual pipeline and keeps gameplay hits and damage outside presentation. Other engines, packaged-device readiness and authored accessibility alternatives need their own evidence. Published `5.1.0-rc.1` installers predate these source features.
+The current production bridge is Three.js. It preserves the project's visual pipeline and keeps gameplay hits and damage outside presentation. Other engines, packaged-device readiness and authored accessibility alternatives need their own evidence. These workflows are included in `5.2.0`; installed older hosts need an explicit managed update.
 
 ## Add motion as a later handoff
 

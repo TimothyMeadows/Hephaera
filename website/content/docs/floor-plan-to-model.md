@@ -2,7 +2,7 @@
 
 Use `FLOOR_PLAN_TO_MODEL` to design a building floor by floor, approve its complete drawings, then construct a detailed, unfurnished model. It supports straight and angled walls, multiple storeys, courtyards and explicit stairs and openings. The result stays in staging for review before a separate game-integration task.
 
-**Availability:** the feature is in the newer `main` source checkout. The published `5.1.0-rc.1` packages predate it; changing that GitHub release's prerelease status does not add newer source to its packages. For a new installation, use the documented [advanced manual installation](install.md#advanced-manual-fallback) until a later package contains the feature. Keep an existing package-managed checkout under its normal update and recovery workflow.
+**Availability:** included in `5.2.0`. Follow [installation and managed updates](install.md), then explicitly prepare the recorded native runtime and existing Blender before construction. An installed older version does not update itself when source is merged.
 
 ## Start with a small, complete building
 

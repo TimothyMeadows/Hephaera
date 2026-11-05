@@ -10,7 +10,7 @@ Start with inexpensive provisional work. Review its placement, timing and readab
 
 This workflow admits **owned or licensed fixed inputs**, prepares native atlases and masks, and provides a bounded Three.js presentation bridge. MODEL_TO_ACTION v2 adds reusable-package scheduling through the shared Three.js/Quarks Scene owner. Standalone `vfx-assets.sh` staging has no promotion operation; an action follows its existing native review, separate human runtime acceptance and explicit promotion path. Generated-receipt admission and video decoding remain unavailable. Existing image generation remains governed by STYLE, MEDIA, its provider permissions and shared attempt ledger. A new VFX version grants no generation allowance.
 
-These features are in newer `main` source, including the reviewed action-v2 integration merged as `6b8c8e6ad6080783763f8fe94e982e248af18807`. Published `5.1.0-rc.1` installers predate them; the full GitHub release classification does not change their immutable contents. Follow the [installation guide](INSTALLER.md) for version-pinned updates and deliberate source installation.
+Included in stable `5.2.0`, with the reviewed action-v2 integration and Bubo pin. Follow the [installation guide](INSTALLER.md) for version-pinned setup and managed updates. Native builds, compatible locked engine dependencies and actual receiving/rendering evidence remain separate prerequisites.
 
 Run the prerequisite check first:
 

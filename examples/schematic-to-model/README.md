@@ -2,7 +2,7 @@
 
 Start with a small mechanical exercise before designing a production asset. These three examples come from the exact pinned Bubo source and retain its MIT notice. They are deliberately simplified engineering fixtures, not complete commercial vehicles, electronics or vessels.
 
-Use an installed source version that contains `schematic-to-model.sh`; check the [installation instructions](../../README.md#install) for version availability. A package download or an older installed version does not automatically contain this feature. Run the commands below from your host project's root, with Hephaera at `.hephaera/`.
+This workflow is included in `5.2.0`. Follow the [installation and managed-update instructions](../../README.md#install), then explicitly initialize/build the recorded native runtime. A tooling download does not update an existing pinned host. Run the commands below from your host project's root, with Hephaera at `.hephaera/`.
 
 | Case | What you can inspect | Important limit |
 | --- | --- | --- |

@@ -2,7 +2,7 @@
 
 This walkthrough connects the existing data contracts using your reviewed model/clips, exact rights and actual captures. The original caster and beam [engineering images](../../docs/MODEL_TO_ACTION.md#engineering-examples) illustrate the result. They remain technical fixtures requiring separate artistic and human runtime acceptance for a production asset.
 
-The workflow requires newer source containing the action-v2 integration merged as `6b8c8e6ad6080783763f8fe94e982e248af18807`, and its reviewed native pin. Published `5.1.0-rc.1` installers predate it. Follow the [installation guidance](../../docs/INSTALLER.md); a source merge does not update an installed package.
+The workflow is included in `5.2.0`, with the reviewed action-v2 integration and native pin. Follow the [installation and managed-update guidance](../../docs/INSTALLER.md), then explicitly prepare the native runtime and compatible locked engine dependencies. A source merge or tooling download does not update an installed host.
 
 ## 1. Agree on the actual action
 
