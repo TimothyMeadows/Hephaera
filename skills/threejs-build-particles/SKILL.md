@@ -18,7 +18,8 @@ Resolve ENGINE and this skill before production. Read `docs/THREEJS_PARTICLES.md
 2. Use host-installed three.quarks and one scene-owned BatchedRenderer with the existing presentation clock. Keep particle, lifetime, emission, instance, material/texture and overdraw budgets finite. Follow the supplied bounded runtime helper or equivalent reviewed host-owned integration.
 3. Bind effects to real anchors and explicit action/motion cues. Gameplay owns hits, projectiles, travel and state; particle events are presentation signals. Pause/resume, cancellation, reset, pooling and disposal must release owned effects and leave shared resources intact.
 4. Provide quality and reduced-motion/flash controls; preserve essential cues. JSON effects/textures require provenance, rights, budget validation and current host compatibility before use. The hosted editor and optional R3F/nodes integrations are separate choices.
-5. Verify actual library lifecycle and real target rendering/performance. Core WebGL support does not imply WebGPU, native/MAUI WebView acceptance, visual quality or deterministic replay.
+5. Use the production VFX profile in `./docs/THREEJS_VFX.md` for reusable native packages, layered leases, exact atlas frames and bounded tails. Fixed host-decoded RGBA/static-geometry bindings need source-correspondence evidence; do not load arbitrary GLB extensions, code or decoder dependencies. Share the existing scene owner and keep actual batch allocation bounds separate from active-particle caps.
+6. Verify actual library lifecycle and real target rendering/performance. Core WebGL support does not imply WebGPU, native/MAUI WebView acceptance, visual quality or deterministic replay.
 
 ## Output
 

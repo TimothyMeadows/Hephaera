@@ -4,7 +4,7 @@ These host commands use the Bubo execution API version recorded in [the runtime 
 
 The proof, animation and action commands accept `--root PROJECT` (otherwise the shell wrapper resolves the installed host). Every operation except `init` requires `--manifest FILE`. Their `init` requires `--task ID --asset ID --version ID --actor ID` and defaults to `.hephaera/.cache/tasks/<task>/<workflow>/<asset>/<version>/manifest.json`. Proof and motion may select another manifest beneath that active task cache; action init requires its exact canonical path. Inputs must be repository-local and rights, selection, review and tool identities must be current. Hephaera supplies protected execution context internally. Floor-plan and schematic commands have their own smaller input contracts below.
 
-Reusable VFX uses the separate host lifecycle `vfx-assets.sh`; see [VFX assets](../docs/VFX_ASSETS.md). Its native boundary is read-only `bubo vfx-assets validate|inspect --package JSON` with an exact host input reference. No model manifest, native tool selection, processing, rendering or promotion is admitted by that initial boundary.
+Reusable VFX uses the separate host lifecycle `vfx-assets.sh`; see [VFX assets](../docs/VFX_ASSETS.md). Its native boundary provides `validate|inspect --package JSON`, bounded `prepare --request JSON --output STAGING_DIRECTORY` and `verify-preparation --manifest PREPARATION_JSON`. Register exact original inputs; the host supplies protected execution context and records the resulting immutable derivation. No model manifest, arbitrary native tool, provider, video decoder, renderer or promotion is admitted by these operations.
 
 ## Proof to model
 

@@ -8,15 +8,17 @@ const native = require('./bubo-vfx-adapter.cjs');
 const transport = require('./bubo-host-adapter.cjs');
 const maintenance = require('./installation-maintenance.cjs');
 const transition = require('./state-transition.cjs');
+const { pathToFileURL } = require('node:url');
 const CACHE = '.hephaera/.cache/tasks', SHA = /^[a-f0-9]{64}$/;
 const MAX_JSON = 8 * 1024 * 1024, MAX_FILE = 512 * 1024 * 1024, MAX_EVENTS = 4096;
 const MAX_LOCK = 4096;
 const BUDGETS = Object.freeze({ timeoutSeconds: 60, maxLogBytes: 1048576 });
 const FLAGS = {
   init: ['root', 'task', 'asset', 'version', 'creator', 'brief', 'rights', 'parent-manifest', 'provenance'],
-  stage: ['root', 'manifest', 'phase', 'package', 'visual'],
+  prepare: ['root', 'manifest', 'phase', 'request'],
+  stage: ['root', 'manifest', 'phase', 'package', 'visual', 'preparation', 'production'],
   record: ['root', 'manifest', 'phase', 'reviewer', 'evidence'],
-  validate: ['root', 'manifest'], inspect: ['root', 'manifest'], status: ['root', 'manifest'], recover: ['root', 'manifest'], doctor: ['root']
+  validate: ['root', 'manifest'], verify: ['root', 'manifest'], inspect: ['root', 'manifest'], status: ['root', 'manifest'], recover: ['root', 'manifest'], doctor: ['root']
 };
 const fail = message => { throw new Error(message); };
 const encode = value => JSON.stringify(value, null, 2) + '\n';
@@ -558,7 +560,7 @@ function load(options) {
       shape(event, ['schemaVersion', 'sequence', 'manifestSha256', 'previousSha256', 'kind', 'data', 'recordedAt'], 'VFX event');
       if (event.schemaVersion !== 'hephaera-vfx-event/v1' || event.sequence !== index + 1 || event.manifestSha256 !== ref(root, options.manifest, MAX_JSON).sha256
         || event.previousSha256 !== (eventRefs.at(-1)?.sha256 || null)
-        || !['stage-started', 'stage-failed', 'stage-interrupted', 'lock-recovery-prepared', 'lock-recovered', 'stage-sealed', 'review'].includes(event.kind)) fail('VFX event ancestry differs.');
+        || !['stage-started', 'stage-resumed', 'stage-failed', 'stage-interrupted', 'lock-recovery-prepared', 'lock-recovered', 'stage-sealed', 'preparation-sealed', 'review'].includes(event.kind)) fail('VFX event ancestry differs.');
       events.push(event); eventRefs.push(identity);
     }
   }
@@ -594,6 +596,7 @@ function retained(state) {
     if (event.data.phaseDigest !== digest(packet) || packet.manifestSha256 !== state.identity.sha256) fail('Retained phase packet changed.');
     for (const copy of packet.copies) ref(state.root, copy);
   }
+  for (const event of state.events.filter(item => item.kind === 'preparation-sealed')) preparationReceipt(state, event.data.preparation, false);
   recoveryEvidence(state);
   if (state.asset.parent) ref(state.root, state.asset.parent, MAX_JSON);
   lineageBudgets(state, result); return result;
@@ -634,6 +637,12 @@ function verifiedRecoveryReport(state, reference) {
       || value.owner.startedAt !== original.startedAt || value.owner.sha256 !== archivedLock.sha256 || value.owner.proof !== 'ESRCH'
       || value.owner.path !== state.assetDirectory + '/.write-lock') fail('Archived owner proof differs from its exact bytes.');
   } else if (value.owner !== null) fail('A marker/claim-only recovery cannot invent a write owner.');
+  if (value.processes?.nativeChildren !== undefined) {
+    for (const child of list(value.processes.nativeChildren, 'recovered native children', 4096)) {
+      if (!child || !['retired', 'not-launched'].includes(child.state)) fail('Recovery cannot inherit unproven native child cleanup.');
+      list(child.receipts, 'native child ownership receipts', 8).forEach(item => ref(state.root, item, MAX_JSON));
+    }
+  }
   return { identity, value, archivedLock, archivedMarker };
 }
 function previousRecovery(state, claim, legacy) {
@@ -675,10 +684,14 @@ function current(state) {
   }
   const stages = state.events.filter(event => event.kind === 'stage-sealed');
   let build = null;
-  if (stages.length) {
+  if (stages.length || state.events.some(event => event.kind === 'preparation-sealed')) {
     const info = runtime.verified();
     build = { revision: info.pinned.revision, buildSha256: crypto.createHash('sha256').update(JSON.stringify(info.capability.build)).digest('hex'),
       resourceCatalogSha256: info.pinned.resourceCatalogSha256 };
+  }
+  for (const event of state.events.filter(event => event.kind === 'preparation-sealed')) {
+    const preparation = preparationReceipt(state, event.data.preparation);
+    if (!equal(preparation.value.runtime, build)) fail('Native preparation build/catalog changed; retained derivation is stale.');
   }
   for (const event of stages) {
     const packet = stageFiles(state, event);
@@ -696,7 +709,8 @@ function accepted(state, phase) {
   return !!(stage && review && review.data.verdict === 'accepted' && review.data.reviewPacketSha256 === stage.data.reviewPacket.sha256);
 }
 function readiness() {
-  return { processingAvailable: false, renderingAvailable: false, promotionAvailable: false, mediaGenerationAvailable: false,
+  return { processingAvailable: true, processingProfiles: ['sheet', 'sequence', 'math-mask'], hardProcessingMemoryAvailable: false,
+    renderingAvailable: false, rendererReadiness: 'unverified-until-real-capture', promotionAvailable: false, mediaGenerationAvailable: false,
     runtimeAcceptanceAvailable: false, humanRuntimeAcceptance: false };
 }
 function phaseAttempts(state, ledger) {
@@ -716,6 +730,16 @@ function phaseAttempts(state, ledger) {
     if (!reserved || reserved.phase !== event.data.phase || reserved.started !== null) fail('Stage start lacks its unique immutable budget reservation.');
     reserved.started = state.eventRefs[index];
   }
+  const resumed = new Set();
+  for (const [index, event] of state.events.entries()) {
+    if (event.kind !== 'stage-resumed') continue;
+    const reserved = attempts.get(event.data.attempt);
+    const preparation = state.events.find(item => item.kind === 'preparation-sealed'
+      && item.data.attempt === event.data.attempt && equal(item.data.preparation, event.data.preparation));
+    if (!reserved || reserved.phase !== event.data.phase || !preparation || preparation.sequence >= event.sequence
+      || reserved.started === null || resumed.has(event.data.attempt)) fail('Prepared stage resume differs from its one immutable reservation.');
+    resumed.add(event.data.attempt);
+  }
   return [...attempts.values()];
 }
 function status(options) {
@@ -725,6 +749,10 @@ function status(options) {
   try { attempts = phaseAttempts(state, budgetLedger(state.root, state, state.asset.budget)); }
   catch (error) { stale.push(error.message); }
   const owner = ownership(state);
+  const nativeProcesses = [];
+  for (const event of state.events.filter(event => event.kind === 'stage-started' && event.data.operation === 'prepare')) {
+    try { nativeProcesses.push(preparationProcess(state, event.data.attempt)); } catch (error) { stale.push(error.message); }
+  }
   const phases = Object.fromEntries(['provisional', 'detailed'].map(phase => {
     const stage = latest(state, 'stage-sealed', phase), review = latest(state, 'review', phase);
     const reserved = attempts.filter(item => item.phase === phase), incomplete = reserved.filter(item => !item.finished);
@@ -732,11 +760,57 @@ function status(options) {
       visualEvidence: stage ? (stage.data.visualAvailable ? 'supplied-external' : 'unavailable') : 'unavailable', reviewPacket: stage?.data.reviewPacket || null,
       attempts: reserved.length, incompleteAttempts: incomplete.map(item => item.attempt),
       reservationOnlyAttempts: incomplete.filter(item => item.started === null).map(item => item.attempt),
-      interruptedAttempts: state.events.filter(event => event.kind === 'stage-interrupted' && event.data.phase === phase).map(event => event.data.attempt) }];
+      interruptedAttempts: state.events.filter(event => event.kind === 'stage-interrupted' && event.data.phase === phase).map(event => event.data.attempt),
+      preparations: state.events.filter(event => event.kind === 'preparation-sealed' && event.data.phase === phase).map(event => event.data.preparation) }];
   }));
   return { schemaVersion: 'hephaera-vfx-status/v1', manifest: state.identity.path, manifestSha256: state.identity.sha256,
     task: state.asset.task, asset: state.asset.asset, version: state.asset.version, creator: state.asset.creator,
-    fresh: stale.length === 0, stale, phases, ownership: owner, readiness: readiness(), humanRuntimeAcceptance: false, promotionAvailable: false };
+    fresh: stale.length === 0, stale, phases, ownership: owner, nativeProcesses, readiness: readiness(), humanRuntimeAcceptance: false, promotionAvailable: false };
+}
+function preparationProcess(state, attempt, requireRetired = false) {
+  if (!attempt.startsWith(state.staging + '/attempts/')) fail('Native process attempt escaped its owned staging root.');
+  const directory = attempt + '/native-process', intentPath = directory + '/intent.json';
+  if (!fs.existsSync(full(state.root, intentPath))) return { attempt, state: 'not-launched', proof: 'no-durable-launch-intent', receipts: [] };
+  const intentRef = ref(state.root, intentPath, MAX_JSON), intent = read(state.root, intentPath, intentRef.sha256);
+  if (intent.schemaVersion !== 'hephaera-vfx-native-intent/v1' || !Number.isSafeInteger(intent.hostPid) || intent.hostPid < 1
+    || !SHA.test(intent.hostContextSha256 || '') || !intent.contextFile?.startsWith(`${CACHE}/${state.asset.task}/bubo-host/`))
+    fail('Native preparation launch intent identity differs.');
+  const contextRef = ref(state.root, { path: intent.contextFile, sha256: intent.hostContextSha256 }, MAX_JSON);
+  const receipts = [intentRef, contextRef], childPath = directory + '/child.json', completedPath = directory + '/completed.json';
+  const completionRef = fs.existsSync(full(state.root, completedPath)) ? ref(state.root, completedPath, MAX_JSON) : null;
+  const completed = completionRef ? read(state.root, completedPath, completionRef.sha256) : null;
+  if (completed && (completed.schemaVersion !== 'hephaera-vfx-native-completed/v1' || completed.closed !== true
+    || completed.hostPid !== intent.hostPid || completed.hostContextSha256 !== intent.hostContextSha256)) fail('Native process completion changed its launch ownership.');
+  if (completionRef) receipts.push(completionRef);
+  if (!fs.existsSync(full(state.root, childPath))) {
+    // A null/omitted PID does not establish that spawn failed. Only the
+    // transport's explicit spawn-error classification, with no PID, can prove
+    // that no child started. Older or ambiguous close receipts stay unknown.
+    if (completed?.launchState === 'spawn-failed' && completed.pid === null
+      && typeof completed.error === 'string' && completed.error.trim())
+      return { attempt, state: 'not-launched', proof: 'actual-spawn-failure-closed', receipts };
+    if (requireRetired) fail('Native preparation launch has unknown child ownership; parent death does not prove child cleanup.');
+    return { attempt, state: 'unknown', proof: 'intent-without-child-identity', receipts };
+  }
+  const childRef = ref(state.root, childPath, MAX_JSON), child = read(state.root, childPath, childRef.sha256); receipts.push(childRef);
+  if (child.schemaVersion !== 'hephaera-vfx-native-child/v1' || !Number.isSafeInteger(child.pid) || child.pid < 1 || child.pid > 2147483647
+    || child.hostPid !== intent.hostPid || child.hostContextSha256 !== intent.hostContextSha256 || completed && completed.pid !== child.pid)
+    fail('Native preparation child ownership differs from its launch/completion.');
+  const startedPath = attempt + '/native/started.json';
+  if (fs.existsSync(full(state.root, startedPath))) {
+    const startedRef = ref(state.root, startedPath, MAX_JSON), started = read(state.root, startedPath, startedRef.sha256); receipts.push(startedRef);
+    if (started.schemaVersion !== 'bubo-vfx-preparation-start/v1' || started.processId !== child.pid || started.outputPath !== attempt + '/native'
+      || started.taskId !== state.asset.task) fail('Native preparation start receipt disagrees with the tracked child/output.');
+  }
+  if (completed) {
+    if (completed.launchState === 'started') return { attempt, pid: child.pid, state: 'retired', proof: 'actual-child-close', receipts };
+    if (requireRetired) fail('Native preparation close receipt has unknown launch ownership; child cleanup remains unproven.');
+    return { attempt, pid: child.pid, state: 'unknown', proof: 'close-without-confirmed-launch-state', receipts };
+  }
+  const probe = ownerProbe(child.pid);
+  if (requireRetired && probe.state !== 'abandoned') fail('Native preparation child is live or unverified; only actual close or ESRCH permits recovery.');
+  return { attempt, pid: child.pid, state: probe.state === 'abandoned' ? 'retired' : probe.state,
+    proof: probe.state === 'abandoned' ? 'ESRCH' : probe.reason || 'process-present', receipts };
 }
 async function recover(options) {
   const initial = load(options); transition.assertProductionAllowed(initial.root, 'VFX abandoned ownership recovery');
@@ -761,15 +835,19 @@ async function recover(options) {
       if (writer.state === 'absent' && !previous && marker.state === 'absent' && claim.predecessors.length === 0)
         fail('No abandoned writer or unfinished recovery is available.');
       if (!owner && pending.length) fail('Incomplete stage ownership has no retained dead writer proof; no attempt will be relabeled.');
-      // No native child PID is persisted by the current read-only inspection
-      // transport. Host-owner death never certifies unrecorded child cleanup.
+      // Native writes persist actual child identities. A missing PID after a
+      // launch intent is unknown; a dead host never grants guessed cleanup.
       const known = [];
       if (owner) known.push({ role: 'host-lock-owner', pid: owner.ownerPid, state: 'dead', proof: 'ESRCH' });
       if (marker.state === 'abandoned') known.push({ role: 'legacy-recovery-owner', pid: marker.ownerPid, state: 'dead', proof: 'ESRCH' });
       const priorClaim = claim.predecessors.at(-1);
       if (priorClaim && !priorClaim.completion) known.push({ role: 'recovery-claim-owner', pid: priorClaim.value.pid, state: 'dead', proof: 'ESRCH' });
-      const processes = { known,
-        childCleanup: 'unverified-no-tracked-child-identities', processTermination: false };
+      const nativeChildren = pending.filter(item => item.state.events.some(event => event.kind === 'stage-started'
+        && event.data.attempt === item.attempt && event.data.operation === 'prepare'))
+        .map(item => preparationProcess(item.state, item.attempt, true));
+      for (const child of nativeChildren) if (child.pid) known.push({ role: 'native-preparation-child', pid: child.pid, state: 'dead', proof: child.proof });
+      const processes = { known, ...(nativeChildren.length ? { nativeChildren } : {}),
+        childCleanup: nativeChildren.length && nativeChildren.length === pending.length ? 'tracked-native-preparation-retirement-proven' : 'unverified-no-tracked-child-identities', processTermination: false };
       workStarted = true; requireClaim(state, claim);
       const archive = state.assetDirectory + '/.recoveries/recovery-' + crypto.randomUUID(), archiveFull = full(state.root, archive);
       fs.mkdirSync(path.dirname(archiveFull), { recursive: true }); runtime.components(archiveFull); fs.mkdirSync(archiveFull);
@@ -865,6 +943,136 @@ async function init(options) {
     return { schemaVersion: 'hephaera-vfx-init/v1', manifest: identity.path, manifestSha256: identity.sha256, staging: owned.staging, readiness: readiness() };
   }));
 }
+function preparationReceipt(state, reference, fresh = true) {
+  const identity = ref(state.root, reference, MAX_JSON), value = read(state.root, identity.path, identity.sha256);
+  shape(value, ['schemaVersion', 'manifest', 'phase', 'attempt', 'request', 'nativePreparation', 'package', 'originalSources',
+    'sources', 'copies', 'runtime', 'policyFingerprint', 'hostContextSha256', 'loopIntent', 'processingMilliseconds'], 'host preparation receipt');
+  if (value.schemaVersion !== 'hephaera-vfx-preparation/v1' || !equal(value.manifest, state.identity)
+    || !['provisional', 'detailed'].includes(value.phase) || !value.attempt.startsWith(state.staging + '/attempts/' + value.phase + '-')
+    || identity.path !== value.attempt + '/preparation-receipt.json'
+    || value.nativePreparation.path !== value.attempt + '/native/preparation.json'
+    || value.package.path !== value.attempt + '/native/package.json'
+    || value.policyFingerprint !== state.asset.policy.fingerprint || !SHA.test(value.hostContextSha256 || '')
+    || !Number.isFinite(value.processingMilliseconds) || value.processingMilliseconds < 0)
+    fail('Preparation lost its immutable host/phase/output/policy binding.');
+  const event = state.events.find(event => event.kind === 'preparation-sealed' && equal(event.data.preparation, identity));
+  if (!event || event.data.phase !== value.phase || event.data.attempt !== value.attempt) fail('Preparation lacks its exact retained host event.');
+  list(value.copies, 'preparation inventory', 272, 4).forEach(item => ref(state.root, item));
+  ref(state.root, value.nativePreparation, MAX_JSON); ref(state.root, value.package, MAX_JSON);
+  if (fresh) {
+    list(value.sources, 'preparation source ancestry', 256, 1).forEach(item => ref(state.root, item));
+    ref(state.root, value.request, MAX_JSON);
+  }
+  list(value.originalSources, 'preparation originals', 256).forEach(item => {
+    shape(item, ['path', 'sha256', 'bytes'], 'preparation original'); relative(item.path);
+    if (!SHA.test(item.sha256 || '') || !Number.isSafeInteger(item.bytes) || item.bytes < 1 || item.bytes > MAX_FILE)
+      fail('Preparation original input identity differs.');
+    if (fresh && statFile(state.root, item.path).stat.size !== item.bytes) fail('Preparation original input length changed.');
+  });
+  return { identity, value };
+}
+async function verifyPreparation(state, reference, budgets = BUDGETS) {
+  const receipt = preparationReceipt(state, reference);
+  const request = read(state.root, receipt.value.request.path, receipt.value.request.sha256);
+  if (!equal(request.sources, receipt.value.originalSources)) fail('Preparation original-source mapping differs from its exact request.');
+  const result = await native.verifyPreparation({ root: state.root, task: state.asset.task,
+    requestPath: receipt.value.request.path, manifestPath: receipt.value.nativePreparation.path,
+    sources: receipt.value.originalSources, references: [...metadataReferences(state), { ...receipt.identity, kind: 'input' }],
+    expectedPolicy: state.asset.policy, budgets });
+  preparationResult(result, state, receipt.value.attempt);
+  if (!equal(result.runtime, receipt.value.runtime) || result.data.manifestSha256 !== receipt.value.nativePreparation.sha256
+    || result.data.packageSha256 !== receipt.value.package.sha256) fail('Native preparation seal/build differs from retained host derivation.');
+  return { ...receipt, result, package: read(state.root, receipt.value.package.path, receipt.value.package.sha256) };
+}
+function preparationResult(result, state, attempt) {
+  const data = result.data;
+  if (data?.isValid !== true || data.humanAcceptance !== false || data.promotionAvailable !== false
+    || data.manifestPath !== attempt + '/native/preparation.json' || data.packagePath !== attempt + '/native/package.json'
+    || !SHA.test(data.manifestSha256 || '') || !SHA.test(data.packageSha256 || '')
+    || !Array.isArray(data.files) || data.files.length < 4 || data.files.length > 260)
+    fail('Native preparation did not return the exact bounded immutable output seal.');
+  ref(state.root, { path: data.manifestPath, sha256: data.manifestSha256 }, MAX_JSON);
+  ref(state.root, { path: data.packagePath, sha256: data.packageSha256 }, MAX_JSON);
+  return data;
+}
+async function phaseAdmission(state, observed, phase) {
+  if (latest(state, 'stage-sealed', phase)) fail('Phase already sealed; initialize an immutable revision to change it.');
+  if (phase === 'detailed') {
+    if (!accepted(state, 'provisional')) fail('Detailed production requires current independently accepted provisional visual evidence.');
+    await inspectStage(state, latest(state, 'stage-sealed', 'provisional'), 'validate');
+  }
+  const budget = observed.inputs.brief.budgets, lineage = lineageBudgets(state, observed.inputs);
+  return { budget, lineage };
+}
+async function prepare(options) {
+  const initial = load(options); transition.assertProductionAllowed(initial.root, 'VFX fixed-input preparation');
+  if (!['provisional', 'detailed'].includes(options.phase)) fail('Select phase provisional or detailed.');
+  return maintenance.run(initial.root, () => lock(initial.root, initial.assetDirectory, async () => {
+    const state = load(options), observed = current(state), phase = options.phase;
+    const { budget, lineage } = await phaseAdmission(state, observed, phase);
+    if (latest(state, 'preparation-sealed', phase)) fail('Preparation is already sealed; stage its retained candidate or initialize an immutable revision.');
+    if (lineage.attempts >= Math.min(budget.maxCandidates, lineage.original.maxCandidates)) fail('VFX candidate attempt budget exhausted; preparation, failures and revisions never reset it.');
+    const requestRef = ref(state.root, options.request, MAX_JSON), request = read(state.root, requestRef.path, requestRef.sha256);
+    if (request.schemaVersion !== 'bubo-vfx-preparation/v1' || request.id !== state.asset.asset || request.version !== state.asset.version
+      || request.styleSha256 !== observed.policy.style.styleSha256
+      || !equal(request.engine, { id: observed.policy.engine.effectiveEngine, contractSha256: observed.policy.engine.contractSha256,
+        definitionSha256: observed.policy.engine.definitionSha256, registrySha256: observed.policy.engine.registrySha256 }))
+      fail('Preparation request differs from the immutable asset, STYLE or explicitly selected engine.');
+    if (!['sheet', 'sequence', 'math-mask'].includes(request.profile)) fail('Only native fixed PNG sheet/sequence/math-mask preparation is available.');
+    if (!request.budgets || !Number.isSafeInteger(request.budgets.maxSeconds) || request.budgets.maxSeconds < 1
+      || request.budgets.maxSeconds > budget.maxProcessingSeconds || !Number.isSafeInteger(request.budgets.maxOutputBytes)
+      || request.budgets.maxOutputBytes < 1 || request.budgets.maxOutputBytes > budget.maxOutputBytes
+      || request.budgets.hardProcessMemoryBytes !== undefined && request.budgets.hardProcessMemoryBytes !== null)
+      fail('Preparation exceeds the immutable processing/output budget or requests unavailable hard process-memory enforcement.');
+    let sourceBytes = 0;
+    const originals = list(request.sources, 'original preparation PNGs', 256).map(item => {
+      shape(item, ['path', 'sha256', 'bytes'], 'original preparation PNG');
+      if (!Number.isSafeInteger(item.bytes) || item.bytes < 1 || (sourceBytes += item.bytes) > request.budgets.maxOutputBytes)
+        fail('Original preparation PNG input lengths exceed the immutable snapshot/output budget.');
+      const identity = ref(state.root, { path: item.path, sha256: item.sha256 });
+      if (!Number.isSafeInteger(item.bytes) || item.bytes < 1 || item.bytes !== statFile(state.root, identity.path).stat.size
+        || !identity.path.endsWith('.png') || identity.path.startsWith('.art-staging/') || identity.path.startsWith('.hephaera/.cache/'))
+        fail('Preparation requires original project PNG inputs, not a derived staging output.');
+      return { ...identity, bytes: item.bytes };
+    });
+    const rightsInputs = new Map(observed.inputs.rights.inputs.map(item => [item.path, item.sha256]));
+    if (originals.some(item => rightsInputs.get(item.path) !== item.sha256)) fail('An original preparation PNG lacks exact immutable rights input coverage.');
+    if (request.profile === 'math-mask' && (originals.length || observed.inputs.rights.origin !== 'owned'))
+      fail('Compiled math masks require owned source-free preparation; external sources are not inferred.');
+    const attempt = state.staging + '/attempts/' + phase + '-' + crypto.randomUUID();
+    const attemptFull = full(state.root, attempt); fs.mkdirSync(path.dirname(attemptFull), { recursive: true }); fs.mkdirSync(attemptFull); runtime.components(attemptFull);
+    reserve(lineage.ledger, 'attempt-reserved', { version: state.asset.version, phase, attempt, manifest: state.identity });
+    append(state, 'stage-started', { phase, attempt, operation: 'prepare', sourceRequest: requestRef });
+    try {
+      const started = performance.now();
+      const result = await native.prepare({ root: state.root, task: state.asset.task, requestPath: requestRef.path,
+        outputPath: attempt + '/native', sources: originals, processDirectory: attempt + '/native-process',
+        references: metadataReferences(state), expectedPolicy: observed.policy,
+        budgets: { ...BUDGETS, timeoutSeconds: request.budgets.maxSeconds } });
+      const data = preparationResult(result, state, attempt);
+      const copies = data.files.map(item => {
+        shape(item, ['path', 'sha256', 'bytes'], 'native preparation inventory'); relative(item.path);
+        const source = attempt + '/native/' + item.path, identity = ref(state.root, { path: source, sha256: item.sha256 });
+        if (!Number.isSafeInteger(item.bytes) || item.bytes < 1 || statFile(state.root, source).stat.size !== item.bytes)
+          fail('Native preparation inventory length changed.');
+        return identity;
+      });
+      const nativePreparation = { path: data.manifestPath, sha256: data.manifestSha256 }, packageRef = { path: data.packagePath, sha256: data.packageSha256 };
+      const packet = { schemaVersion: 'hephaera-vfx-preparation/v1', manifest: state.identity, phase, attempt, request: requestRef,
+        nativePreparation, package: packageRef, originalSources: originals,
+        sources: [...new Map([...sourceReferences(state.asset, observed.inputs), requestRef, ...originals.map(({ path, sha256 }) => ({ path, sha256 }))].map(item => [item.path, item])).values()],
+        copies: [...copies, nativePreparation, ...preparationProcess(state, attempt, true).receipts], runtime: result.runtime, policyFingerprint: observed.policy.fingerprint,
+        hostContextSha256: result.hostContextSha256, loopIntent: data.loopIntent, processingMilliseconds: performance.now() - started };
+      current(state); for (const item of packet.sources) ref(state.root, item);
+      const preparation = put(state.root, attempt + '/preparation-receipt.json', packet);
+      append(state, 'preparation-sealed', { phase, attempt, preparation, nativePreparation, package: packageRef });
+      return { schemaVersion: 'hephaera-vfx-prepare/v1', manifest: state.identity.path, phase, attempt, preparation, nativePreparation,
+        package: packageRef, reservation: 'spent-shared-candidate-awaiting-stage', readiness: readiness() };
+    } catch (error) {
+      append(state, 'stage-failed', { phase, attempt, operation: 'prepare', reason: String(error.message).slice(0, 2048) }); throw error;
+    }
+  }));
+}
 function inspectionValid(result, state) {
   const data = result.data;
   if (data?.isValid !== true || data.validation?.isValid !== true) fail('Native VFX validation failed: ' + canonical(data?.validation?.issues || []));
@@ -879,41 +1087,84 @@ async function inspectStage(state, event, operation) {
     references: [...metadataReferences(state), { ...event.data.reviewPacket, kind: 'review' }],
     expectedPolicy: state.asset.policy, budgets: BUDGETS, operation });
   inspectionValid(result, state);
+  if (packet.preparation) {
+    const prepared = await verifyPreparation(state, packet.preparation);
+    if (!equal(packet.nativePreparation, prepared.value.nativePreparation)) fail('Sealed phase preparation ancestry changed.');
+    requireDerivation(result.data.package, prepared.package, packet.production !== undefined);
+  }
+  if (packet.production) await productionAdmission(state, result.data, packet.production, packet.nativePreparation?.sha256);
   if (!equal(result.runtime, packet.runtime) || result.data.packageSha256 !== packet.packageSha256
     || !equal(result.data.observedResources.map(item => ({ path: item.path, sha256: item.sha256, bytes: item.bytes })), packet.resources))
     fail('Current native package/build observations differ from the sealed phase.');
   return result;
+}
+function requireDerivation(actual, prepared, composition) {
+  if (!composition) {
+    if (!equal(actual, prepared)) fail('Prepared package changes require an explicit reviewed production definition.');
+    return;
+  }
+  for (const key of ['schemaVersion', 'id', 'version', 'styleSha256', 'engine'])
+    if (!equal(actual[key], prepared[key])) fail('Production composition changed immutable native package identity.');
+  for (const resource of prepared.resources)
+    if (!equal(actual.resources.find(item => item.id === resource.id), resource)) fail('Production composition changed prepared atlas resource identity.');
+  for (const atlas of prepared.atlases) {
+    const current = actual.atlases?.find(item => item.resourceId === atlas.resourceId);
+    const { bindings, ...metadata } = atlas, { bindings: currentBindings, ...currentMetadata } = current || {};
+    if (!equal(metadata, currentMetadata) || !Array.isArray(currentBindings)
+      || bindings.some(binding => !currentBindings.some(item => equal(item, binding))))
+      fail('Production composition changed native atlas pixels, timing, metadata or original bindings.');
+  }
+}
+async function productionAdmission(state, data, reference, preparationSha256) {
+  if (state.asset.policy.engine.effectiveEngine !== 'THREEJS') fail('Only the explicitly selected THREEJS production bridge is available.');
+  ref(state.root, reference, MAX_JSON);
+  const profile = read(state.root, reference.path, reference.sha256), inputs = values(state), budget = inputs.brief.budgets;
+  for (const key of ['maxSystems', 'maxParticles', 'maxTrailPoints', 'maxVertices', 'maxDrawCalls', 'maxTextureBytes', 'maxDurationSeconds'])
+    if (!Number.isFinite(profile.budgets?.[key]) || profile.budgets[key] > budget[key]) fail('Production ' + key + ' exceeds the immutable host brief.');
+  const helper = path.join(runtime.BASE, '.engine/threejs/particles/vfx-package.mjs');
+  const { validateVfxPackage } = await import(pathToFileURL(helper).href + '?sha256=' + runtime.hash(helper));
+  return validateVfxPackage({ package: data.package, packageSha256: data.packageSha256,
+    ...(preparationSha256 ? { preparationSha256 } : {}), profile });
 }
 async function stage(options) {
   const initial = load(options); transition.assertProductionAllowed(initial.root, 'VFX staging');
   if (!['provisional', 'detailed'].includes(options.phase)) fail('Select phase provisional or detailed.');
   return maintenance.run(initial.root, () => lock(initial.root, initial.assetDirectory, async () => {
     const state = load(options), observed = current(state), phase = options.phase;
-    const budget = observed.inputs.brief.budgets, lineage = lineageBudgets(state, observed.inputs);
-    if (lineage.attempts >= Math.min(budget.maxCandidates, lineage.original.maxCandidates)) fail('VFX candidate attempt budget exhausted; retained failures/interruption and revisions do not reset it.');
-    if (latest(state, 'stage-sealed', phase)) fail('Phase already sealed; initialize an immutable revision to change it.');
-    if (phase === 'detailed') {
-      if (!accepted(state, 'provisional')) fail('Detailed staging requires current independently accepted provisional visual evidence.');
-      await inspectStage(state, latest(state, 'stage-sealed', 'provisional'), 'validate');
-    }
+    const { budget, lineage } = await phaseAdmission(state, observed, phase);
+    const prepared = options.preparation ? preparationReceipt(state, options.preparation) : null;
+    if (prepared) {
+      const reservation = phaseAttempts(state, lineage.ledger).find(item => item.attempt === prepared.value.attempt);
+      if (prepared.value.phase !== phase || !reservation || reservation.finished || reservation.started === null
+        || state.events.some(event => event.kind === 'stage-resumed' && event.data.attempt === prepared.value.attempt))
+        fail('Preparation cannot inherit another phase or retry a spent/closed candidate reservation.');
+    } else if (lineage.attempts >= Math.min(budget.maxCandidates, lineage.original.maxCandidates))
+      fail('VFX candidate attempt budget exhausted; retained failures/interruption and revisions do not reset it.');
     const packageName = relative(options.package, 'Package path'), packageRef = ref(state.root, packageName, MAX_JSON);
     const visualRef = options.visual ? ref(state.root, options.visual, MAX_JSON) : null;
     const visualValue = visualRef ? visual(state.root, read(state.root, visualRef.path, visualRef.sha256), observed.inputs.brief.coverage) : null;
-    const attempt = state.staging + '/attempts/' + phase + '-' + crypto.randomUUID();
-    const attemptFull = full(state.root, attempt); fs.mkdirSync(path.dirname(attemptFull), { recursive: true }); runtime.components(attemptFull); fs.mkdirSync(attemptFull);
-    reserve(lineage.ledger, 'attempt-reserved', { version: state.asset.version, phase, attempt, manifest: state.identity });
-    append(state, 'stage-started', { phase, attempt, sourcePackage: packageRef });
+    const productionRef = options.production ? ref(state.root, options.production, MAX_JSON) : null;
+    const attempt = prepared ? prepared.value.attempt : state.staging + '/attempts/' + phase + '-' + crypto.randomUUID();
+    if (!prepared) {
+      const attemptFull = full(state.root, attempt); fs.mkdirSync(path.dirname(attemptFull), { recursive: true }); runtime.components(attemptFull); fs.mkdirSync(attemptFull);
+      reserve(lineage.ledger, 'attempt-reserved', { version: state.asset.version, phase, attempt, manifest: state.identity });
+      append(state, 'stage-started', { phase, attempt, sourcePackage: packageRef });
+    } else append(state, 'stage-resumed', { phase, attempt, sourcePackage: packageRef, preparation: prepared.identity, production: productionRef });
     try {
-      const deadline = Date.now() + budget.maxProcessingSeconds * 1000;
+      const deadline = Date.now() + budget.maxProcessingSeconds * 1000 - (prepared?.value.processingMilliseconds || 0);
       const remaining = () => {
         const seconds = Math.floor((deadline - Date.now()) / 1000);
         if (seconds < 1) fail('VFX staging processing budget exhausted; partial attempt retained.');
         return { ...BUDGETS, timeoutSeconds: Math.min(BUDGETS.timeoutSeconds, seconds) };
       };
-      const sourceRefs = [...sourceReferences(state.asset, observed.inputs), ...(visualRef ? [visualRef] : [])];
+      const preparation = prepared ? await verifyPreparation(state, prepared.identity, remaining()) : null;
+      const sourceRefs = [...sourceReferences(state.asset, observed.inputs), ...(visualRef ? [visualRef] : []),
+        ...(preparation ? [preparation.identity, ...preparation.value.sources, ...preparation.value.copies] : []), ...(productionRef ? [productionRef] : [])];
       const result = await native.inspect({ root: state.root, task: state.asset.task, packagePath: packageName,
         references: [...metadataReferences(state), ...(visualRef ? [{ ...visualRef, kind: 'review' }] : [])], expectedPolicy: observed.policy, budgets: remaining() });
       const data = inspectionValid(result, state);
+      if (preparation) requireDerivation(data.package, preparation.package, productionRef !== null);
+      if (productionRef) await productionAdmission(state, data, productionRef, preparation?.value.nativePreparation.sha256);
       const policyCaps = { maxParticles: budget.maxParticles, maxLayers: budget.maxSystems, maxTrailPoints: budget.maxTrailPoints,
         maxVertices: budget.maxVertices, maxDrawCalls: budget.maxDrawCalls, maxDurationSeconds: budget.maxDurationSeconds,
         maxTotalDependencyBytes: budget.maxOutputBytes };
@@ -929,10 +1180,15 @@ async function stage(options) {
       if (data.packageSha256 !== packageRef.sha256 || data.packagePath !== packageName) fail('Native source package identity changed.');
       const rightsInputs = new Map(observed.inputs.rights.inputs.map(item => [item.path, item.sha256]));
       const directory = path.posix.dirname(packageName), used = new Set([path.posix.basename(packageName).toLowerCase()]);
+      const derived = new Map((preparation?.package.resources || []).map(item => [item.id, item]));
       let total = data.packageBytes;
       for (const item of data.observedResources) {
         relative(item.path, 'Observed resource path'); relative(item.projectPath, 'Observed resource source');
-        if (item.projectPath !== (directory === '.' ? item.path : directory + '/' + item.path) || rightsInputs.get(item.projectPath) !== item.sha256)
+        const resource = data.package.resources.find(resource => resource.path === item.path), original = derived.get(resource?.id);
+        const nativeDerived = original && resource.kind === original.kind && resource.sha256 === original.sha256 && resource.bytes === original.bytes;
+        const directRights = !item.projectPath.startsWith('.art-staging/') && !item.projectPath.startsWith('.hephaera/.cache/')
+          && rightsInputs.get(item.projectPath) === item.sha256;
+        if (item.projectPath !== (directory === '.' ? item.path : directory + '/' + item.path) || !nativeDerived && !directRights)
           fail('An observed resource lacks exact immutable rights input coverage.');
         if (!Number.isSafeInteger(item.bytes) || item.bytes < 1 || item.bytes > MAX_FILE || !SHA.test(item.sha256 || '') || used.has(item.path.toLowerCase())) fail('Unsafe or oversized observed resource closure.');
         used.add(item.path.toLowerCase()); total += item.bytes;
@@ -963,6 +1219,8 @@ async function stage(options) {
         sourceHostContextSha256: result.hostContextSha256, stagedHostContextSha256: copied.hostContextSha256,
         packageSha256: data.packageSha256, resources, coverage: observed.inputs.brief.coverage, bindings: observed.inputs.brief.bindings,
         sources: [...new Map(sources.map(item => [item.path, item])).values()], copies, visual: visualValue,
+        ...(preparation ? { preparation: preparation.identity, nativePreparation: preparation.value.nativePreparation } : {}),
+        ...(productionRef ? { production: productionRef } : {}),
         visualEvidence: visualValue ? 'supplied-external-not-rendered-by-workflow' : 'unavailable', readiness: readiness() };
       const reviewPacket = put(state.root, attempt + '/review-packet.json', packet), phaseDigest = digest(packet);
       if (Date.now() > deadline) fail('VFX staging processing budget exhausted; unsealed packet retained.');
@@ -1001,10 +1259,16 @@ async function record(options) {
 async function inspect(options, operation) {
   const state = load(options); current(state);
   const stages = state.events.filter(event => event.kind === 'stage-sealed'), inspections = [];
-  for (const event of stages) inspections.push({ phase: event.data.phase, ...(await inspectStage(state, event, operation)) });
+  const preparations = [];
+  for (const event of state.events.filter(event => event.kind === 'preparation-sealed')) {
+    const result = await verifyPreparation(state, event.data.preparation);
+    preparations.push({ preparation: result.identity, nativePreparation: result.value.nativePreparation, data: result.result.data });
+  }
+  for (const event of stages) inspections.push({ phase: event.data.phase, ...(await inspectStage(state, event, operation === 'verify' ? 'validate' : operation)) });
   current(state);
-  return { ...status(options), schemaVersion: 'hephaera-vfx-' + operation + '/v1', inspections,
-    contractValidation: stages.length ? 'passed' : 'not-run-no-staged-package', contentDecoding: 'unavailable', readiness: readiness() };
+  return { ...status(options), schemaVersion: 'hephaera-vfx-' + operation + '/v1', inspections, preparations,
+    contractValidation: stages.length ? 'passed' : 'not-run-no-staged-package',
+    contentDecoding: preparations.length ? 'native-fixed-input-preparation-reverified' : 'unavailable', readiness: readiness() };
 }
 function parse(values) {
   const options = {};
@@ -1018,20 +1282,22 @@ function parse(values) {
 }
 function help() {
   return 'vfx-assets.sh init --task TASK --asset ASSET --version VERSION --creator NAME --brief JSON --rights JSON [--parent-manifest JSON] [--provenance JSON]\n'
-    + 'vfx-assets.sh stage --manifest JSON --phase provisional|detailed --package JSON [--visual JSON]\n'
-    + 'vfx-assets.sh validate|inspect|status|recover --manifest JSON\n'
+    + 'vfx-assets.sh prepare --manifest JSON --phase provisional|detailed --request JSON\n'
+    + 'vfx-assets.sh stage --manifest JSON --phase provisional|detailed --package JSON [--preparation HOST_RECEIPT_JSON] [--production THREEJS_PROFILE_JSON] [--visual JSON]\n'
+    + 'vfx-assets.sh validate|verify|inspect|status|recover --manifest JSON\n'
     + 'vfx-assets.sh record --manifest JSON --phase provisional|detailed --reviewer NAME --evidence JSON\n'
-    + 'vfx-assets.sh doctor\nAll operations require --root ROOT (supplied by the public wrapper). Processing, rendering, generation, installation and promotion are unavailable.';
+    + 'vfx-assets.sh doctor\nAll operations require --root ROOT (supplied by the public wrapper). Fixed PNG sheet/sequence/compiled-mask preparation only; hard process-memory enforcement, generation, installation, human acceptance and promotion are unavailable. A prepared candidate retains one spent shared phase reservation until staging closes it.';
 }
 async function run(operation, options) {
   if (!Object.hasOwn(FLAGS, operation)) fail('Unsupported VFX lifecycle operation. ' + help());
   if (options instanceof Map) options = Object.fromEntries(options);
   if (!options || typeof options !== 'object' || Array.isArray(options)) fail('Explicit VFX options are required.');
   for (const key of Object.keys(options)) if (!FLAGS[operation].includes(key)) fail('Unknown or protected VFX option: --' + key);
-  for (const key of FLAGS[operation].filter(key => !['parent-manifest', 'provenance', 'visual'].includes(key)))
+  for (const key of FLAGS[operation].filter(key => !['parent-manifest', 'provenance', 'visual', 'preparation', 'production'].includes(key)))
     if (options[key] === undefined) fail('Missing --' + key + '.');
   if (operation === 'doctor') return native.doctor(rootPath(options.root));
   if (operation === 'init') return init(options);
+  if (operation === 'prepare') return prepare(options);
   if (operation === 'stage') return stage(options);
   if (operation === 'record') return record(options);
   if (operation === 'recover') return recover(options);

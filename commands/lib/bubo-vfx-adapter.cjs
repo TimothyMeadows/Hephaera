@@ -35,7 +35,10 @@ const TOOL_FILES = Object.freeze([
   'commands/lib/state-transition.cjs',
   'commands/lib/bubo-mechanical-handoff.cjs',
   'installer/core/maintenance.cjs',
-  'installer/core/files.cjs'
+  'installer/core/files.cjs',
+  '.engine/threejs/particles/vfx-package.mjs',
+  '.engine/threejs/particles/three-vfx-runtime.mjs',
+  '.engine/threejs/particles/three-quarks-runtime.mjs'
 ]);
 const digest = value => crypto.createHash('sha256').update(JSON.stringify(runtime.canonical(value))).digest('hex');
 
@@ -144,16 +147,23 @@ function requireExpected(actual, expected) {
     fail('VFX host policy drifted; create a new immutable asset version with refreshed evidence.');
 }
 
-function requireCapability(info) {
+function requireCapability(info, operation) {
   const capability = info.capability;
   if (!capability.workflows?.includes('vfx-assets') || capability.vfx?.packageSchema !== 'bubo-vfx-package/v1'
       || !['validate', 'inspect'].every(operation => capability.vfx.operations?.includes(operation)))
     fail('The verified pinned Bubo build does not expose the required VFX v1 inspect/validate contract.');
+  if (['prepare', 'verify-preparation'].includes(operation)
+      && (capability.vfx.preparationSchema !== 'bubo-vfx-preparation/v1'
+        || !capability.vfx.packageSchemas?.includes('bubo-vfx-package/v2')
+        || !capability.vfx.operations?.includes(operation) || capability.vfx.processingAvailable !== true
+        || capability.vfx.hardProcessingMemoryAvailable !== false))
+    fail('The verified pinned build does not expose the bounded fixed-input preparation contract.');
 }
 
 async function inspect(request) {
   if (!request || typeof request !== 'object' || Array.isArray(request)) fail('VFX inspection requires explicit host inputs.');
-  const allowed = new Set(['root', 'task', 'packagePath', 'references', 'expectedPolicy', 'budgets', 'operation']);
+  const allowed = new Set(['root', 'task', 'packagePath', 'references', 'expectedPolicy', 'budgets', 'operation',
+    'requestPath', 'outputPath', 'manifestPath', 'sources', 'processDirectory']);
   for (const name of Object.keys(request)) if (!allowed.has(name)) fail('Unsupported or protected VFX execution option: ' + name);
   const root = rootPath(request.root);
   // Fence before even a managed-installation read lease can create metadata.
@@ -166,7 +176,7 @@ async function inspect(request) {
     const stateRoot = '.hephaera/.cache/tasks/' + task;
     const taskFile = fileIdentity(root, stateRoot + '/TASK.md');
     const operation = request.operation === undefined ? 'inspect' : request.operation;
-    if (!['inspect', 'validate'].includes(operation)) fail('Only read-only VFX inspect and validate are available.');
+    if (!['inspect', 'validate', 'prepare', 'verify-preparation'].includes(operation)) fail('Unsupported fixed-input VFX operation.');
     if (request.budgets !== undefined && (!request.budgets || typeof request.budgets !== 'object' || Array.isArray(request.budgets)))
       fail('VFX inspection requires finite supported timeout and log budgets.');
     const budgets = { timeoutSeconds: 60, maxLogBytes: 1048576, ...request.budgets };
@@ -174,8 +184,9 @@ async function inspect(request) {
         || !Number.isSafeInteger(budgets.timeoutSeconds) || budgets.timeoutSeconds < 1 || budgets.timeoutSeconds > 86400
         || !Number.isSafeInteger(budgets.maxLogBytes) || budgets.maxLogBytes < 1 || budgets.maxLogBytes > 16777216)
       fail('VFX inspection requires finite supported timeout and log budgets.');
-    const packageFile = fileIdentity(root, request.packagePath, 1024 * 1024);
-    const packageDirectory = path.posix.dirname(packageFile.path);
+    const preparation = ['prepare', 'verify-preparation'].includes(operation);
+    const inputFile = fileIdentity(root, preparation ? request.requestPath : request.packagePath, 1024 * 1024);
+    const packageDirectory = path.posix.dirname(inputFile.path);
     if (packageDirectory === '.') fail('VFX package dependencies require a dedicated project-local input directory.');
     const references = new Map();
     const key = value => process.platform === 'win32' ? value.toLowerCase() : value;
@@ -187,7 +198,18 @@ async function inspect(request) {
     }
     for (const reference of policy.contractFiles) register(reference);
     register({ path: taskFile.path, sha256: taskFile.sha256, kind: 'policy' });
-    register({ path: packageFile.path, sha256: packageFile.sha256, kind: 'input' });
+    register({ path: inputFile.path, sha256: inputFile.sha256, kind: 'input' });
+    const sourceDirectories = new Set([packageDirectory]);
+    if (preparation) {
+      if (!Array.isArray(request.sources) || request.sources.length > 256) fail('Preparation requires a bounded original-source inventory.');
+      for (const source of request.sources) {
+        if (!source || Object.keys(source).some(name => !['path', 'sha256', 'bytes'].includes(name))) fail('Invalid preparation source reference.');
+        const identity = fileIdentity(root, source.path, 512 * 1024 * 1024);
+        if (identity.sha256 !== source.sha256 || identity.bytes !== source.bytes) fail('Original preparation source changed.');
+        register({ path: identity.path, sha256: identity.sha256, kind: 'input' });
+        sourceDirectories.add(path.posix.dirname(identity.path));
+      }
+    }
     const supplied = request.references === undefined ? [] : request.references;
     if (!Array.isArray(supplied) || supplied.length > 256) fail('VFX references must be a bounded exact file inventory.');
     let referenceBytes = 0;
@@ -202,16 +224,19 @@ async function inspect(request) {
       if (observed.sha256 !== reference.sha256) fail('VFX evidence hash changed: ' + observed.path);
       register({ path: observed.path, sha256: observed.sha256, kind: reference.kind });
     }
-    const info = runtime.verified(); requireCapability(info);
+    const info = runtime.verified(); requireCapability(info, operation);
     requireExpected(snapshot(root), policy);
     const validatedStyle = styles.validate(runtime.projectPath(root, 'STYLE.md'));
     const context = { schemaVersion: 'bubo-host-context/v1', projectRoot: root, task,
-      roots: { state: stateRoot, staging: '.art-staging', tools: [], inputs: [packageDirectory], outputs: [] },
+      roots: { state: stateRoot, staging: '.art-staging', tools: [], inputs: [...sourceDirectories], outputs: operation === 'prepare' ? [request.outputPath] : [] },
       policy: { pipeline: policy.style.pipeline, styleSha256: policy.style.styleSha256, engine: policy.engine,
         libraries: validatedStyle.libraries.map(item => ({ id: item.id, root: item.path })) },
       references: [...references.values()], tools: [], budgets, permissions: { provisioning: false, promotion: false } };
-    const options = new Map([['root', root], ['package', packageFile.path]]);
-    const result = await launcher.execute('vfx-assets', operation, options, { root, task, stateRoot, context, options }, info, false);
+    const options = new Map([['root', root], ...(operation === 'prepare' ? [['request', inputFile.path], ['output', request.outputPath]]
+      : operation === 'verify-preparation' ? [['manifest', request.manifestPath]] : [['package', inputFile.path]])]);
+    const result = operation === 'prepare'
+      ? await launcher.execute('vfx-assets', operation, options, { root, task, stateRoot, context, options }, info, false, preparationLifecycle(root, request.processDirectory))
+      : await launcher.execute('vfx-assets', operation, options, { root, task, stateRoot, context, options }, info, false);
     requireExpected(snapshot(root), policy);
     return { data: result.data, policy, runtime: { revision: info.pinned.revision,
       // Match Bubo's UTF-8 JsonObject.ToJsonString() build identity exactly;
@@ -220,6 +245,33 @@ async function inspect(request) {
       resourceCatalogSha256: info.pinned.resourceCatalogSha256 },
       hostContextSha256: result.hostContextSha256 };
   });
+}
+
+// Preparation is the only mutating native dispatch here. Persist intent before
+// launch and the actual child identity immediately after spawn. An interrupted
+// intent without a child identity remains unknown and cannot be force-recovered.
+function preparationLifecycle(root, directory) {
+  if (typeof directory !== 'string' || !directory.startsWith('.art-staging/') || /[\\]/.test(directory))
+    fail('Preparation requires an owned non-runtime process directory.');
+  const folder = runtime.projectPath(root, directory);
+  fs.mkdirSync(folder, { recursive: true }); runtime.components(folder);
+  function save(name, value) {
+    const file = path.join(folder, name), fd = fs.openSync(file, 'wx');
+    try { fs.writeFileSync(fd, JSON.stringify(value, null, 2) + '\n'); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+  }
+  return {
+    beforeLaunch(info) { save('intent.json', { schemaVersion: 'hephaera-vfx-native-intent/v1', hostPid: process.pid,
+      hostContextSha256: info.hostContextSha256, contextFile: info.contextFile, createdAt: new Date().toISOString() }); },
+    spawned(info) {
+      if (!Number.isSafeInteger(info.pid) || info.pid < 1) fail('Native preparation child identity is unavailable; preserve the launch intent.');
+      save('child.json', { schemaVersion: 'hephaera-vfx-native-child/v1', pid: info.pid, hostPid: process.pid,
+        hostContextSha256: info.hostContextSha256, createdAt: new Date().toISOString() });
+    },
+    closed(info) { save('completed.json', { schemaVersion: 'hephaera-vfx-native-completed/v1', pid: info.pid || null,
+      hostPid: process.pid, hostContextSha256: info.hostContextSha256, status: info.status ?? null,
+      launchState: ['started', 'spawn-failed'].includes(info.launchState) ? info.launchState : 'unknown',
+      signal: info.signal || null, error: info.error?.message || info.error || null, closed: true, createdAt: new Date().toISOString() }); }
+  };
 }
 
 function doctor(rootArgument) {
@@ -236,10 +288,14 @@ function doctor(rootArgument) {
   const unavailable = { processingAvailable: false, renderingAvailable: false, promotionAvailable: false,
     mediaGenerationAvailable: false, videoDecodingAvailable: false, runtimeAcceptanceAvailable: false };
   return { schemaVersion: 'hephaera-vfx-doctor/v1', root, policy, dependency, errors,
-    readiness: { contractInspection: policy && dependency.available && !errors.length ? 'unverified' : 'unavailable', ...unavailable },
+    readiness: { contractInspection: policy && dependency.available && !errors.length ? 'unverified' : 'unavailable', ...unavailable,
+      fixedInputPreparation: policy && dependency.available && !errors.length ? 'unverified-current-build' : 'unavailable', hardProcessingMemoryAvailable: false },
     engines: Object.fromEntries(['THREEJS', 'BABYLONJS', 'PHASERJS', 'UNITY', 'UNREAL', 'GODOT'].map(id =>
-      [id, { ...unavailable, status: 'unavailable-until-production-bridge' }])),
+      [id, { ...unavailable, status: id === 'THREEJS' ? 'metadata-only-renderer-readiness-unverified' : 'unavailable-until-production-bridge',
+        ...(id === 'THREEJS' ? { bridge: 'three.quarks', profileSchema: 'hephaera-three-vfx-profile/v1' } : {}) }])),
     limits: 'Metadata only; build execution, resource inspection, processing, rendering and target acceptance were not run.' };
 }
 
-module.exports = { snapshot, inspect, doctor };
+module.exports = { snapshot, inspect, doctor,
+  prepare: request => inspect({ ...request, operation: 'prepare' }),
+  verifyPreparation: request => inspect({ ...request, operation: 'verify-preparation' }) };

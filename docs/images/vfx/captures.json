@@ -1,0 +1,48 @@
+{
+  "schemaVersion": "hephaera-vfx-diagnostic-captures/v1",
+  "purpose": "Original technical fixtures, not production game art or human runtime acceptance",
+  "rendering": "Edge WebGL2, default ANGLE D3D11, LDR FXAA; 960x540 canvas; no forced renderer backend",
+  "libraries": {
+    "three": "0.182.0",
+    "three.quarks": "0.17.1",
+    "quarks.core": "0.17.1",
+    "postprocessing": "6.39.5"
+  },
+  "sourceHashes": {
+    ".engine/threejs/particles/three-quarks-runtime.mjs": "73e1add6f1dea40e205bc4c69ceaca55afd8d108997469bb65a60f314b7050db",
+    ".engine/threejs/particles/three-vfx-runtime.mjs": "bba2c155f58008efc041832ebb25be8d26e3fa744ca5cd2cd83dfc3297eab576",
+    ".engine/threejs/particles/vfx-package.mjs": "61bb32ba75df912ce484df0322921825b36a23e7a1d99334c95d50ff3d08d747",
+    ".engine/threejs/particles/vfx-review-scene.mjs": "b58072d70ec0d3a8dac6b9eb29784917eb99f2b98e747d316cb9c0b3b422500e",
+    ".engine/threejs/postprocessing/postprocessing-runtime.mjs": "4c409a23e526fea6a37067e0692939d50c57dd33e6bfed06c0e222f54752b9dd",
+    "tests/fixtures/vfx-review/scene.mjs": "0553cbb23ab5b7e58a9fd36f59162a1260ebed2acb347b5a686cb4954664508e",
+    "tests/fixtures/vfx-review/index.html": "2338963d9f791bc2cd7a01435218ec70a3cc25757789f8084043d472292c8aa1",
+    "tests/fixtures/vfx-review/color.mjs": "b77baad663b9d1f90d87aa6b1093822c46cf3ba865e17caca215ae2ddb9505f5",
+    "tests/fixtures/vfx-review/color.html": "bc59e0ce8726fcf9d10fe01e611943309a77a6a79f18f9ecb954c97e81e80ef8",
+    "tests/run-vfx-webgl.cjs": "6d24eaf5d4bdb53de59d107499c3f66d78abb0ec3c5588341ea7021cdeb6b9e2",
+    "tests/lib/edge-review.cjs": "673ee9213d8acb9ed98d6475355adea82b0f9f62f098997405fe413f13a7b892"
+  },
+  "assetHashes": {
+    "atlas.png": "8137f36a583e9dcb06c6198daf6a1090c7fc79e65588312cafb650e80e8dfb09",
+    "atlas.rgba": "3affd472cf3ffee24b998982cfbe891b3edc04252bd1d1d0da0499d27ac912fe",
+    "shard.glb": "3ba76ad265ad856ce848434148b057f6569f5acb806169d0cdb49d4a4cb66fa9",
+    "geometry.json": "5eda7356fd33a9b61eeb15c9665e165a1dd101f049d831db500cc67dc4ba8916",
+    "render-package.json": "d78ecd22410747afa63e279d019c4befc684fd35fec5a7e984dff82ce51dde01",
+    "profile.json": "09987977eb88795ee412e0da0f1ee72d5daea11143ec9b685b2c80b0344c4c8d",
+    "fixture.json": "dd3278026d6bbf0c418468bc8cf6fac5bf5a9b2aa9cca0c383c6a9a44fc603ec"
+  },
+  "captures": [
+    {
+      "path": "layer-families.png",
+      "sha256": "c2cf785922569a44d71903b0c23fdcef78b488b9e061051f335b280413d0218e",
+      "bytes": 24295,
+      "originalCapture": "layer-all.png"
+    },
+    {
+      "path": "alpha-reference.png",
+      "sha256": "33d8e9007276157218cb5ab78a2612927e614f507f224900f5244eb8ab866b98",
+      "bytes": 9233,
+      "originalCapture": "color-atlas-light-composer.png"
+    }
+  ],
+  "scope": "Each capture binds exact source bytes above. Current browser/device and complete sequence acceptance remain task-specific."
+}
