@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "repository": "https://github.com/TimothyMeadows/Bubo.git",
   "path": "runtime/bubo",
-  "revision": "19df3c9c9be3982a444cbb71f5ade32aa7e4a303",
+  "revision": "a47896d730b32d00b165e61820060e7c73d1ec4a",
   "apiVersion": 2,
   "resourceCatalogSha256": "c93a6a37e65658ba39860ba89854dd265eb892b63966629a48609fe7cafe7ec1",
   "buildReceipt": "artifacts/bubo/build-info.json",
@@ -110,7 +110,21 @@
           "https://github.com/TimothyMeadows/Bubo/actions/runs/41948903592/job/126987878969"
         ],
         "executionApi": 2,
-        "resourceCatalogSha256": "c93a6a37e65658ba39860ba89854dd265eb892b63966629a48609fe7cafe7ec1"
+        "resourceCatalogSha256": "c93a6a37e65658ba39860ba89854dd265eb892b63966629a48609fe7cafe7ec1",
+        "receivingCorrection": {
+          "pullRequest": "https://github.com/TimothyMeadows/Bubo/pull/52",
+          "reviewedHead": "d854441a64260b84b766cd98e3fb3fba654eea1f",
+          "actualMergedCommit": "a47896d730b32d00b165e61820060e7c73d1ec4a",
+          "mergeTree": "7b01bf5eb88980b0c663fac51ad62fad67bef1ce",
+          "status": "merged",
+          "qa": "https://github.com/TimothyMeadows/Bubo/pull/52#issuecomment-6648585077",
+          "administratorBypass": false,
+          "recordedUtcBeforeFinalPin": "2026-11-05T03:08:24.046819+00:00",
+          "requiredCi": [
+            "https://github.com/TimothyMeadows/Bubo/actions/runs/41958854183/job/127020136033",
+            "https://github.com/TimothyMeadows/Bubo/actions/runs/41958854183/job/127020136320"
+          ]
+        }
       }
     }
   }

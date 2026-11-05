@@ -49,6 +49,7 @@ node ./tests/test-threejs-quarks-runtime.mjs
 node ./tests/test-vfx-threejs-runtime.mjs
 node ./tests/test-action-vfx-package.mjs
 node ./tests/test-action-vfx-runtime.mjs
+node ./tests/test-action-vfx-decoded-model.mjs
 node ./tests/test-threejs-postprocessing-selection.cjs
 node ./tests/test-threejs-postprocessing.cjs
 node ./tests/test-threejs-postprocessing-runtime.mjs

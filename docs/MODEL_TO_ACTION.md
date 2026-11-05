@@ -51,6 +51,8 @@ For each accepted interval the scheduler evaluates actual poses/anchors/endpoint
 
 The host arbitrates external animation owners through synchronous rig acquire/release ports. Internal root/bone locks prevent overlapping action writes. Motion completion preserves the final delivered pose, stops/uncaches the mixer and releases rig ownership before finite tails drain. Captured tails freeze at actual stop; attached tails read the anchor. An acquired `continue-on-scene` layer keeps its own emission/retirement deadlines during actor pause. Cancellation, replacement, reset and disposal hard-retire the affected generation; borrowed model assets, clips, materials, textures, service, renderer and composer are never disposed by that actor.
 
+Only validated owned transform/morph targets reach the mixer. Object/index accessor escapes are rejected; supported owned skeleton access is resolved to an exact node before playback. Bounded decoded-model snapshots check geometry/index/morph/skin bytes, static bind data and stable graph/skeleton identities while allowing legitimate animated transforms/influences and renderer-derived skin matrices. Scene-wide copied-byte and comparison-work budgets cover those guards; capture their cost in real model benchmarks. The host still loads the exact admitted GLB; this is not a second loader/parser.
+
 Declare exceptional-delta, hidden and resume policy before playback. Static oversized updates reject before time advances; the scheduler never replays a hidden backlog or silently drops accepted FX time. Physical memory/GPU enforcement and actual target performance remain separate from these finite owned-resource/work checks.
 
 ## Targets and presentation outcomes
@@ -60,6 +62,8 @@ Every start explicitly selects `outcomeMode: 'rehearsal'` or `'host-outcomes'`. 
 Continuous beams require generation-bound, finite, monotonic, non-future Scene-time endpoint inputs within their declared age/range/rate policies. They sample at interval end before FX; invalid input retires affected presentation. Beam width applies combined anchor/cue scale once; supplied world endpoints own its length. No beam endpoint or visual projectile implies homing/target authority.
 
 Rehearsal can display the authored impact at its fixed point. Host-outcomes mode suppresses automatic fixed-target impacts; the game may request a reviewed impact cue with current generation, position, normalized normal and fresh Scene timestamp. Each cue can be requested once, only while active/draining, after its presentation window opens and while its full authored duration/offsets/tail fits the remaining action envelope. A late request is refused instead of clipping/stretching the effect; author recovery slack when later contacts need presentation. Gameplay contact remains authoritative even when a visual request expires.
+
+A confirmed impact uses the supplied position and `surfaceFrame(+Y → normal) * authoredCueLocalOrientation`, preserving authored local rotation after replacing anchor rotation with the confirmed surface frame. Combined positive uniform scale is applied once. Endpoint callbacks share the finite mutation budget; recursive invalid-input handlers propagate the originating budget/host error rather than overflowing the stack or hiding it in input validation.
 
 Gameplay owns movement, target eligibility, collision, contacts, damage, resource costs, cooldowns and outcomes. A marker, visual arrival, clip completion or presentation callback manufactures none of them.
 
