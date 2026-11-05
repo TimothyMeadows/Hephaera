@@ -90,3 +90,11 @@ The five JavaScript engine inputs must name their matching canonical entries and
 Create a fresh wrapper from the factual captured report and tested source identities before native review. Preserve the original report and prior receipts. A changed installed module invalidates the affected receiving evidence; refresh its captures and reviews instead of replacing the expected hash with the current file hash. The wrapper does not establish renderer behavior or reviewer authenticity by itself.
 
 Browser/software-renderer, physical GPU and MAUI Windows/Mac Catalyst/Android/iOS results have distinct scopes. Unavailable targets stay not-run. Full visual/performance/accessibility acceptance and public examples are separate from the receiving bridge; implementation tests never manufacture those decisions.
+
+## Engineering examples
+
+These original fixtures show attachment and travel on a skinned model, and an explicitly supplied endpoint on a rigid model. They use the reviewed native exports and the shared Three.js/Quarks owner with the LDR postprocessing profile. Production assets still need their own design, quality and target acceptance.
+
+![A skinned fixture with a traveling projectile and visible trail](images/model-to-action/caster-trail.png)
+
+![A rigid fixture with its complete beam and endpoint in view](images/model-to-action/rigid-beam.png)
