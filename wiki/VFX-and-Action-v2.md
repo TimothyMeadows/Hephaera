@@ -102,7 +102,11 @@ Author reduced-motion/reduced-flash, contrast and color-independent alternatives
 
 ![A rigid fixture with its complete beam and explicitly supplied endpoint visible](https://raw.githubusercontent.com/TimothyMeadows/Hephaera/main/website/assets/guides/vfx/rigid-beam.png)
 
+![An original steady-shape caster alternative with a clearly visible gray target diamond](https://raw.githubusercontent.com/TimothyMeadows/Hephaera/main/website/assets/guides/vfx/caster-target-diamond.png)
+
 These unedited project-authored engineering captures use the reviewed native export and shared Quarks owner. Their [provenance](https://github.com/TimothyMeadows/Hephaera/blob/main/website/assets/guides/README.md) records exact copies. They illustrate selected moments, not finished artwork, complete playback, human acceptance or promotion.
+
+The [original alternative designs](https://github.com/TimothyMeadows/Hephaera/blob/main/examples/action-vfx/accessibility-variants.md) compare lower-cost and steady cues, explain target-plane orientation and distinguish sampled resource peaks from interval-end snapshots.
 
 ## Targets and unavailable capabilities
 

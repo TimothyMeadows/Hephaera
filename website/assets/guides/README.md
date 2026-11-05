@@ -15,4 +15,6 @@ The fixture is [`resources/schematic-to-model/examples-v2/device.json`](https://
 | `caster-trail.png` | `fd8c27bc2385a48164fa55714c0c2ffc6544140a09f1e4951eeaa640050a387b` |
 | `rigid-beam.png` | `0fab7f0d306f6b3babd12f01cc5f607aeda59a5a3018e29aa76793e527504945` |
 
+`vfx/caster-target-diamond.png` is an unedited 960 by 540 engineering capture of the original steady-shape alternative's target phase at 1.8 seconds. It comes from source `020c5c9dee583c184bc0d2634498b417247c8499` and the same actual native revision, desktop renderer and pinned libraries described above. The selected asset is `caster-static-cues/revision-1`. Independent review confirmed the filled diamond on neutral, dark and light backgrounds without changing the camera. This frame illustrates shape/plane choice, not complete playback, human accessibility/runtime acceptance or promotion. Its SHA-256 is `61b36b927ab77953c9be70d2b3cc3d212e8b75983a3a785e52f16db867b5ddf8`. It is project-authored output under the same MIT license, with no private or third-party image inputs.
+
 Only images referenced by guide Markdown enter the Pages output. This provenance note and local task evidence are not copied into the site automatically.

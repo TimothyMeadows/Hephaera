@@ -52,6 +52,12 @@ Watch complete normal-speed actions with the intended camera. Inspect isolated l
 
 Request authored reduced-motion and reduced-flash alternatives, plus contrast and color-independent cues. A lower particle count is useful for cost, but it does not by itself preserve an essential warning or make an effect accessible. Review those alternatives as actual outputs; the engineering screenshots above do not claim that review is complete.
 
+For example, a hollow source circle, fixed target diamond and filled impact square can convey different roles without color or a fast traveling effect. The [original alternative designs](https://github.com/TimothyMeadows/Hephaera/blob/main/examples/action-vfx/accessibility-variants.md) explain the choices and what to review. A steady cue may last longer and cost more than a brief burst, so measure both usability and cost.
+
+[![An original cyan caster fixture beside a steady gray diamond marking its fixed target](../../assets/guides/vfx/caster-target-diamond.png)](../../assets/guides/vfx/caster-target-diamond.png)
+
+This unedited engineering frame shows the target phase of a steady-shape alternative. Check its source and impact phases in full playback too. Review shapes from the actual camera: a ground-plane diamond can become a thin sliver when viewed edge-on.
+
 Measure loading and compilation separately from steady playback and peak concurrency. Compare at least five comparable baseline/candidate runs and investigate median-stage regressions above 10%. Label CPU submission or software-renderer measurements honestly. A desktop browser result does not certify a physical GPU or a packaged game.
 
 MAUI packages still target Windows, Mac Catalyst, Android and iOS. Each needs actual packaged-game checks for loading, lifecycle/context recovery, color/transparency, performance and cleanup. Linux/TV, WebGPU, ray/path tracing and other-engine VFX bridges are not added by this workflow. Missing tools or an unsupported target require direction; there is no silent installation or fallback.

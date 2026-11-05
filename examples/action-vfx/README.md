@@ -51,6 +51,8 @@ Review complete normal-speed actions and exact release/end boundaries, isolated 
 
 Author actual reduced-motion/reduced-flash and contrast/color-independent alternatives. Review essential cues and readability; emission scaling alone is insufficient. Label software/CPU results and leave physical GPU or packaged MAUI targets not-run until actually tested.
 
+The [original alternative designs](accessibility-variants.md) compare lower-cost and steady shape cues, explain the target-plane choice and show how to keep peak counters distinct from interval-end snapshots.
+
 Bind real receiving artifacts using the documented host evidence helper for the existing native review path. Technical validation and independent review do not record human runtime acceptance. Obtain that decision separately for the exact current result, then perform explicit native action promotion if authorized. Standalone VFX staging does not promote anything.
 
 Keep failed versions, spent attempts, original rights, captures and review history so the next session can explain what changed. See [the practical guide](../../website/content/docs/game-effects-and-actions.md) and [detailed wiki source](../../wiki/VFX-and-Action-v2.md).
