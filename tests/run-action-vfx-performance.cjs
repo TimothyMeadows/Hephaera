@@ -54,4 +54,4 @@ withEdgeReview({edge, source: ROOT, modules, fixture: path.join(ROOT, 'tests/fix
     limits: 'Exact parent445 VFX owner versus candidate VFX owner only. No historical v2 action scheduler existed; new scheduler/model costs require separate candidate absolute measurements. Desktop Edge/device scope only, no MAUI/device/human acceptance.',
     comparisons, investigationsRequired: comparisons.filter(value => value.aboveTenPercent).map(value => value.name)};
   fs.writeFileSync(path.join(output, 'performance-report.json'), JSON.stringify(report, null, 2) + '\n', {flag: 'wx'}); return report;
-}).then(report => console.log(JSON.stringify({output, pairs: report.pairs, investigationsRequired: report.investigationsRequired, comparisons: report.comparisons}))).catch(error => { console.error(error); process.exitCode = 1; });
+}).then(report => console.log(JSON.stringify({output, pairs: report.pairs, investigationsRequired: report.investigationsRequired, report: 'performance-report.json'}))).catch(error => { console.error(error); process.exitCode = 1; });
