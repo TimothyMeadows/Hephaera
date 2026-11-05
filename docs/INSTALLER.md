@@ -1,11 +1,11 @@
 # Versioned Hephaera installer
 
-Use stable version [`5.2.0`](https://github.com/TimothyMeadows/Hephaera/releases/tag/5.2.0) for floor-plan-to-model, schematic-to-model and reusable VFX/MODEL_TO_ACTION v2. The [release notes](RELEASE_5_2_0.md) describe its features and limits. Confirm the exact release/feed version is published before acquisition. Historical `5.1.0-rc.1` remains unchanged and does not contain these later workflows.
+Select security patch [`5.2.1`](https://github.com/TimothyMeadows/Hephaera/releases/tag/5.2.1) after confirming the exact release/feed version is published. It retains the floor-plan-to-model, schematic-to-model and reusable VFX/MODEL_TO_ACTION v2 workflows introduced in `5.2.0`. The [release notes](RELEASE_5_2_1.md) describe fixes and limits. Historical `5.1.0-rc.1` remains unchanged and does not contain these later workflows.
 
 | Destination | Package | Release selection |
 | --- | --- | --- |
-| GitHub npm | `@timothymeadows/hephaera` | `5.2.0`; authenticated read |
-| GitHub NuGet | `Hephaera` | `5.2.0`; authenticated read |
+| GitHub npm | `@timothymeadows/hephaera` | `5.2.1`; authenticated read |
+| GitHub NuGet | `Hephaera` | `5.2.1`; authenticated read |
 | npmjs.com and NuGet.org | Public mirrors | Deferred; not part of this release |
 
 The installer creates a version-pinned Git checkout at `<project-root>/.hephaera`, then runs the canonical scaffold before reporting success. It creates the host `AGENTS.md` bootstrap and missing durable context automatically. Package acquisition alone does not initialize a project. Use GitHub npm first or the GitHub NuGet tool below. Public-registry accounts are unnecessary for these routes.
@@ -50,7 +50,7 @@ npm login --scope=@timothymeadows --auth-type=legacy --registry=https://npm.pkg.
 Run at the host root:
 
 ```bash
-npm exec --yes --registry=https://npm.pkg.github.com --package=@timothymeadows/hephaera@5.2.0 -- hephaera install --project .
+npm exec --yes --registry=https://npm.pkg.github.com --package=@timothymeadows/hephaera@5.2.1 -- hephaera install --project .
 ```
 
 The selected scoped mapping and explicit registry must agree. [GitHub npm registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-npm-registry).
@@ -80,14 +80,14 @@ Exact-ID mapping selects GitHub for Hephaera. `--add-source` is not a source-pri
 
 ### NuGet setup
 
-From the [5.2.0 release](https://github.com/TimothyMeadows/Hephaera/releases/tag/5.2.0), download `hephaera-setup-5.2.0.zip`, verify it against `CHECKSUMS-5.2.0.txt`, and extract it. Keep the wrappers, helper, `setup-release.json` and bundled config unchanged. Copy the token-free GitHub config to the host root without changing the bundle. Point `SETUP_DIR` (Bash) or `SetupDir` (PowerShell) at the reviewed extracted directory:
+From the [5.2.1 release](https://github.com/TimothyMeadows/Hephaera/releases/tag/5.2.1), download `hephaera-setup-5.2.1.zip`, verify it against `CHECKSUMS-5.2.1.txt`, and extract it. Keep the wrappers, helper, `setup-release.json` and bundled config unchanged. Copy the token-free GitHub config to the host root without changing the bundle. Point `SETUP_DIR` (Bash) or `SetupDir` (PowerShell) at the reviewed extracted directory:
 
 ```bash
-bash "$SETUP_DIR/setup-nuget.sh" --version 5.2.0 --project . --configfile ./NuGet.Hephaera.config
+bash "$SETUP_DIR/setup-nuget.sh" --version 5.2.1 --project . --configfile ./NuGet.Hephaera.config
 ```
 
 ```powershell
-& "$SetupDir/setup-nuget.ps1" --version 5.2.0 --project . --configfile ./NuGet.Hephaera.config
+& "$SetupDir/setup-nuget.ps1" --version 5.2.1 --project . --configfile ./NuGet.Hephaera.config
 ```
 
 Only explicit `-- --with-bubo-source` is forwarded as an optional setup request. The acquisition wrapper does not forward `--dry-run`, because acquisition can write tooling/manifest/cache. After acquisition, the core's `install/init --dry-run` and `update --dry-run` are project-read-only previews; candidate staging and target admission are not run by them. `verify --json` reports packaged version/core identity. Dirty development previews cannot mutate a host.

@@ -424,12 +424,12 @@ Hephaera belongs directly at `<project-root>/.hephaera/` in an existing host Git
 
 ## Package Availability
 
-Use stable version [`5.2.0`](https://github.com/TimothyMeadows/Hephaera/releases/tag/5.2.0) for floor-plan-to-model, schematic-to-model and reusable VFX/MODEL_TO_ACTION v2. See the [release notes](docs/RELEASE_5_2_0.md) for the included features and limits. Confirm the exact release and package version are published before running setup.
+The security patch release is [`5.2.1`](https://github.com/TimothyMeadows/Hephaera/releases/tag/5.2.1), retaining floor-plan-to-model, schematic-to-model and reusable VFX/MODEL_TO_ACTION v2 from `5.2.0`. See the [release notes](docs/RELEASE_5_2_1.md) for fixes and limits. Use these commands only after confirming the exact release and package version are published.
 
 | Source | Version and access |
 | --- | --- |
-| GitHub npm: `@timothymeadows/hephaera` | `5.2.0`; authenticated package reads |
-| GitHub NuGet: `Hephaera` | `5.2.0`; authenticated package reads |
+| GitHub npm: `@timothymeadows/hephaera` | `5.2.1`; authenticated package reads |
+| GitHub NuGet: `Hephaera` | `5.2.1`; authenticated package reads |
 | npmjs.com and NuGet.org | Deferred; not part of this release |
 
 Both package routes pin the exact baseline Git revision and automatically run the canonical scaffold before reporting success. Acquisition alone does not initialize the host. Public-registry accounts and publication will be configured separately later; they are not needed for GitHub Packages. The [manual Git option](#advanced-manual-installation) remains last.
@@ -460,7 +460,7 @@ Authenticate interactively using your own GitHub username and expiring PAT **cla
 
 ```bash
 npm login --scope=@timothymeadows --auth-type=legacy --registry=https://npm.pkg.github.com
-npm exec --yes --registry=https://npm.pkg.github.com --package=@timothymeadows/hephaera@5.2.0 -- hephaera install --project .
+npm exec --yes --registry=https://npm.pkg.github.com --package=@timothymeadows/hephaera@5.2.1 -- hephaera install --project .
 ```
 
 The explicit installer acquires tooling, installs the pinned baseline and creates the canonical scaffold. It does not rely on lifecycle hooks. A reviewed exact dev dependency is also possible, but downloading it alone does not initialize the project. An npmjs.com account is not required for this GitHub route.
@@ -469,14 +469,14 @@ The explicit installer acquires tooling, installs the pinned baseline and create
 
 The `Hephaera` .NET tool embeds the same Node core; Node 24 remains required. Use the [authenticated GitHub NuGet configuration](docs/INSTALLER.md#authenticate-for-nuget) at the host root. It maps exact `Hephaera` to the GitHub feed; keep credentials outside tracked files. A NuGet.org account is not required.
 
-From the [5.2.0 release](https://github.com/TimothyMeadows/Hephaera/releases/tag/5.2.0), download the setup ZIP and verify its release checksum before extracting it. Keep its wrappers, helper, release identity and bundled config unchanged. Point `SETUP_DIR` (Bash) or `SetupDir` (PowerShell) at the reviewed extracted directory, with the token-free config at the host root:
+From the [5.2.1 release](https://github.com/TimothyMeadows/Hephaera/releases/tag/5.2.1), download the setup ZIP and verify its release checksum before extracting it. Keep its wrappers, helper, release identity and bundled config unchanged. Point `SETUP_DIR` (Bash) or `SetupDir` (PowerShell) at the reviewed extracted directory, with the token-free config at the host root:
 
 ```bash
-bash "$SETUP_DIR/setup-nuget.sh" --version 5.2.0 --project . --configfile ./NuGet.Hephaera.config
+bash "$SETUP_DIR/setup-nuget.sh" --version 5.2.1 --project . --configfile ./NuGet.Hephaera.config
 ```
 
 ```powershell
-& "$SetupDir/setup-nuget.ps1" --version 5.2.0 --project . --configfile ./NuGet.Hephaera.config
+& "$SetupDir/setup-nuget.ps1" --version 5.2.1 --project . --configfile ./NuGet.Hephaera.config
 ```
 
 The wrapper acquires/verifies the exact local tool, then immediately runs setup. Preserve other local-tool entries; restoring them may need additional reviewed source mappings. Raw `dotnet tool install` does not scaffold a host. Package pages: [GitHub npm](https://github.com/users/TimothyMeadows/packages/npm/package/hephaera) and [GitHub NuGet](https://github.com/users/TimothyMeadows/packages/nuget/package/Hephaera).

@@ -6,7 +6,7 @@ The primary sources are [AGENTS.md](https://github.com/TimothyMeadows/Hephaera/b
 
 ## Safe managed update sequence
 
-Use the selected exact GitHub package version or local NuGet tool. Choose `5.2.0` for the floor-plan, schematic and reusable VFX/action-v2 workflows after confirming exact release/feed publication. Inspect `doctor --project PATH` first. Restore uses the exact host lock; updating uses the target release's verified manifest/core, not an old launcher guessing a new baseline.
+Use the selected exact GitHub package version or local NuGet tool. Choose `5.2.1` for the floor-plan, schematic and reusable VFX/action-v2 workflows after confirming exact release/feed publication. Inspect `doctor --project PATH` first. Restore uses the exact host lock; updating uses the target release's verified manifest/core, not an old launcher guessing a new baseline.
 
 Review `update --project PATH --dry-run` before an explicit update. Dirty tracked source, unsafe ownership, path collisions, legacy state and active readers stop the operation. Supported production/dispatch entrypoints retain cooperative read leases through queue waits, execution, cancellation and cleanup; the updater needs exclusive baseline maintenance ownership through postconditions. This is separate from Bubo GPU scheduling and is not an operating-system sandbox against unmanaged processes.
 

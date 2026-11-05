@@ -1,6 +1,6 @@
 # Future public-registry publication reference
 
-Public npmjs.com and NuGet.org publication is deferred. The stable `5.2.0` rollout selects GitHub Releases and GitHub Packages only, with `publish_public=false`; neither public account is ready. Do not configure or launch these steps as part of that release. GitHub package installation does not need an npmjs.com or NuGet.org account.
+Public npmjs.com and NuGet.org publication is deferred. The stable `5.2.1` rollout selects GitHub Releases and GitHub Packages only, with `publish_public=false`; neither public account is ready. Do not configure or launch these steps as part of that release. GitHub package installation does not need an npmjs.com or NuGet.org account.
 
 This reference preserves the existing public workflow for a separately authorized future rollout. Historical [`5.1.0-rc.1`](https://github.com/TimothyMeadows/Hephaera/releases/tag/5.1.0-rc.1) was published to both GitHub feeds and later classified as a full GitHub release without changing its immutable source, package version or files. Its public mirrors were not confirmed; the old catch-up tuple below identifies that release only.
 
@@ -14,7 +14,7 @@ In repository **Settings > Secrets and variables > Actions > Variables**, set:
 
 | Variable | Future configuration | Purpose |
 | --- | --- | --- |
-| `PUBLIC_PACKAGE_REGISTRIES` | Future reviewed selection | Automatic launches can select `npm`, `nuget` or `both`; not enabled for `5.2.0` |
+| `PUBLIC_PACKAGE_REGISTRIES` | Future reviewed selection | Automatic launches can select `npm`, `nuget` or `both`; not enabled for `5.2.1` |
 | `PUBLIC_NPM_AUTH_MODE` | `trusted` | Default npm mode; select `bootstrap` for the first npmjs upload after account recovery |
 | `NUGET_PUBLIC_USER` | `TimothyMeadows` | NuGet.org profile that creates the trusted-publishing policy |
 
@@ -54,7 +54,7 @@ The workflow uses its supported pinned npm CLI; do not run a global npm upgrade 
 
 ## Historical catch-up example: 5.1.0-rc.1
 
-These are historical inputs for the old release, not the `5.2.0` rollout. Do not combine one version's source/release/run values with another version. For a separately approved future catch-up, derive the complete tuple from that exact published GitHub release and successful upstream receipt before opening `publish-public-packages.yml`:
+These are historical inputs for the old release, not the `5.2.1` rollout. Do not combine one version's source/release/run values with another version. For a separately approved future catch-up, derive the complete tuple from that exact published GitHub release and successful upstream receipt before opening `publish-public-packages.yml`:
 
 | Input | Historical first-release value |
 | --- | --- |
@@ -72,7 +72,7 @@ Prepare downloads the already published release files and verifies upstream succ
 
 ## Automatic delivery and recovery
 
-The existing `publish-packages.yml` defaults `publish_public` to true. Explicitly set it to false for the GitHub-only `5.2.0` rollout; this leaves the downstream phase unlaunched. When a later public rollout is separately approved and GitHub publication succeeds, a separate narrow `actions: write` job dispatches the same standalone public workflow using the repository variables above. It does not depend on a release-event recursion chain. Manual catch-up uses that same canonical identity and gate.
+The existing `publish-packages.yml` defaults `publish_public` to true. Explicitly set it to false for the GitHub-only `5.2.1` rollout; this leaves the downstream phase unlaunched. When a later public rollout is separately approved and GitHub publication succeeds, a separate narrow `actions: write` job dispatches the same standalone public workflow using the repository variables above. It does not depend on a release-event recursion chain. Manual catch-up uses that same canonical identity and gate.
 
 All selected registries are reconciled before selected writes. Matching versions are skipped; collisions stop. Keep `public-publication.json` and its `public-publication.lock` evidence, including per-channel history. A later 404 after write intent, pending or uncertainty does not permit another upload: automatic resubmission stops, with no force/reset option. Reconcile service state before continuing; never delete history. Unselected historical confirmations are retained, but no fresh unselected check is claimed. The upstream GitHub release remains available if a public mirror is pending or fails.
 
