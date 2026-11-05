@@ -30,3 +30,11 @@ The reviewed native dependency for this release is Bubo `a47896d730b32d00b165e61
 Three.js is the implemented reusable-VFX action bridge. Native-engine adapters, packaged-device QA, gameplay authority, human runtime acceptance and asset promotion remain separate. Mechanical assemblies retain their preserve-only animation handoff; action composition does not gain implicit mechanical-assembly support. No models, drivers, licensed tools or generated-media allowances are installed or granted by the package release.
 
 The previous `5.1.0-rc.1` tag and package artifacts remain unchanged. Its full GitHub classification did not remove its SemVer prerelease suffix or add these features.
+
+## Installation guide previews
+
+The authenticated GitHub setup instructions, captured in desktop and narrow browser layouts:
+
+![GitHub npm and NuGet setup in the desktop guide](images/releases/5.2.0-install-desktop.png)
+
+![GitHub setup in the narrow guide layout](images/releases/5.2.0-install-narrow.png)
