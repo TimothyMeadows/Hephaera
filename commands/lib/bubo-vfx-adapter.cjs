@@ -28,6 +28,7 @@ const TOOL_FILES = Object.freeze([
   'commands/lib/vfx-assets.cjs',
   'commands/lib/bubo-vfx-adapter.cjs',
   'commands/lib/bubo-host-adapter.cjs',
+  'commands/lib/action-vfx-admission.cjs',
   'commands/lib/bubo-runtime.cjs',
   'commands/lib/engine-contract.cjs',
   'commands/lib/style-contract.cjs',

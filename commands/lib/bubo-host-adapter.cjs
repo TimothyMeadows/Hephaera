@@ -10,6 +10,7 @@ const transition = require('./state-transition.cjs');
 const engines = require('./engine-contract.cjs');
 const styles = require('./style-contract.cjs');
 const mechanicalHandoff = require('./bubo-mechanical-handoff.cjs');
+const actionVfx = require('./action-vfx-admission.cjs');
 const fail = message => { throw new Error(message); };
 const IDS = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/;
 const FILE_FLAGS = new Set(['rights', 'recipe', 'toolchain', 'selection', 'library-search', 'evidence', 'proof-set', 'classification', 'finish-settings', 'finish-budget', 'revision', 'source-review', 'sources', 'proof', 'model', 'motion-package', 'motion-source', 'mapping', 'brief', 'proof-metadata', 'source-metadata', 'editable-source', 'artifact', 'source', 'handoff']);
@@ -18,11 +19,12 @@ function parse(values) {
   const options = new Map();
   for (let index = 0; index < values.length; index++) {
     const name = values[index];
+    if (name === '--host-style-sha256') fail('Hephaera supplies protected execution option --host-style-sha256.');
     if (!/^--[a-z][a-z-]*$/.test(name) || options.has(name.slice(2))) fail('Expected unique --option value arguments.');
     const key = name.slice(2);
     const value = key === 'execute' && (index + 1 === values.length || values[index + 1].startsWith('--')) ? 'true'
       : index + 1 < values.length && !values[index + 1].startsWith('--') ? values[++index] : fail('Missing value for ' + name);
-    if (['host-context', 'api-version', 'baseline-root', 'state-root', 'staging-root', 'runtime-build-sha256', 'runtime-resource-catalog-sha256'].includes(key)) fail('Hephaera supplies protected execution option --' + key + '.');
+    if (['host-context', 'api-version', 'baseline-root', 'state-root', 'staging-root', 'runtime-build-sha256', 'runtime-resource-catalog-sha256', 'host-style-sha256'].includes(key)) fail('Hephaera supplies protected execution option --' + key + '.');
     if (key === 'execute' && value !== 'true') fail('--execute accepts only true; omit it for dry-run setup.');
     options.set(key, value);
   }
@@ -72,10 +74,15 @@ function contextFor(workflow, operation, options, info) {
   const task = options.get('task') || state?.task;
   if (!IDS.test(task || '') || task === '..') fail('A safe --task (init) or current task-owned manifest is required.');
   if (options.has('task') && state && state.task !== task) fail('Manifest/task ownership mismatch.');
-  if (operation !== 'init' && (!state || !manifest)) fail('A current --manifest is required.');
+  const effectInspection = workflow === 'model-to-action' && operation === 'inspect-effects';
+  if (operation !== 'init' && !effectInspection && (!state || !manifest)) fail('A current --manifest is required.');
   if (state && (!state.hostPolicySha256 || !state.runtimeBuildSha256)) fail('Historical pre-extraction state is preserved. Initialize a new asset version with retained ancestry and fresh affected verification; do not rewrite old approvals.');
   const stateRoot = '.hephaera/.cache/tasks/' + task;
   if (manifest && !relative(manifest).startsWith(stateRoot + '/')) fail('Manifest must stay in the active canonical task cache.');
+  const actionRecipePath = workflow === 'model-to-action' && (options.get('recipe') || state?.recipe);
+  const actionRecipe = actionRecipePath ? runtime.json(runtime.projectPath(root, actionRecipePath)) : null;
+  const actionV2 = actionRecipe?.schemaVersion === 2;
+  if (effectInspection && !actionV2) fail('inspect-effects requires an explicit action recipe v2.');
   const references = new Map(); const tools = new Map(); const visitedJson = new Set(); const admittedHashes = new Map();
   let mechanical = null;
   function reference(value, kind = 'input', expected) {
@@ -94,7 +101,12 @@ function contextFor(workflow, operation, options, info) {
     if (depth > 32) fail('Nested input metadata exceeds the host bound.');
     if (Array.isArray(value)) { for (const item of value) discover(item, depth + 1); return; }
     if (!value || typeof value !== 'object') return;
+    // Typed v2 collectors admit these exact files without recursively treating
+    // native package-relative paths or original host roots as generic metadata.
+    if (actionV2 && ['bubo-host-context/v1', 'bubo-vfx-preparation-result/v1', 'bubo-vfx-package/v1', 'bubo-vfx-package/v2',
+      'bubo-action-runtime-evidence/v2', 'bubo-action-effect-receiving/v1'].includes(value.schemaVersion)) return;
     for (const [key, item] of Object.entries(value)) {
+      if (actionV2 && key === 'effectSources') continue;
       if (['engine', 'blender'].includes(key) && item && typeof item === 'object' && typeof item.path === 'string') continue; // Exact executable admission is separate below.
       if (key === 'libraryArtifactHashes' && item && typeof item === 'object') {
         for (const [name, expected] of Object.entries(item)) { const file = reference(name); if (runtime.hash(file) !== expected) fail('Library-copy ancestry changed: ' + name); }
@@ -138,6 +150,7 @@ function contextFor(workflow, operation, options, info) {
   if (workflow === 'proof-to-model' && selection.pipeline !== 'PROOF_TO_MODEL') fail('Proof production requires selected PROOF_TO_MODEL; no pipeline fallback occurred.');
   const engine = engines.resolve(root);
   if (engine.outputScope || engine.selectionSource === 'prompt') fail('These production workflows do not accept a prototype engine override.');
+  if (actionV2 && engine.effectiveEngine !== 'THREEJS') fail('Action v2 production bridge is unavailable for the selected engine; no fallback occurred.');
   for (const name of ['ENGINE.md', 'ARCHITECTURE.md']) if (fs.existsSync(path.join(root, name))) reference(name, 'policy');
   for (const name of ['.engine/registry.json', '.engine/' + engine.projectEngine + '.md']) {
     const file = path.join(runtime.BASE, name);
@@ -163,18 +176,25 @@ function contextFor(workflow, operation, options, info) {
     const file = executable(value, root, required);
     if (file && !tools.has(file)) tools.set(file, { path: file, sha256: runtime.hash(file), kind: 'selected-native-tool' });
   }
-  tool(options.get('blender'), options.has('blender'));
-  for (const config of configs) { tool(process.platform !== 'win32' ? config.engine?.path?.replace(/\.exe$/, '') : config.engine?.path); tool(config.blender?.path); }
+  if (!effectInspection) tool(options.get('blender'), options.has('blender'));
+  if (!effectInspection) for (const config of configs) { tool(process.platform !== 'win32' ? config.engine?.path?.replace(/\.exe$/, '') : config.engine?.path); tool(config.blender?.path); }
   const nativeOperation = new Set(['finish', 'review', 'inspect', 'prepare', 'rig', 'author', 'retarget', 'bake', 'export', 'compose', 'doctor']);
-  if (workflow !== 'proof-to-model' || nativeOperation.has(operation)) tool(options.get('blender') || configs.find(item => item.blender)?.blender.path || 'blender');
+  if (!effectInspection && (workflow !== 'proof-to-model' || nativeOperation.has(operation))) tool(options.get('blender') || configs.find(item => item.blender)?.blender.path || 'blender');
   if (workflow === 'proof-to-model') { tool('nvidia-smi'); tool('nvcc'); }
-  for (const stage of Object.values(state?.stages || {})) for (const name of Object.keys(stage.externalInputs || {})) {
+  if (!effectInspection) for (const stage of Object.values(state?.stages || {})) for (const name of Object.keys(stage.externalInputs || {})) {
     const file = path.resolve(runtime.native(name));
     if (!runtime.within(info.folder, file)) tool(file, true);
   }
-  if (state?.blender) tool(state.blender, true);
+  if (!effectInspection && state?.blender) tool(state.blender, true);
   for (const file of tools.keys()) if (runtime.within(root, file)) references.delete(relative(file));
   const inputs = [];
+  if (actionV2) {
+    const admitted = actionVfx.collect({ root, recipe: actionRecipe, stateRoot, reference });
+    for (const scope of admitted.inputs) if (!inputs.includes(scope)) inputs.push(scope);
+    for (const approval of state?.approvals || []) reference(approval.evidence, 'review', approval.evidenceHash);
+    const evidencePaths = [options.get('evidence'), ...(state?.approvals || []).map(item => item.evidence)].filter(Boolean);
+    if (!effectInspection) for (const value of evidencePaths) actionVfx.collectReceiving({ root, evidence: runtime.json(runtime.projectPath(root, value)), stateRoot, reference });
+  }
   if (mechanical) inputs.push(mechanical.packageRoot);
   if (!(operation === 'setup' && options.get('execute') === 'true')) for (const config of configs) if (config.modelDir) {
     const directory = relative(config.modelDir);
@@ -221,7 +241,12 @@ async function executeOwned(workflow, operation, options, prepared, info, emit =
   const contextFile = path.join(folder, 'host-context.json');
   fs.writeFileSync(contextFile, JSON.stringify(prepared.context, null, 2) + '\n', { flag: 'wx' });
   const args = [workflow, operation, '--api-version', '2', '--host-context', contextFile];
-  for (const [name, value] of options) args.push('--' + name, value);
+  for (const [name, value] of options) {
+    // This manifest-free query needs a host task for durable receipts; native
+    // receives that identity from the validated context, not an init-only flag.
+    if (workflow === 'model-to-action' && operation === 'inspect-effects' && name === 'task') continue;
+    args.push('--' + name, value);
+  }
   const executionStarted = performance.now();
   const ownership = Object.freeze({ workflow, operation, hostPid: process.pid,
     contextFile: path.relative(prepared.root, contextFile).split(path.sep).join('/'),
@@ -286,7 +311,7 @@ async function main(values) {
   if (!operation || operation === 'help' || operation === '--help' || args.includes('--help')) {
     const operations = workflow === 'proof-to-model' ? 'init classify prepare-proofs setup preprocess reconstruct finish review record reuse validate status doctor promote'
       : workflow === 'model-to-animation' ? 'init doctor inspect prepare rig author retarget bake export review record validate status promote'
-      : 'init doctor inspect compose export review record validate status promote';
+      : 'init doctor inspect-effects inspect compose export review record validate status promote';
     console.log(`${workflow} <operation> --root PROJECT [--manifest FILE] [options]\nOperations: ${operations}\nInit (manifest defaults beneath the active task): --task ID --asset ID --version ID --actor ID --recipe JSON ${workflow === 'proof-to-model' ? '--rights JSON --toolchain JSON (--proof IMAGE | --sources JSON)' : workflow === 'model-to-animation' ? '--model GLB --rights JSON [--blender EXECUTABLE]' : '--motion-package JSON --source-review JSON [--blender EXECUTABLE]'}\nContinuation: --manifest FILE; record: --kind KIND --reviewer ID --evidence JSON; promote: --destination assets/models/NAME. ${workflow === 'proof-to-model' ? 'Finish accepts --finish-settings JSON and --finish-budget JSON; diagnostics require explicit --mode single-view-diagnostic.' : workflow === 'model-to-animation' ? 'Retarget requires --motion-source GLB --mapping JSON; author accepts --revision JSON.' : 'Source review binds actual model, rig, clip hashes and rights.'}\nFull arguments and receipt rules: ${path.join(runtime.BASE, 'commands/BUBO_ARGUMENTS.md')}\nInitialize with initialize-bubo-runtime.sh and build explicitly with build-bubo-runtime.sh. No installation, license acceptance, generation, human approval or asset promotion is implicit.`); return;
   }
   await invoke(workflow, operation, parse(args));

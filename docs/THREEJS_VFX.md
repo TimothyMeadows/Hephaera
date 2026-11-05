@@ -97,7 +97,7 @@ Leases expose `setTransform`, `setEndpoints` for beams, `pause`, `resume`, `stop
 
 Actual batch arrays have their own bounds. Quarks starts sprite and trail buffers with substantial minimum allocations; a tiny active-particle count does not remove those costs. `maxBufferBytes`, vertices, indices, history, draw, texture and system limits are checked alongside particle capacity, with measured and conservative reserved counters kept separate. These are explicit owned-resource estimates, not a hard GPU/process memory guarantee.
 
-The service has no action scheduler or frame loop. MODEL_TO_ACTION v1 retains its existing behavior. Reusable-package action scheduling is a separate delivery; do not infer an action-v2 bridge from a rendered standalone effect.
+The service itself has no action scheduler or frame loop. [MODEL_TO_ACTION v2](MODEL_TO_ACTION.md) adds a separate Scene scheduler that borrows this service and claims its one presentation clock across actors, tails and ambient effects. While that claim is held, call the action Scene scheduler instead of `effects.update` or the underlying owner. MODEL_TO_ACTION v1 retains its original player and historical primitive behavior.
 
 ## Review the complete result
 

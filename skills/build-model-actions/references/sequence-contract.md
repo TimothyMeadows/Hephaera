@@ -11,3 +11,17 @@ Cue addresses identify a step occurrence and either an action-clock offset after
 Keep source and composite motion hashes distinct. Changing source, recipe, trim, rate, blend, cue, target policy, script, tool or engine invalidates dependent evidence. Retain complete previous attempts. Initial shared composition uses in-place clips; a rigid vehicle needs no fake skeleton or combat clip set.
 
 Export must contain real composite clips with the declared IDs and actual duration/channels. Preserve an editable source and independently re-import the GLB. Sequence graphs and effects remain separate engine data; an animation file cannot instantiate a portable particle or ability system.
+
+## Versioned effects
+
+V1 retains its `orb`, `particles` and `projectile` recipe/package contract and unchanged native sample player. It is not upgraded by changing a schema label or by selecting Quarks. Preserve historical evidence and refresh affected checks when actual inputs/driver identities change.
+
+Select `schemaVersion: 2` for reusable effect sources. Follow the pinned native v2 schemas; references bind exact package/profile/resource/canonical correspondence bytes and private rights/production-review/preparation ancestry. Keep the native preparation seal and original same-project task/context when reusing prepared resources. Do not relabel that original task, reset attempts or copy private payloads into portable runtime dependencies.
+
+Use native `inspect-effects` to inspect current source subjects, allocations and the complete closure before composition. Its `accepted: false` subject is technical input, not an approval. Native compilation resolves the exact layer `start`, `stopAt` and `retireAt`; the receiving driver consumes those values without rebuilding marker/trim/rate mapping or native fingerprints.
+
+V2 explicitly declares anchor-local offset, normalized xyzw orientation, positive uniform scale and right-handed meters/+Y-up/+Z-forward runtime basis. Placements are `anchor-follow`, `captured-world`, `fixed-target-projectile`, `fixed-target` and `beam`. Fixed targets are copied at action start; continuous world-point input is available only for an explicitly declared beam. Trails require bounded samples and teleport/discontinuity resets. Cue overrides only reduce admitted size/color/emission.
+
+The actual exported composite is the playback source of truth. An off-grid cue samples that delivered clip at the boundary; it does not preserve an original source subframe shape that baking changed. Do not apply a second source-basis conversion or guess a missing anchor/marker. Existing profile/root-motion restrictions remain in force; a v2 effect cannot admit mechanical-assembly actions or another unsupported motion source.
+
+Stopping emission and retiring presentation are separate. Declare bounded tails, action-versus-Scene pause ownership and captured-versus-attached stop transforms. The compiled action retirement envelope bounds later host outcome presentation too: the full reviewed effect duration/offsets/tail must fit, without truncation or stretching. Include explicit action recovery slack when later authoritative contacts need an impact display.
