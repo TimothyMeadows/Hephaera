@@ -329,7 +329,7 @@ test('finite request/byte/lifetime limits and cancellation release listener and 
   socket.on('error', () => {});
   await once(socket, 'secureConnect');
   socket.write('GET /Hephaera/ HTTP/1.1\r\n');
-  await assert.rejects(request(cancel, '/Hephaera/'), /ECONNRESET|socket hang up/);
+  await assert.rejects(request(cancel, '/Hephaera/'), { code: 'ECONNRESET' });
   const socketClosed = once(socket, 'close');
   await cancel.close(); await socketClosed; await cancel.close();
   await assert.rejects(request(cancel, '/Hephaera/'), /ECONNREFUSED|ECONNRESET/);
