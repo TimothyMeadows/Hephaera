@@ -1,16 +1,29 @@
 // Independent second GLB parse and mixer evaluation. This test oracle does not
 // call the action scheduler, use its normalized clips, or certify model quality.
 export function createGlbPoseOracle({THREE, clone, source, declaration}) {
+  const envelopeCache = new Map(), sourceSkeletons = new Set(); source.scene.traverse(node => { if (node.isSkinnedMesh) sourceSkeletons.add(node.skeleton); });
   function pose({actionId, time, movementMatrix}) {
     const action = declaration.actions.find(value => value.id === actionId), clip = source.animations.find(value => value.name === action?.clip);
     if (!action || !clip || !Number.isFinite(time) || time < 0) throw Error('Exact independently parsed composite clip and time required');
     const scene = new THREE.Scene(), movement = new THREE.Group(), visual = clone(source.scene); movement.matrixAutoUpdate = false; movement.matrix.copy(movementMatrix); scene.add(movement); movement.add(visual);
     const mixer = new THREE.AnimationMixer(visual), playback = mixer.clipAction(clip); playback.setLoop(THREE.LoopOnce, 1); playback.clampWhenFinished = true; playback.play(); mixer.setTime(Math.min(time, action.duration));
     scene.updateMatrixWorld(true); visual.traverse(node => { if (node.isSkinnedMesh) node.skeleton.update(); });
-    return {visual, dispose() { mixer.stopAllAction(); mixer.uncacheRoot(visual); movement.removeFromParent(); }};
+    return {visual, dispose() { mixer.stopAllAction(); mixer.uncacheRoot(visual); movement.removeFromParent(); const skeletons = new Set(); visual.traverse(node => { if (node.isSkinnedMesh) skeletons.add(node.skeleton); });
+      for (const skeleton of skeletons) { if (sourceSkeletons.has(skeleton)) throw Error('Independent clone unexpectedly shares source skeleton'); skeleton.dispose(); } }};
   }
   const nodes = root => { const result = []; root.traverse(node => result.push(node)); if (result.length > 10000) throw Error('Independent pose node budget exceeded'); return result; };
   return Object.freeze({
+    envelope(actionId) {
+      if (!envelopeCache.has(actionId)) {
+        const action = declaration.actions.find(value => value.id === actionId), clip = source.animations.find(value => value.name === action?.clip); if (!clip) throw Error('Independent animated framing clip missing');
+        const keys = [...new Set([0, action.duration, ...clip.tracks.flatMap(track => Array.from(track.times))])].sort((a, b) => a - b); if (keys.length > 4096) throw Error('Animated camera envelope sampling budget exceeded');
+        const times = [...keys, ...keys.slice(1).map((time, index) => (time + keys[index]) / 2)], box = new THREE.Box3();
+        for (const time of times) { const expected = pose({actionId, time, movementMatrix: new THREE.Matrix4()}); try { box.union(new THREE.Box3().setFromObject(expected.visual, true)); } finally { expected.dispose(); } }
+        if (box.isEmpty()) throw Error('Animated GLB framing envelope has no geometry'); const paddingMeters = box.getSize(new THREE.Vector3()).length() * .05; box.expandByScalar(paddingMeters);
+        envelopeCache.set(actionId, {box, samples: times.length, paddingMeters});
+      }
+      const value = envelopeCache.get(actionId); return {box: value.box.clone(), samples: value.samples, paddingMeters: value.paddingMeters};
+    },
     compare({visualRoot, movementMatrix, actionId, time}) {
       const expected = pose({actionId, time, movementMatrix});
       try {

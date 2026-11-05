@@ -9,6 +9,17 @@ const fail = message => { throw new Error(message); };
 const HASH = /^[a-f0-9]{64}$/;
 const ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/;
 const KINDS = new Set(['input', 'policy', 'rights', 'review', 'consent']);
+const RUNTIME_ENTRIES = Object.freeze({
+  'action-driver': '.hephaera/.engine/threejs/actions/action-v2.mjs',
+  'scene-scheduler': '.hephaera/.engine/threejs/actions/action-scene.mjs',
+  'particle-runtime': '.hephaera/.engine/threejs/particles/three-quarks-runtime.mjs',
+  'vfx-runtime': '.hephaera/.engine/threejs/particles/three-vfx-runtime.mjs',
+  'postprocessing-runtime': '.hephaera/.engine/threejs/postprocessing/postprocessing-runtime.mjs'
+});
+const RUNTIME_SOURCES = Object.freeze([...Object.values(RUNTIME_ENTRIES),
+  '.hephaera/.engine/threejs/actions/action-package.mjs',
+  '.hephaera/.engine/threejs/particles/vfx-package.mjs']);
+const MAX_RUNTIME_FILE_BYTES = 8 * 1024 * 1024;
 
 function canonical(root, value) {
   if (typeof value !== 'string' || value.includes('\\') || path.posix.isAbsolute(value)
@@ -23,6 +34,57 @@ function canonical(root, value) {
 function array(value, name, maximum = 4096) {
   if (!Array.isArray(value) || value.length > maximum) fail('Missing or oversized action VFX ' + name + '.');
   return value;
+}
+function fields(value, allowed, name) {
+  if (!value || Object.getPrototypeOf(value) !== Object.prototype
+      || Reflect.ownKeys(value).some(key => typeof key !== 'string' || !allowed.includes(key)
+        || !('value' in Object.getOwnPropertyDescriptor(value, key)))) fail('Invalid action VFX ' + name + ' fields.');
+}
+
+// The fixed owned runtime closure is host presentation evidence, not native
+// asset policy. A captured private copy cannot replace an installed identity.
+function collectRuntimeSources({ root, receiving, stateRoot, reference }) {
+  const inputs = array(receiving?.engineInputs, 'receiving engine inputs', 10);
+  const inventoryRows = inputs.filter(item => item.role === 'library-inventory');
+  if (inventoryRows.length !== 1) fail('Receiving evidence requires one typed library-inventory wrapper.');
+  const references = [];
+  function exact(item, local = false) {
+    fields(item, ['path', 'sha256', 'bytes'], 'runtime source reference');
+    const file = canonical(root, item.path), stat = fs.statSync(file);
+    if (!HASH.test(item.sha256 || '') || !Number.isSafeInteger(item.bytes) || item.bytes < 1
+        || item.bytes > MAX_RUNTIME_FILE_BYTES || !stat.isFile() || stat.size !== item.bytes
+        || local && !item.path.startsWith(stateRoot + '/')) fail('Runtime source/report requires exact bounded current file bytes.');
+    if (runtime.hash(file) !== item.sha256 || fs.statSync(file).size !== item.bytes)
+      fail('Current canonical runtime source/report changed: ' + item.path);
+    reference(item.path, 'input', item.sha256);
+    references.push({ path: item.path, sha256: item.sha256, bytes: item.bytes });
+    return file;
+  }
+  const row = inventoryRows[0];
+  const inventoryFile = exact({ path: row.path, sha256: row.sha256, bytes: row.bytes }, true);
+  const inventory = runtime.json(inventoryFile);
+  fields(inventory, ['schemaVersion', 'report', 'runtimeSources'], 'library inventory');
+  if (inventory.schemaVersion !== 'hephaera-action-vfx-library-inventory/v1')
+    fail('Receiving evidence requires the typed current-runtime library-inventory wrapper.');
+  if (typeof inventory.report?.path !== 'string' || !inventory.report.path.endsWith('.json'))
+    fail('The factual captured library report must be an exact JSON artifact.');
+  exact(inventory.report, true); // Opaque factual report; no library discovery or execution.
+  const sources = array(inventory.runtimeSources, 'runtime source closure', RUNTIME_SOURCES.length);
+  if (sources.length !== RUNTIME_SOURCES.length) fail('Receiving runtime source closure is incomplete.');
+  const required = new Set(RUNTIME_SOURCES), observed = new Map();
+  let sourceBytes = 0;
+  for (const item of sources) {
+    if (!required.delete(item?.path)) fail('Receiving runtime source closure has an unknown, duplicate or noncanonical module.');
+    if (!Number.isSafeInteger(item.bytes) || item.bytes > 16 * 1024 * 1024 - sourceBytes)
+      fail('Receiving runtime source closure exceeds its finite byte envelope.');
+    exact(item); sourceBytes += item.bytes; observed.set(item.path, item);
+  }
+  for (const [role, expectedPath] of Object.entries(RUNTIME_ENTRIES)) {
+    const rows = inputs.filter(item => item.role === role), source = observed.get(expectedPath);
+    if (rows.length !== 1 || rows[0].path !== expectedPath || rows[0].sha256 !== source.sha256 || rows[0].bytes !== source.bytes)
+      fail('Receiving ' + role + ' must match its current canonical runtime source identity.');
+  }
+  return { references };
 }
 
 function collect({ root, recipe, stateRoot, reference }) {
@@ -127,6 +189,7 @@ function collectReceiving({ root, evidence, stateRoot, reference }) {
   for (const item of array(evidence.runtime.evidence, 'runtime evidence', 3)) exact(item, 'review');
   const receiving = runtime.json(exact(evidence.runtime.receiving, 'review'));
   for (const item of array(receiving.engineInputs, 'receiving engine inputs', 10)) exact(item, 'input', false);
+  collectRuntimeSources({ root, receiving, stateRoot, reference });
 }
 
-module.exports = { collect, collectReceiving, canonical };
+module.exports = { collect, collectReceiving, collectRuntimeSources, canonical };

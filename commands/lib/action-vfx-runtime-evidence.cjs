@@ -9,7 +9,7 @@ const runtime = require('./bubo-runtime.cjs');
 const host = require('./bubo-host-adapter.cjs');
 const maintenance = require('./installation-maintenance.cjs');
 const transition = require('./state-transition.cjs');
-const { canonical } = require('./action-vfx-admission.cjs');
+const { canonical, collectRuntimeSources } = require('./action-vfx-admission.cjs');
 const fail = message => { throw new Error(message); };
 const HASH = /^[a-f0-9]{64}$/;
 const equal = (left, right) => JSON.stringify(runtime.canonical(left)) === JSON.stringify(runtime.canonical(right));
@@ -167,6 +167,8 @@ async function bindReceiving(value) {
     if (packet.modelSha256 !== a.modelSha256 || packet.packageSha256 !== a.packageSha256
         || packet.effectClosureSha256 !== a.effectClosureSha256 || packet.runtimeBuildSha256 !== a.runtimeBuildSha256
         || !equal(packet.engine, a.engine)) fail('Receiving packet differs from the current native source export.');
+    const runtimeSources = collectRuntimeSources({ root, receiving: packet, stateRoot, reference() {} });
+    for (const item of runtimeSources.references) observe(item, false);
     if (new Set(suppliedEvidence.map(item => item.kind)).size !== 3
         || suppliedEvidence.some(item => !['runtime-test', 'runtime-capture', 'performance-profile'].includes(item.kind)))
       fail('Supply the three distinct actual runtime test/capture/performance artifact references.');

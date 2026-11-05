@@ -73,4 +73,20 @@ Capture whole real skinned/rigid actions and exact boundaries, normal tails, two
 
 `commands/lib/action-vfx-runtime-evidence.cjs.bindReceiving` binds an existing actual receiving report and three distinct `runtime-test`, `runtime-capture` and `performance-profile` artifact references into the current task cache. It refreshes read-only native source admission and returns a `pending-native-review` envelope for the existing native runtime review path. It creates no review verdict, human acceptance, runtime dependency copy or promotion. Keep technical verification, independent review, human runtime acceptance and explicit native promotion separate.
 
+The receiving packet's `library-inventory` engine input names a JSON wrapper with exactly `schemaVersion: "hephaera-action-vfx-library-inventory/v1"`, `report`, and `runtimeSources`. `report` is a `{path, sha256, bytes}` reference to the preserved factual captured library report in the current task cache. `runtimeSources` contains exactly seven `{path, sha256, bytes}` records, using the tested module hashes and these canonical installed paths:
+
+| Receiving role | Required runtime source path |
+| --- | --- |
+| `action-driver` | `.hephaera/.engine/threejs/actions/action-v2.mjs` |
+| `scene-scheduler` | `.hephaera/.engine/threejs/actions/action-scene.mjs` |
+| `particle-runtime` | `.hephaera/.engine/threejs/particles/three-quarks-runtime.mjs` |
+| `vfx-runtime` | `.hephaera/.engine/threejs/particles/three-vfx-runtime.mjs` |
+| `postprocessing-runtime` | `.hephaera/.engine/threejs/postprocessing/postprocessing-runtime.mjs` |
+| Imported helper | `.hephaera/.engine/threejs/actions/action-package.mjs` |
+| Imported helper | `.hephaera/.engine/threejs/particles/vfx-package.mjs` |
+
+The five JavaScript engine inputs must name their matching canonical entries and carry the same hash and byte length as the inventory. Every record is checked against the current installed file, including the two imported helpers. Private source copies cannot replace those identities. Each inventory/report/source file is limited to 8 MiB; the seven source files together are limited to 16 MiB. These are additional input references for receiving and runtime review, preserving native DTOs, fingerprints and acceptance algorithms. Source construction without runtime receipts and `inspect-effects` require no receiving inventory.
+
+Create a fresh wrapper from the factual captured report and tested source identities before native review. Preserve the original report and prior receipts. A changed installed module invalidates the affected receiving evidence; refresh its captures and reviews instead of replacing the expected hash with the current file hash. The wrapper does not establish renderer behavior or reviewer authenticity by itself.
+
 Browser/software-renderer, physical GPU and MAUI Windows/Mac Catalyst/Android/iOS results have distinct scopes. Unavailable targets stay not-run. Full visual/performance/accessibility acceptance and public examples are separate from the receiving bridge; implementation tests never manufacture those decisions.

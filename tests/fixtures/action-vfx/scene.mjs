@@ -10,6 +10,7 @@ import {createPostprocessingRuntime} from '/source/.engine/threejs/postprocessin
 import {advancePresentationTo} from './advance.mjs';
 import {createCaptureArtifacts} from './capture.mjs';
 import {createGlbPoseOracle} from './pose-oracle.mjs';
+import {fitCameraToBox, boxCorners, projectionEvidence} from './camera-fit.mjs';
 
 const decoder = new TextDecoder('utf-8', {fatal: true});
 const read = async name => {
@@ -60,7 +61,7 @@ try {
   const shaderErrors = []; renderer.debug.onShaderError = (context, program, vertex, fragment) => shaderErrors.push({program: context.getProgramInfoLog(program), vertex: context.getShaderInfoLog(vertex), fragment: context.getShaderInfoLog(fragment)});
   const scene = new THREE.Scene(); scene.background = new THREE.Color(0x101720);
   scene.add(new THREE.HemisphereLight(0xffffff, 0x67788a, 3)); const light = new THREE.DirectionalLight(0xffffff, 3); light.position.set(2, 5, 4); scene.add(light);
-  const camera = new THREE.PerspectiveCamera(38, 960 / 540, .01, 1000), events = [], traces = [], loaded = new Map(), borrowed = [], releaseMovements = new Map(), releaseProofs = new Map();
+  const camera = new THREE.PerspectiveCamera(38, 960 / 540, .01, 1000), events = [], traces = [], loaded = new Map(), borrowed = [], releaseMovements = new Map(), releaseProofs = new Map(), sourceSkeletons = new Set();
   const engineSelection = fixture.engineSelection, runtimeStarted = performance.now(), service = createThreeVfxRuntime({THREE, Quarks, scene, renderer, engineSelection, budgets: fixture.budgets});
   const runtime = createThreeActionScene({THREE, scene, vfxRuntime: service, engineSelection, budgets: fixture.sceneBudgets,
     deltaPolicy: fixture.deltaPolicy || {exceptionalDelta: 'reject', maxDeltaSeconds: 1, maxSubstepSeconds: .1, hidden: 'pause', resume: 'discard-backlog'},
@@ -72,6 +73,7 @@ try {
     const loadStarted = performance.now(), [packageBytes, modelBytes] = await Promise.all([read(item.package), read(item.model)]), pkg = JSON.parse(decoder.decode(packageBytes)), rawLoadMs = performance.now() - loadStarted;
     const modelStarted = performance.now(), source = await gltf(modelBytes), modelParseMs = performance.now() - modelStarted;
     const oracleStarted = performance.now(), oracleSource = await gltf(modelBytes), independentOracleParseMs = performance.now() - oracleStarted;
+    for (const parsed of [source, oracleSource]) parsed.scene.traverse(node => { if (node.isSkinnedMesh) sourceSkeletons.add(node.skeleton); });
     const poseOracle = createGlbPoseOracle({THREE, clone: skeletonClone, source: oracleSource, declaration: pkg}), effectSources = [], effectsStarted = performance.now();
     for (const effect of item.effects) {
       const [nativeBytes, profileBytes] = await Promise.all([read(effect.package), read(effect.profile)]), native = JSON.parse(decoder.decode(nativeBytes)), profile = JSON.parse(decoder.decode(profileBytes)), resourceBytes = [], correspondenceBytes = [], bindings = [];
@@ -104,11 +106,35 @@ try {
       load: {rawLoadMs, modelParseMs, independentOracleParseMs, effectDecodeAndBindingMs, admissionMs, totalMs: performance.now() - loadStarted}});
   }
   let actors = [], current = null, currentAction = null, playing = false, pixels = new Uint8Array(960 * 540 * 4), lastNormal = null, selectionSceneStart = 0, eventHook = null, liveInputEnabled = true, artifactSerial = 0, captureEpoch = 0;
-  const extraLeases = [], extraPackages = [];
+  let framing = null, lastProjection = null, projectionGuardEnabled = true, callerSkeletonDisposals = 0;
+  const extraLeases = [], extraPackages = [], skeletonCleanup = [], geometryRadii = new WeakMap();
+  const sphereBox = (point, radius) => new THREE.Box3().setFromCenterAndSize(point, new THREE.Vector3().setScalar(radius * 2));
+  function refit(box, detail) { framing = {box: box.clone(), detail, ...fitCameraToBox(THREE, camera, box)}; }
+  function actualProjection() {
+    if (!framing) return null; scene.updateMatrixWorld(true); const groups = [];
+    for (const actor of actors) groups.push({role: 'model/' + actor.id, points: boxCorners(THREE, new THREE.Box3().setFromObject(actor.visual, true))});
+    if (framing.detail.targets?.length) groups.push({role: 'fixed-live-targets', points: framing.detail.targets.map(point => new THREE.Vector3(...point))});
+    let historyPoints = 0, particlePoints = 0;
+    scene.traverse(node => {
+      if (node.geometry?.type === 'CylinderGeometry') groups.push({role: 'actual-beam-bounds', points: boxCorners(THREE, new THREE.Box3().setFromObject(node, true))});
+      if (!(node.system instanceof Quarks.ParticleSystem)) return; const system = node.system, settings = system.getRendererSettings(), geometry = settings.instancingGeometry;
+      if (!geometryRadii.has(geometry)) { const positions = geometry.getAttribute('position'); let radius = 0; for (let index = 0; index < positions.count; index++) radius = Math.max(radius, Math.hypot(positions.getX(index), positions.getY(index), positions.getZ(index))); geometryRadii.set(geometry, radius); }
+      system.emitter.updateWorldMatrix(true, false);
+      for (const particle of system.particles.slice(0, system.particleNum)) {
+        const matrix = system.worldSpace ? null : particle.parentMatrix || system.emitter.matrixWorld, scale = matrix ? new THREE.Matrix4().copy(matrix).getMaxScaleOnAxis() : 1;
+        const position = new THREE.Vector3(particle.position.x, particle.position.y, particle.position.z); if (matrix) position.applyMatrix4(matrix);
+        const size = Math.max(Math.abs(particle.size.x), Math.abs(particle.size.y), Math.abs(particle.size.z)), radius = size * scale * geometryRadii.get(geometry);
+        groups.push({role: 'actual-particle-bounds', points: boxCorners(THREE, sphereBox(position, Math.max(radius, .000001)))}); particlePoints++;
+        if (particle.previous) for (const record of particle.previous.values()) { if (++historyPoints > 65536) throw Error('Actual history framing budget exceeded'); const point = new THREE.Vector3(record.position.x, record.position.y, record.position.z); if (matrix) point.applyMatrix4(matrix);
+          groups.push({role: 'actual-trail-history-bounds', points: boxCorners(THREE, sphereBox(point, Math.max(Math.abs(record.size) * scale, .000001)))}); }
+      }
+    });
+    return {...projectionEvidence(camera, groups), particles: particlePoints, historyPoints};
+  }
   // The selected LDR/FXAA graph has no animated passes. As in Task4 review,
   // render(0) observes the already-delivered presentation pose without advancing
   // a second animation/particle clock or importing heavy effects.
-  function render() { renderer.info.reset(); if (renderRoute === 'composer') { if (!composer.render(0)) throw Error('Selected compositor suppressed an expected review frame'); } else renderer.render(scene, camera); }
+  function render() { if (projectionGuardEnabled) lastProjection = actualProjection(); renderer.info.reset(); if (renderRoute === 'composer') { if (!composer.render(0)) throw Error('Selected compositor suppressed an expected review frame'); } else renderer.render(scene, camera); }
   function metrics() {
     gl.finish(); gl.readPixels(0, 0, 960, 540, gl.RGBA, gl.UNSIGNED_BYTE, pixels); const withEffects = pixels.slice(), background = pixels.slice(0, 3); let occupiedPixels = 0;
     for (let i = 0; i < pixels.length; i += 4) if (Math.abs(pixels[i] - background[0]) + Math.abs(pixels[i + 1] - background[1]) + Math.abs(pixels[i + 2] - background[2]) > 15) occupiedPixels++;
@@ -135,22 +161,24 @@ try {
       return {actor: value.id, ...result, offGrid: Math.abs(state.time * current.pkg.fps - Math.round(state.time * current.pkg.fps)) > 1e-7, releases};
     });
     return {occupiedPixels, effectPixels, glError: gl.getError(), shaderErrors: [...shaderErrors], state: runtime.stats(), composer: composer.inspect(), renderRoute, captureEpoch, poseOracles,
+      framing: framing ? {minimum: framing.minimum, maximum: framing.maximum, padding: framing.padding, distance: framing.distance, detail: framing.detail, projection: lastProjection} : null,
       actors: actors.map(value => ({id: value.id, state: value.actor.stats(), rigLeases: value.rigLeases.size, rigAcquires: value.rigAcquires, rigReleases: value.rigReleases})), events: [...events],
       render: {...renderer.info.render}, memory: {...renderer.info.memory}, camera: {position: camera.position.toArray(), quaternion: camera.quaternion.toArray(), projection: camera.projectionMatrix.toArray()}};
   }
   function reset() { playing = false; for (const lease of extraLeases.splice(0)) lease.retire(); for (const pkg of extraPackages.splice(0)) service.releasePackage(pkg);
-    for (const value of actors) { value.actor.dispose(); if (value.rigLeases.size) throw Error('Caller animation rig lease survived actor disposal'); value.movement.removeFromParent(); }
-    actors = []; events.length = 0; traces.length = 0; releaseMovements.clear(); releaseProofs.clear(); eventHook = null; liveInputEnabled = true; scene.background.set(0x101720); runtime.reset(); }
+    for (const value of actors) { value.actor.dispose(); if (value.rigLeases.size) throw Error('Caller animation rig lease survived actor disposal'); value.movement.removeFromParent();
+      for (const skeleton of value.skeletons) { if (sourceSkeletons.has(skeleton)) throw Error('Caller clone unexpectedly shares a source skeleton'); const textureBefore = skeleton.boneTexture, before = renderer.info.memory.textures; skeleton.dispose(); callerSkeletonDisposals++;
+        if (textureBefore && skeleton.boneTexture !== null) throw Error('Clone-owned bone texture survived caller disposal'); if (skeletonCleanup.length < 256) skeletonCleanup.push({hadBoneTexture: !!textureBefore, beforeTextures: before, afterTextures: renderer.info.memory.textures}); } }
+    actors = []; framing = null; lastProjection = null; events.length = 0; traces.length = 0; releaseMovements.clear(); releaseProofs.clear(); eventHook = null; liveInputEnabled = true; scene.background.set(0x101720); runtime.reset(); }
   function select(id, {actionId, count = 1, outcomeMode = 'rehearsal', measure = true, renderFrame = true} = {}) {
     reset(); current = loaded.get(id); if (!current) throw Error('Explicit original model case missing');
     currentAction = current.pkg.actions.find(action => action.id === (actionId || current.item.action || current.pkg.actions[0].id)); if (!currentAction) throw Error('Explicit exported action is missing');
     selectionSceneStart = runtime.stats().time;
     const bounds = new THREE.Box3().setFromObject(current.source.scene), size = bounds.getSize(new THREE.Vector3()).length(), center = bounds.getCenter(new THREE.Vector3()); if (!(size > 0)) throw Error('Real model fixture has no visible geometry');
-    const extent = size * (1 + .65 * (count - 1)), focus = center.clone().add(new THREE.Vector3((count - 1) * size * .325, 0, 0));
-    camera.near = Math.max(.001, size / 1000); camera.far = extent * 100; camera.position.copy(focus).add(new THREE.Vector3(extent * .7, extent * .4, extent * 1.8)); camera.lookAt(focus); camera.updateProjectionMatrix(); camera.updateMatrixWorld(true);
     for (let index = 0; index < count; index++) {
       const movement = new THREE.Group(), visual = skeletonClone(current.source.scene); movement.add(visual); movement.position.x = index * size * .65; scene.add(movement);
-      const id = current.item.id + '-' + index, record = {id, movement, visual, actor: null, action: currentAction.id, endpointTimes: new Map(), rigLeases: new Set(), rigAcquires: 0, rigReleases: 0};
+      const skeletons = new Set(); visual.traverse(node => { if (node.isSkinnedMesh) skeletons.add(node.skeleton); }); for (const skeleton of skeletons) if (sourceSkeletons.has(skeleton)) throw Error('A model clone shares its source skeleton');
+      const id = current.item.id + '-' + index, record = {id, movement, visual, skeletons, actor: null, action: currentAction.id, endpointTimes: new Map(), rigLeases: new Set(), rigAcquires: 0, rigReleases: 0};
       const actor = runtime.createActor({id, visualRoot: visual, movementRoot: movement, animations: current.source.animations, package: current.admitted,
         rigOwnership: {acquire(value) { const token = {generation: value.generation}; record.rigLeases.add(token); record.rigAcquires++; return token; }, release(token) { if (!record.rigLeases.delete(token)) throw Error('Caller animation rig lease released twice'); record.rigReleases++; }},
         onEvent: event => { if (events.length >= 32768) throw Error('Event evidence budget exceeded'); events.push(event);
@@ -158,8 +186,18 @@ try {
       record.actor = actor; actors.push(record); const targets = {};
       for (const target of current.pkg.targets.filter(value => value.mode === 'fixed-world-point')) targets[target.id] = center.clone().add(new THREE.Vector3(size * .5 + index * size * .65, 0, 0)).toArray();
       record.targetInputs = Object.fromEntries(Object.entries({...targets, ...(current.item.targets || {})}).map(([id, point]) => [id, [...point]]));
+      record.targetSnapshots = Object.values(record.targetInputs).map(point => [...point]);
       actor.start(currentAction.id, {targets: record.targetInputs, outcomeMode});
     }
+    const envelope = current.poseOracle.envelope(currentAction.id), fit = new THREE.Box3(), targetPoints = []; let effectRadius = 0;
+    for (const cue of currentAction.cues) { const source = current.effectSources.find(value => value.id === cue.source), profile = JSON.parse(decoder.decode(source.profileBytes)), reference = current.pkg.effectSources.find(value => value.id === cue.source);
+      for (const layer of profile.layers.filter(layer => layer.effectId === reference.effectId)) effectRadius = Math.max(effectRadius, Math.hypot(...cue.transform.position) + cue.transform.scale * (layer.size + Math.abs(layer.speed) * layer.emission.lifetimeSeconds)); }
+    for (const actor of actors) { actor.movement.updateWorldMatrix(true, false); fit.union(envelope.box.clone().applyMatrix4(actor.movement.matrixWorld).expandByScalar(effectRadius));
+      for (const point of actor.targetSnapshots) { fit.union(sphereBox(new THREE.Vector3(...point), effectRadius)); targetPoints.push(point); } }
+    for (const target of current.pkg.targets.filter(value => value.mode === 'continuous-world-point')) { const point = [...(current.item.liveEndpoint || [1, 1, 1])]; fit.union(sphereBox(new THREE.Vector3(...point), effectRadius)); targetPoints.push(point); }
+    if (count > 1) { const ambient = center.clone().add(new THREE.Vector3(size * .325, size * .65, 0)); fit.union(sphereBox(ambient, effectRadius)); }
+    refit(fit, {mode: 'Independent animated model envelopes, every instance, fixed/live targets and declared size/speed/lifetime effect extent', targets: targetPoints, effectRadius,
+      animatedEnvelopeSamples: envelope.samples, animatedEnvelopePaddingMeters: envelope.paddingMeters, actualPerRenderProjectionGuard: true});
     if (renderFrame) render(); return measure ? metrics() : null;
   }
   function step(delta) {
@@ -196,7 +234,7 @@ try {
   function isolate(id, sourceId, layerId) {
     reset(); current = loaded.get(id); if (!current) throw Error('Original isolated case required'); currentAction = null;
     const descriptor = effectDescriptor(current, sourceId, layerId), {layer} = descriptor, pkg = admitStandalone(descriptor), extent = Math.max(.35, layer.size * 3 + layer.speed * layer.emission.lifetimeSeconds);
-    camera.near = .001; camera.far = extent * 100; camera.position.set(extent * 1.4, extent * 1.8, extent * 4); camera.lookAt(0, 0, 0); camera.updateProjectionMatrix(); camera.updateMatrixWorld(true);
+    refit(new THREE.Box3(new THREE.Vector3(-extent, -extent, -extent), new THREE.Vector3(extent, extent, extent)), {mode: 'Exact standalone layer and bounded engineering transform envelope', targets: []});
     const lease = service.acquire({package: pkg, effectId: descriptor.reference.effectId, layerId, id: 'isolated-' + (++artifactSerial), ownerId: 'engineering-isolation', parent: scene,
       ...(layer.family === 'beam' ? {endpoints: {start: [-extent * .6, 0, 0], end: [extent * .6, extent * .25, 0]}} : {transform: {position: [0, 0, 0]}})}); extraLeases.push(lease);
     const sampleSeconds = Math.min(.08, layer.emission.lifetimeSeconds / 2, layer.emission.durationSeconds / 2);
@@ -206,6 +244,13 @@ try {
       scope: 'One exact admitted native layer, same selected scene owner and compositor; separate standalone visibility view, no human quality decision'}};
   }
   function cleanupCounts() { return {ownedEffects: runtime.stats().activeEffects, resourceLeases: service.stats().productionSystems, rigWrites: actors.reduce((sum, value) => sum + value.rigLeases.size, 0)}; }
+  function cloneResetStability(id, {cycles = 4} = {}) {
+    if (cycles !== 4) throw Error('Explicit four-cycle clone cleanup observation required'); reset(); render(); const baselineTextures = renderer.info.memory.textures, observations = [], beforeDisposals = callerSkeletonDisposals;
+    for (let cycle = 0; cycle < cycles; cycle++) { select(id, {measure: false, renderFrame: false}); const first = currentAction.cues.flatMap(cue => cue.layers).sort((a, b) => a.start - b.start)[0]; advanceTo(first.start + Math.min(.02, first.particleLifetimeSeconds / 4)); const renderedTextures = renderer.info.memory.textures; reset(); render();
+      const afterResetTextures = renderer.info.memory.textures; if (afterResetTextures !== baselineTextures) throw Error('Clone/reset retained GPU textures: ' + JSON.stringify({cycle, baselineTextures, renderedTextures, afterResetTextures})); observations.push({cycle, renderedTextures, afterResetTextures}); }
+    return {status: 'passed', baselineTextures, cycles: observations, cloneSkeletonsDisposed: callerSkeletonDisposals - beforeDisposals,
+      scope: 'Caller disposes unique SkeletonUtils-clone skeletons after action release; source skeletons, geometry, materials and textures are preserved.'};
+  }
   function concurrent(id, {actionId} = {}) {
     select(id, {actionId, count: 2, measure: false, renderFrame: false});
     const peakTime = current.item.performancePeakTime ?? Math.min(currentAction.duration / 2, .5); advanceTo(peakTime);
@@ -259,7 +304,8 @@ try {
       const value = loaded.get(id); let chosen;
       for (const source of value.pkg.effectSources) { const profile = JSON.parse(decoder.decode(value.effectSources.find(item => item.id === source.id).profileBytes)), layer = profile.layers.find(layer => layer.effectId === source.effectId && layer.family === 'trail'); if (layer) { chosen = {source, layer}; break; } }
       require(chosen, 'No selected native trail layer'); const initial = isolate(id, chosen.source.id, chosen.layer.layerId), lease = extraLeases[0], historyBefore = lease.stats().historyPoints;
-      require(historyBefore > 1, 'No actual retained trail history before reset'); lease.resetHistory(); const cleared = lease.stats().historyPoints; lease.setTransform({position: [2, 1, 0]}); step(.01); render(); const after = lease.stats();
+      require(historyBefore > 1, 'No actual retained trail history before reset'); lease.resetHistory(); const cleared = lease.stats().historyPoints; lease.setTransform({position: [2, 1, 0]});
+      refit(framing.box.clone().union(sphereBox(new THREE.Vector3(2, 1, 0), Math.max(chosen.layer.size, .1))), {...framing.detail, mode: 'Standalone trail before/after explicit teleport envelope'}); step(.01); render(); const after = lease.stats();
       require(cleared === 0 && after.historyPoints <= after.particles, 'Actual trail history bridged declared teleport');
       return {historyBefore, historyImmediatelyAfterReset: cleared, historyAfterFreshStep: after.historyPoints, initial: initial.isolated,
         scope: 'Exact native standalone trail lease, explicit discontinuity reset and new transform. Fixed-target projectile trajectories do not follow a caster teleport; automatic action detection is separately covered by source-bound CPU tests.'};
@@ -285,7 +331,8 @@ try {
     return {samples, perFrameWallMs: (performance.now() - started) / 32, maxSystems, maxParticles, finalService: service.stats(), draws: {...renderer.info.render}, memory: {...renderer.info.memory}};
   }
   async function benchmark(id) {
-    if (playing) throw Error('Normal playback owns the presentation clock'); reset(); const value = loaded.get(id); if (!value) throw Error('Explicit benchmark model missing');
+    if (playing) throw Error('Normal playback owns the presentation clock'); reset(); const value = loaded.get(id); if (!value) throw Error('Explicit benchmark model missing'); const previousGuard = projectionGuardEnabled; projectionGuardEnabled = false;
+    try {
     const admission = timed(() => { runtime.releasePackage(value.admitted); value.admitted = runtime.admit(value.input); });
     const actorsStage = timed(() => select(id, {measure: false, renderFrame: false})); const firstUpdate = timed(() => step(1 / 120));
     const compile = timed(() => { renderer.compile(scene, camera); render(); }); const steady = phase();
@@ -297,30 +344,33 @@ try {
       ambientPackage = service.admit({package: native, packageBytes: ambientSource.packageBytes, packageSha256: sha256(ambientSource.packageBytes), ...(profile.preparationSha256 ? {preparationSha256: profile.preparationSha256} : {}), profile, bindings: ambientSource.bindings});
       ambient = service.acquire({package: ambientPackage, effectId: layer.effectId, layerId: layer.layerId, id: 'benchmark-ambient', ownerId: 'ambient'}); } });
     const peakCompile = timed(() => { renderer.compile(scene, camera); render(); }); const peak = phase();
-    const peakCapture = await captureArtifacts.png('benchmark-peak-' + (++artifactSerial));
+    projectionGuardEnabled = true; render(); const peakCapture = await captureArtifacts.png('benchmark-peak-' + (++artifactSerial)); projectionGuardEnabled = false;
     ambient?.retire(); if (ambientPackage) service.releasePackage(ambientPackage); reset();
     return {id, load: value.load, runtimeConstructionMs, renderRoute, composer: composer.inspect(), peakCapture, stages: {resourceAdmission: {cpuMs: admission.cpuMs, finishWallMs: admission.finishWallMs}, actorConstruction: {cpuMs: actorsStage.cpuMs, finishWallMs: actorsStage.finishWallMs}, initialUpdate: {cpuMs: firstUpdate.cpuMs, finishWallMs: firstUpdate.finishWallMs}, firstCompileRender: {cpuMs: compile.cpuMs, finishWallMs: compile.finishWallMs}, peakActors: {cpuMs: peakActors.cpuMs, finishWallMs: peakActors.finishWallMs}, peakAmbient: {cpuMs: peakAmbient.cpuMs, finishWallMs: peakAmbient.finishWallMs}, peakCompileRender: {cpuMs: peakCompile.cpuMs, finishWallMs: peakCompile.finishWallMs}}, steady, peak, peakTime, ambientAvailable: !!ambientSource, cleanup: {activeEffects: runtime.stats().activeEffects, systems: service.stats().systems},
-      scope: 'Candidate absolute real-model scheduler cost. Inputs/model decode are loaded once; exact byte/resource re-admission, actor construction and first compile/render are measured separately each run. Peak is the declared representative two-actor plus available sprite ambient interval, not a certification of every possible game workload.'};
+      scope: 'Candidate absolute real-model scheduler cost. Inputs/model decode and cached camera envelopes are loaded once; exact byte/resource re-admission, actor/camera construction and first compile/render are measured separately each run. Projection/pose/pixel QA is outside timed frames. Peak is the declared representative two-actor plus available sprite ambient interval, not a certification of every possible game workload.'};
+    } finally { projectionGuardEnabled = previousGuard; }
   }
   async function normal(id, {actionId} = {}) {
-    select(id, {actionId}); playing = true; const duration = currentAction.retireAt + .2, started = performance.now(), samples = [], counts = []; let prior = null, playedSeconds = 0, peak = null;
+    select(id, {actionId}); playing = true; const duration = currentAction.retireAt + .2, started = performance.now(), samples = [], counts = []; let prior = null, playedSeconds = 0, peak = null, particlePeak = null;
     const recording = await captureArtifacts.beginVideo({id: 'normal-video-' + (++artifactSerial), seconds: duration});
     try { await new Promise((resolve, reject) => {
       function frame(now) { try { if (!playing) throw Error('Normal playback interrupted'); if (prior === null) { prior = now; requestAnimationFrame(frame); return; } const delta = (now - prior) / 1000; prior = now; if (delta > 1) throw Error('Exceptional normal-speed frame exceeds selected reject policy');
         if (samples.length >= 12000) throw Error('Normal-speed frame budget exceeded'); const before = performance.now(); advance(delta, false); playedSeconds += delta; samples.push(performance.now() - before); const active = runtime.stats().activeEffects; counts.push(active);
         if (!peak || active > peak.activeEffects) peak = {activeEffects: active, time: actors[0].actor.stats().time, sceneElapsed: runtime.stats().time - selectionSceneStart};
+        const particles = service.stats().particles; if (!particlePeak || particles > particlePeak.particles) particlePeak = {particles, time: actors[0].actor.stats().time, sceneElapsed: runtime.stats().time - selectionSceneStart};
         if (playedSeconds >= duration) resolve(); else requestAnimationFrame(frame); } catch (error) { reject(error); } }
       requestAnimationFrame(frame);
     }); playing = false;
       const video = await captureArtifacts.finishVideo(), cleanup = cleanupCounts(); if (Object.values(cleanup).some(value => value !== 0)) throw Error('Normal-speed actual playback retained effects, leases or rig writes');
       lastNormal = {id, action: currentAction.id, start: 0, end: currentAction.retireAt, elapsedSeconds: (performance.now() - started) / 1000, presentationSeconds: playedSeconds,
-        frames: samples.length, frameCpuMs: samples, activeEffects: counts, peak, recording, video, cleanup, final: metrics()}; return lastNormal;
+        frames: samples.length, frameCpuMs: samples, activeEffects: counts, peak, particlePeak, recording, video, cleanup, final: metrics()}; return lastNormal;
     } finally { playing = false; if (captureArtifacts.stats().recording) await captureArtifacts.abortVideo(); }
   }
-  window.__actionVfxReview = {driver, cases: [...loaded.keys()], fixture, select, advance, advanceTo, metrics, normal, benchmark, isolate, isolationBackground, concurrent, lifecycle, cleanupCounts,
+  window.__actionVfxReview = {driver, cases: [...loaded.keys()], fixture, select, advance, advanceTo, metrics, normal, benchmark, isolate, isolationBackground, concurrent, lifecycle, cleanupCounts, cloneResetStability,
     capturePng: () => captureArtifacts.png('canvas-png-' + (++artifactSerial)), artifactInfo: id => captureArtifacts.info(id), artifactChunk: (id, offset, length) => captureArtifacts.chunk(id, offset, length), artifactRelease: id => captureArtifacts.release(id), captureCapabilities: () => captureArtifacts.capabilities(),
     reset, traces: () => [...traces], dispose() { reset(); runtime.dispose(); const preserved = borrowed.every(value => !value.disposed()), composerPreserved = !composer.inspect().disposed, framesBefore = composer.inspect().frames; service.dispose(); composer.render(0); const composerSurvivesActionDisposal = composer.inspect().frames === framesBefore + 1; const composerFirstDispose = composer.dispose(), composerSecondDispose = composer.dispose(); for (const value of borrowed) value.resource.dispose();
       const geometries = new Set(), materials = new Set(); for (const value of loaded.values()) for (const source of [value.source, value.oracleSource]) source.scene.traverse(node => { if (node.geometry) geometries.add(node.geometry); for (const material of Array.isArray(node.material) ? node.material : [node.material]) if (material) materials.add(material); });
-      for (const geometry of geometries) geometry.dispose(); for (const material of materials) material.dispose(); renderer.dispose(); return {borrowedResourcesPreserved: preserved, composerPreserved, composerSurvivesActionDisposal, composerFirstDispose, composerSecondDispose, composer: composer.inspect(), normal: lastNormal, finalSystems: service.stats().systems}; }};
+      for (const geometry of geometries) geometry.dispose(); for (const material of materials) material.dispose(); renderer.dispose(); return {borrowedResourcesPreserved: preserved, composerPreserved, composerSurvivesActionDisposal, composerFirstDispose, composerSecondDispose, composer: composer.inspect(), normal: lastNormal, finalSystems: service.stats().systems,
+        callerSkeletonDisposals, skeletonCleanup}; }};
   document.querySelector('#status').textContent = 'Original engineering models ready'; window.__actionVfxReady = true;
 } catch (error) { window.__reviewError = String(error.stack || error); document.querySelector('#status').textContent = 'Unavailable: ' + error.message; console.error(error); }

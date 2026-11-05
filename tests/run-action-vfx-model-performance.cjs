@@ -12,6 +12,7 @@ const names = ['tests/run-action-vfx-model-performance.cjs', 'tests/fixtures/act
 names.push('.engine/threejs/postprocessing/postprocessing-runtime.mjs');
 names.push('tests/fixtures/action-vfx/advance.mjs');
 names.push('tests/fixtures/action-vfx/capture.mjs', 'tests/fixtures/action-vfx/pose-oracle.mjs', 'tests/fixtures/action-vfx/webm-evidence.cjs');
+names.push('tests/fixtures/action-vfx/camera-fit.mjs');
 const sourceHashes = Object.fromEntries(names.map(name => [name, sha(fs.readFileSync(path.join(ROOT, name)))]));
 const versions = Object.fromEntries(['three', 'three.quarks', 'quarks.core', 'postprocessing'].map(name => [name, JSON.parse(fs.readFileSync(path.join(modules, name, 'package.json'), 'utf8')).version]));
 if (JSON.stringify(versions) !== JSON.stringify({three: '0.182.0', 'three.quarks': '0.17.1', 'quarks.core': '0.17.1', postprocessing: '6.39.5'})) throw Error('Explicit installed dependency versions differ');

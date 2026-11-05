@@ -100,16 +100,76 @@ function collect(value = recipe) {
   write(contextPath, context);
 
   const receivingPath = stateRoot + '/receiving.json';
-  const driver = write('engine/action-driver.mjs', '// synthetic metadata reference only');
+  const runtimePaths = ['actions/action-v2.mjs', 'actions/action-scene.mjs', 'actions/action-package.mjs',
+    'particles/three-quarks-runtime.mjs', 'particles/three-vfx-runtime.mjs', 'particles/vfx-package.mjs',
+    'postprocessing/postprocessing-runtime.mjs'];
+  const runtimeSources = runtimePaths.map(name => write('.hephaera/.engine/threejs/' + name,
+    fs.readFileSync(path.join(runtime.BASE, '.engine/threejs', name))));
+  const entryRoles = { 'action-driver': 'actions/action-v2.mjs', 'scene-scheduler': 'actions/action-scene.mjs',
+    'particle-runtime': 'particles/three-quarks-runtime.mjs', 'vfx-runtime': 'particles/three-vfx-runtime.mjs',
+    'postprocessing-runtime': 'postprocessing/postprocessing-runtime.mjs' };
+  const libraryReport = write(stateRoot + '/captured-library-report.json', { fixtureOnly: true, reason: 'Synthetic host metadata; no actual renderer or library assertion' });
+  const libraryInventory = { schemaVersion: 'hephaera-action-vfx-library-inventory/v1', report: libraryReport, runtimeSources };
+  const libraryRef = write(stateRoot + '/library-inventory.json', libraryInventory);
+  const driver = runtimeSources.find(item => item.path.endsWith('/actions/action-v2.mjs'));
   const evidenceRows = ['runtime-test', 'runtime-capture', 'performance-profile'].map(kind => ({ kind,
     ...write(stateRoot + '/' + kind + '.json', { fixture: 'synthetic protocol metadata', kind }) }));
-  const receiving = write(receivingPath, { engineInputs: [{ role: 'action-driver', ...driver }] });
+  const packet = { engineInputs: Object.entries(entryRoles).map(([role, name]) => ({ role,
+    ...runtimeSources.find(item => item.path === '.hephaera/.engine/threejs/' + name) })) };
+  for (const role of ['scene', 'camera', 'capture-settings', 'target-device'])
+    packet.engineInputs.push({ role, ...write(stateRoot + '/' + role + '.json', { fixtureOnly: true, role }) });
+  packet.engineInputs.push({ role: 'library-inventory', ...libraryRef });
+  const receiving = write(receivingPath, packet);
   const receivingEnvelope = { runtime: { schemaVersion: 'bubo-action-runtime-evidence/v2', evidence: evidenceRows, receiving } };
   const receivingRefs = new Map();
   const receivingReference = (name, kind, expected) => { assert.equal(ref(name).sha256, expected); receivingRefs.set(name, kind); };
   admission.collectReceiving({ root, evidence: receivingEnvelope, stateRoot, reference: receivingReference });
   check(receivingRefs.get(receivingPath) === 'review' && receivingRefs.get(driver.path) === 'input', 'Private receiving packet and actual engine modules retain separate native evidence kinds');
   check(evidenceRows.every(row => receivingRefs.get(row.path) === 'review'), 'All three runtime evidence artifacts retain review kind');
+  check(runtimeSources.every(item => receivingRefs.get(item.path) === 'input') && receivingRefs.get(libraryReport.path) === 'input',
+    'All seven current canonical runtime sources and preserved library report are exact input guards');
+  let candidate = 0;
+  function collectPacket(value) {
+    const envelope = structuredClone(receivingEnvelope);
+    envelope.runtime.receiving = write(stateRoot + '/candidate-' + candidate++ + '.json', value);
+    return admission.collectReceiving({ root, evidence: envelope, stateRoot, reference: receivingReference });
+  }
+  function collectInventory(mutate) {
+    const value = structuredClone(libraryInventory); mutate(value);
+    const row = write(stateRoot + '/inventory-' + candidate++ + '.json', value), changed = structuredClone(packet);
+    changed.engineInputs.find(item => item.role === 'library-inventory').path = row.path;
+    Object.assign(changed.engineInputs.find(item => item.role === 'library-inventory'), row);
+    return collectPacket(changed);
+  }
+  for (const name of ['particles/vfx-package.mjs', 'actions/action-package.mjs']) {
+    const item = runtimeSources.find(row => row.path.endsWith('/' + name)), full = path.join(root, item.path), original = fs.readFileSync(full);
+    const changed = Buffer.from(original); changed[changed.length - 1] ^= 1; fs.writeFileSync(full, changed);
+    reject(() => collectPacket(packet), /canonical runtime source\/report changed/, 'Same-size imported helper drift invalidates receiving: ' + name);
+    fs.writeFileSync(full, original);
+  }
+  const inventoryBytes = fs.readFileSync(path.join(root, libraryRef.path));
+  const reportBytes = fs.readFileSync(path.join(root, libraryReport.path));
+  const changedReport = Buffer.from(reportBytes); changedReport[changedReport.length - 1] ^= 1; fs.writeFileSync(path.join(root, libraryReport.path), changedReport);
+  reject(() => collectPacket(packet), /source\/report changed/, 'Preserved factual report byte drift invalidates receiving');
+  fs.writeFileSync(path.join(root, libraryReport.path), reportBytes);
+  reject(() => collectInventory(value => value.runtimeSources.pop()), /closure is incomplete/, 'Missing transitive helper is rejected');
+  reject(() => collectInventory(value => value.runtimeSources.push(runtimeSources[0])), /oversized.*closure/, 'Extra runtime source is rejected');
+  reject(() => collectInventory(value => value.runtimeSources[6] = value.runtimeSources[0]), /duplicate|noncanonical/, 'Duplicate runtime source cannot conceal a missing helper');
+  reject(() => collectInventory(value => value.runtimeSources[0].path = '.engine/threejs/actions/action-v2.mjs'), /noncanonical/, 'Runtime source paths require the canonical host installation');
+  reject(() => collectInventory(value => value.runtimeSources[0].sha256 = '0'.repeat(64)), /source\/report changed/, 'Declared tested source hash is never rebound to current bytes');
+  reject(() => collectInventory(value => value.schemaVersion = 'untyped-library-report'), /typed current-runtime/, 'Untyped library inventory cannot stand in for the required wrapper');
+  reject(() => collectInventory(value => value.authorizesRuntime = true), /library inventory.*fields/, 'Inventory carries no executable or approval options');
+  reject(() => collectInventory(value => value.report = driver), /JSON artifact/, 'Factual report cannot be substituted with a runtime module');
+  const outsideReport = write('outside/library-report.json', { fixtureOnly: true });
+  reject(() => collectInventory(value => value.report = outsideReport), /bounded current file bytes/, 'Captured library report must remain in its current task cache');
+  const privateDriver = write(stateRoot + '/private-action-driver.mjs', fs.readFileSync(path.join(root, driver.path)));
+  const copiedEntryPacket = structuredClone(packet);
+  Object.assign(copiedEntryPacket.engineInputs.find(item => item.role === 'action-driver'), privateDriver);
+  reject(() => collectPacket(copiedEntryPacket), /current canonical runtime source identity/, 'Immutable private entry copies cannot replace current installed code');
+  reject(() => collectInventory(value => value.runtimeSources[0] = privateDriver), /noncanonical/, 'Inventory cannot redirect canonical source identity to a private copy');
+  const caseAlias = structuredClone(packet); caseAlias.engineInputs.find(item => item.role === 'scene-scheduler').path = '.hephaera/.engine/threejs/actions/ACTION-SCENE.mjs';
+  reject(() => collectPacket(caseAlias), process.platform === 'win32' ? /current canonical runtime source identity/ : /ENOENT/, 'Case aliases cannot replace canonical receiving module paths');
+  check(fs.readFileSync(path.join(root, libraryRef.path)).equals(inventoryBytes), 'Guard failures preserve the original inventory bytes and expected hashes');
   const receivingBadLength = structuredClone(receivingEnvelope); receivingBadLength.runtime.evidence[0].bytes++;
   reject(() => admission.collectReceiving({ root, evidence: receivingBadLength, stateRoot, reference: receivingReference }), /artifact bytes/, 'Changed runtime evidence length is rejected');
   const receivingOutside = structuredClone(receivingEnvelope); receivingOutside.runtime.evidence[0] = driver;
@@ -129,6 +189,31 @@ function collect(value = recipe) {
   const inspectionWithState = host.contextFor('model-to-action', 'inspect-effects', host.parse(['--root', root, '--manifest', inspectManifest]),
     { folder: path.join(root, '.hephaera/runtime/bubo/artifacts/bubo') }).context;
   check(inspectionWithState.tools.length === 0, 'Read-only source inspection does not inherit the manifest native executable authority');
+  check(!inspectionWithState.references.some(item => runtimeSources.some(source => source.path === item.path)),
+    'Source construction and inspection without runtime receipts require no receiving module inventory');
+  const legacyPacket = structuredClone(packet);
+  Object.assign(legacyPacket.engineInputs.find(item => item.role === 'library-inventory'), libraryReport);
+  const legacyEnvelope = structuredClone(receivingEnvelope);
+  legacyEnvelope.runtime.receiving = write(stateRoot + '/legacy-receiving.json', legacyPacket);
+  const legacyReceipt = write(stateRoot + '/legacy-runtime-review.json', legacyEnvelope);
+  const retainedState = JSON.parse(fs.readFileSync(path.join(root, inspectManifest), 'utf8'));
+  retainedState.approvals = [{ kind: 'independent', evidence: legacyReceipt.path, evidenceHash: legacyReceipt.sha256 }];
+  write(inspectManifest, retainedState);
+  const sourceOnly = host.contextFor('model-to-action', 'inspect-effects', host.parse(['--root', root, '--manifest', inspectManifest]),
+    { folder: path.join(root, '.hephaera/runtime/bubo/artifacts/bubo') }).context;
+  check(sourceOnly.references.some(item => item.path === legacyReceipt.path), 'inspect-effects preserves historical receipt identity without reinterpreting runtime admission');
+  reject(() => host.contextFor('model-to-action', 'validate', host.parse(['--root', root, '--manifest', inspectManifest]),
+    { folder: path.join(root, '.hephaera/runtime/bubo/artifacts/bubo') }), /library inventory.*fields|typed current-runtime/,
+  'Current runtime receipt validation requires the typed closure even when the historical report bytes are preserved');
+  const currentReceipt = write(stateRoot + '/current-runtime-review.json', receivingEnvelope);
+  retainedState.approvals = [{ kind: 'independent', evidence: currentReceipt.path, evidenceHash: currentReceipt.sha256 }];
+  write(inspectManifest, retainedState);
+  const currentReceivingContext = host.contextFor('model-to-action', 'validate', host.parse(['--root', root, '--manifest', inspectManifest]),
+    { folder: path.join(root, '.hephaera/runtime/bubo/artifacts/bubo') }).context;
+  check(JSON.stringify(currentReceivingContext.policy) === JSON.stringify(inspectionWithState.policy),
+    'Receiving runtime closure leaves the asset initialization policy identity unchanged');
+  check(runtimeSources.every(source => currentReceivingContext.references.some(item => item.path === source.path && item.kind === 'input')),
+    'Actual host receiving context binds every owned runtime module as an input');
   // An actual owned Node child observes the transport argv. This fixture is
   // explicitly synthetic and supplies no native source/render acceptance.
   write('model-to-action', "const fs=require('node:fs'),crypto=require('node:crypto');\n"

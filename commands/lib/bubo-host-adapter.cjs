@@ -193,7 +193,7 @@ function contextFor(workflow, operation, options, info) {
     for (const scope of admitted.inputs) if (!inputs.includes(scope)) inputs.push(scope);
     for (const approval of state?.approvals || []) reference(approval.evidence, 'review', approval.evidenceHash);
     const evidencePaths = [options.get('evidence'), ...(state?.approvals || []).map(item => item.evidence)].filter(Boolean);
-    for (const value of evidencePaths) actionVfx.collectReceiving({ root, evidence: runtime.json(runtime.projectPath(root, value)), stateRoot, reference });
+    if (!effectInspection) for (const value of evidencePaths) actionVfx.collectReceiving({ root, evidence: runtime.json(runtime.projectPath(root, value)), stateRoot, reference });
   }
   if (mechanical) inputs.push(mechanical.packageRoot);
   if (!(operation === 'setup' && options.get('execute') === 'true')) for (const config of configs) if (config.modelDir) {

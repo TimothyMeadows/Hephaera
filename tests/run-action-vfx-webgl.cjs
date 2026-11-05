@@ -7,7 +7,7 @@ const ROOT = path.resolve(__dirname, '..'), hash = bytes => crypto.createHash('s
 const args = process.argv.slice(2); if (args.length !== 4 || args.some(value => !path.isAbsolute(value))) throw Error('Use explicit EDGE_EXE EXISTING_MODULES ASSETS_DIRECTORY NEW_OUTPUT_DIRECTORY absolute paths.');
 const [edge, modules, assets, output] = args.map(value => path.resolve(value));
 const sourceNames = ['tests/run-action-vfx-webgl.cjs', 'tests/fixtures/action-vfx/index.html', 'tests/fixtures/action-vfx/scene.mjs', 'tests/lib/edge-review.cjs',
-  'tests/fixtures/action-vfx/advance.mjs', 'tests/fixtures/action-vfx/capture.mjs', 'tests/fixtures/action-vfx/pose-oracle.mjs', 'tests/fixtures/action-vfx/capture-plan.cjs', 'tests/fixtures/action-vfx/webm-evidence.cjs',
+  'tests/fixtures/action-vfx/advance.mjs', 'tests/fixtures/action-vfx/capture.mjs', 'tests/fixtures/action-vfx/pose-oracle.mjs', 'tests/fixtures/action-vfx/camera-fit.mjs', 'tests/fixtures/action-vfx/capture-plan.cjs', 'tests/fixtures/action-vfx/webm-evidence.cjs',
   '.engine/threejs/actions/action-package.mjs', '.engine/threejs/actions/action-scene.mjs', '.engine/threejs/actions/action-v2.mjs',
   '.engine/threejs/particles/three-quarks-runtime.mjs', '.engine/threejs/particles/three-vfx-runtime.mjs', '.engine/threejs/particles/vfx-package.mjs', '.engine/threejs/postprocessing/postprocessing-runtime.mjs'];
 const before = Object.fromEntries(sourceNames.map(name => [name, hash(fs.readFileSync(path.join(ROOT, name)))]));
@@ -23,6 +23,7 @@ function saveJson(name, value) { const bytes = Buffer.from(JSON.stringify(value,
 function assertFrame(frame, plan, sample) {
   check(frame.absoluteClock.observedTime >= sample.time && frame.absoluteClock.roundoffSeconds <= 4 * frame.absoluteClock.maxClockTick, 'Absolute capture labels a predecessor or excessive overshoot exact');
   check(frame.glError === 0 && frame.shaderErrors.length === 0, 'Actual action shader/GL failure'); check(frame.occupiedPixels > 10, 'Actual model/action frame is blank');
+  check(frame.framing?.projection?.status === 'passed', 'Actual promised model/target/effect bounds lack projection evidence');
   check(frame.poseOracles.every(oracle => oracle.status === 'passed'), 'Independent second-GLB parse/mixer pose oracle was not exercised');
   const semantic = sample.tags.some(tag => tag !== 'after-boundary' && tag !== 'cadence');
   if (!semantic) return;
@@ -72,20 +73,29 @@ withEdgeReview({edge, source: ROOT, modules, fixture: path.join(ROOT, 'tests/fix
       check(normal.frames > 3 && normal.presentationSeconds >= action.retireAt && Object.values(normal.cleanup).every(value => value === 0), 'Complete normal-speed playback and bounded drain were not observed');
       const movie = await binary(normal.video.id, prefix + '-normal-speed.webm'), inspection = movie.webm || movie.inspection;
       check(inspection && (inspection.videoFrames || inspection.frameCount) >= 3, 'Actual encoded WebM video frames were not independently verified');
-      check((inspection.lastVideoSeconds ?? inspection.lastTimestampSeconds) >= action.retireAt - 1 / capabilities.frameRate, 'Actual WebM span truncates authored action/drain');
-      if (normal.peak.activeEffects > Math.max(...frames.map(frame => frame.state.activeEffects))) {
-        check(normal.peak.time <= action.retireAt, 'Observed normal peak lies outside authored envelope');
+      check(inspection.firstVideoSeconds >= 0 && inspection.firstVideoSeconds <= 1 / capabilities.frameRate && inspection.monotonicBlockTimestamps === true, 'Actual WebM omits its start or has nonmonotonic timestamps');
+      check((inspection.lastVideoSeconds ?? inspection.lastTimestampSeconds) >= action.retireAt && inspection.frameSpanSeconds >= action.retireAt - 1 / capabilities.frameRate, 'Actual WebM span truncates authored action/drain');
+      const replayPeaks = [normal.peak.activeEffects > Math.max(...frames.map(frame => frame.state.activeEffects)) ? normal.peak.time : null,
+        normal.particlePeak.particles > Math.max(...frames.map(frame => frame.state.vfx.particles)) ? normal.particlePeak.time : null].filter(time => time !== null);
+      for (const peakTime of [...new Set(replayPeaks)]) {
+        check(peakTime <= action.retireAt, 'Observed normal peak lies outside authored envelope');
         await browser.evaluate(`window.__actionVfxReview.select(${JSON.stringify(item.id)},${JSON.stringify({actionId: action.id})})`);
-        const frame = await browser.evaluate(`window.__actionVfxReview.advanceTo(${JSON.stringify(normal.peak.time)})`), key = timeKey(normal.peak.time);
+        const frame = await browser.evaluate(`window.__actionVfxReview.advanceTo(${JSON.stringify(peakTime)})`), key = timeKey(peakTime);
         check(!frames.some(sample => timeKey(sample.time) === key), 'Peak replay would alias an existing lower-occupancy capture');
-        frames.push({time: normal.peak.time, tags: ['observed-normal-peak'], ...summary(frame), artifact: await png(prefix + '-normal-peak.png')});
+        frames.push({time: peakTime, tags: ['observed-normal-peak'], ...summary(frame), artifact: await png(prefix + '-normal-peak-' + frames.length + '.png')});
       }
       frames.sort((a, b) => a.time - b.time); const maximum = Math.max(...frames.map(frame => frame.state.activeEffects));
       check(maximum >= normal.peak.activeEffects, 'PNG schedule did not capture the observed normal-speed maximum occupancy');
-      const maximumFrame = frames.find(frame => frame.state.activeEffects === maximum && frame.effectPixels > 0) || frames.find(frame => frame.state.activeEffects === maximum);
+      const maximumParticles = Math.max(...frames.map(frame => frame.state.vfx.particles)), maximumVisiblePixels = Math.max(...frames.map(frame => frame.effectPixels));
+      check(maximumParticles >= normal.particlePeak.particles, 'PNG schedule did not capture observed normal-speed particle maximum');
+      for (const frame of frames) frame.occupancyPeaks = [frame.state.activeEffects === maximum ? 'active-effects' : null, frame.state.vfx.particles === maximumParticles ? 'particles' : null,
+        frame.effectPixels === maximumVisiblePixels ? 'visible-effect-pixels' : null].filter(Boolean);
+      const peakObservations = {activeEffects: {maximum, times: frames.filter(frame => frame.state.activeEffects === maximum).map(frame => frame.time)},
+        particles: {maximum: maximumParticles, times: frames.filter(frame => frame.state.vfx.particles === maximumParticles).map(frame => frame.time)},
+        visibleEffectPixels: {maximum: maximumVisiblePixels, times: frames.filter(frame => frame.effectPixels === maximumVisiblePixels).map(frame => frame.time), scope: 'Maximum among declared cadence/semantic/after-boundary PNG samples, not every continuous video pixel'}};
       const coverage = {action: action.id, start: 0, end: action.retireAt, fps: plan.fps, normalSpeed: {path: movie.path, sha256: movie.sha256, bytes: movie.bytes},
-        samples: frames.map(frame => ({time: frame.time, artifact: frame.artifact, maximumOccupancy: frame === maximumFrame})), cleanup: normal.cleanup};
-      row.coverage.push(coverage); row.actions.push({action: action.id, expectedFamilies: plan.expectedFamilies, peakEffectPixels, maximumObservedEffects: maximum, frames, transitionEvents: saveJson(prefix + '-transition-events.json', lastEvents),
+        samples: frames.map(frame => ({time: frame.time, artifact: frame.artifact, maximumOccupancy: frame.occupancyPeaks.length > 0})), cleanup: normal.cleanup};
+      row.coverage.push(coverage); row.actions.push({action: action.id, expectedFamilies: plan.expectedFamilies, peakEffectPixels, maximumObservedEffects: maximum, peakObservations, frames, transitionEvents: saveJson(prefix + '-transition-events.json', lastEvents),
         normal: {...normal, video: {...normal.video, artifact: coverage.normalSpeed, webm: inspection}, final: summary(normal.final)}});
       console.log(JSON.stringify({case: item.id, action: action.id, pngFrames: frames.length, normalFrames: normal.frames, videoBytes: movie.bytes, peakEffectPixels}));
     }
@@ -113,6 +123,8 @@ withEdgeReview({edge, source: ROOT, modules, fixture: path.join(ROOT, 'tests/fix
   for (let index = 0; index < cases.length; index++) { cases[index].lifecycle = await browser.evaluate(`window.__actionVfxReview.lifecycle(${JSON.stringify(cases[index].id)})`);
     const restored = cases[index].lifecycle.tests.find(test => test.id === 'context-restoration')?.observation;
     if (restored?.artifact) { const actual = await binary(restored.artifact.id, 'case-' + index + '-context-restored.png'); restored.artifact = {path: actual.path, sha256: actual.sha256, bytes: actual.bytes}; }
+    cases[index].cloneResetStability = await browser.evaluate(`window.__actionVfxReview.cloneResetStability(${JSON.stringify(cases[index].id)})`);
+    check(cases[index].cloneResetStability.status === 'passed', 'Caller clone/reset GPU texture stability was not observed');
   }
   const required = fixture.requireFamilies || ['sprite', 'burst', 'ring', 'mesh', 'projectile', 'trail', 'impact', 'ground-indicator', 'beam'];
   for (const family of required) check(observedFamilies.has(family), 'Required native family lacks actual action evidence: ' + family);
@@ -123,7 +135,7 @@ withEdgeReview({edge, source: ROOT, modules, fixture: path.join(ROOT, 'tests/fix
     for (const [id, observation] of [['exact-release', {actions: row.actions.length, exactBoundaryEvents: true, independentSecondGlbPoseAndAnchorOracle: true}],
       ['normal-drain', {videos: row.coverage.map(value => value.normalSpeed), cleanup: row.coverage.map(value => value.cleanup)}],
       ['aggregate-scene-ownership', row.concurrency.concurrency], ['concurrent-actors-and-ambient', {artifact: row.concurrency.artifact, ...row.concurrency.concurrency}],
-      ['resource-disposal', {borrowedResourcesPreserved: cleanup.borrowedResourcesPreserved, compositorPreserved: cleanup.composerPreserved, finalSystems: cleanup.finalSystems}],
+      ['resource-disposal', {borrowedResourcesPreserved: cleanup.borrowedResourcesPreserved, compositorPreserved: cleanup.composerPreserved, finalSystems: cleanup.finalSystems, cloneResetStability: row.cloneResetStability}],
       ['isolated-layer-families', {layers: row.layerCoverage.map(value => ({source: value.sourceId, layer: value.layerId, family: value.family, artifact: value.isolated}))}],
       ['contrasting-backgrounds', {layers: row.layerCoverage.map(value => ({layer: value.layerId, dark: value.dark, light: value.light}))}]]) observed.set(id, {id, status: 'passed', observation});
     row.tests = [...observed.values()]; row.receivingTestsComplete = row.tests.every(test => test.status === 'passed');
@@ -131,8 +143,8 @@ withEdgeReview({edge, source: ROOT, modules, fixture: path.join(ROOT, 'tests/fix
   const after = Object.fromEntries(sourceNames.map(name => [name, hash(fs.readFileSync(path.join(ROOT, name)))])); check(JSON.stringify(before) === JSON.stringify(after), 'Candidate source changed during evidence');
   check(hash(fs.readFileSync(path.join(assets, 'fixture.json'))) === hash(fixtureBytes), 'Native fixture changed during evidence');
   const libraryInventory = saveJson('library-inventory.json', {versions: exact, modules, requests: browser.requests.filter(request => request.path.startsWith('/deps/'))});
-  const cameraIdentity = saveJson('camera.json', {cases: cases.map(row => ({id: row.id, actions: row.actions.map(action => ({action: action.action, frames: action.frames.map(frame => ({time: frame.time, captureEpoch: frame.captureEpoch, camera: frame.camera}))})),
-    isolated: row.layerCoverage.map(layer => ({source: layer.sourceId, layer: layer.layerId, camera: layer.observations.isolated.camera})), concurrent: row.concurrency.camera}))});
+  const cameraIdentity = saveJson('camera.json', {cases: cases.map(row => ({id: row.id, actions: row.actions.map(action => ({action: action.action, frames: action.frames.map(frame => ({time: frame.time, captureEpoch: frame.captureEpoch, camera: frame.camera, framing: frame.framing}))})),
+    isolated: row.layerCoverage.map(layer => ({source: layer.sourceId, layer: layer.layerId, camera: layer.observations.isolated.camera, framing: layer.observations.isolated.framing})), concurrent: {camera: row.concurrency.camera, framing: row.concurrency.framing}}))});
   const settingsIdentity = saveJson('capture-settings.json', {pngFps: captureFps, width: 960, height: 540, capabilities, artifactLimits: {bytes: 67108864, files: 512}, normalSpeedPaddingSeconds: .2,
     contrastBackgrounds: {neutral: '#344150', dark: '#070b10', light: '#f4f5f7'}, sourceHashes: before, clockPolicy: 'Observed absolute actor time, explicit representable scene ticks, no epsilon-early runtime transitions'});
   const deviceIdentity = saveJson('target-device.json', {browser: browser.version, driver, platform: process.platform, arch: process.arch, scope: 'Existing default desktop Edge on this host; no device class, MAUI or physical QA claim'});
