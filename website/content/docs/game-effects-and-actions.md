@@ -2,7 +2,7 @@
 
 Make an effect readable on the model, at the moment the player needs it. A casting action might gather light at a hand, release a traveling effect, leave a short trail and finish with an impact. Start with timing and placement, then add detail.
 
-**Availability:** reusable VFX and MODEL_TO_ACTION v2 are in newer source containing the reviewed integration merged as `6b8c8e6ad6080783763f8fe94e982e248af18807`. The current full GitHub release keeps package version `5.1.0-rc.1`; those immutable installers predate these features. Follow [installation](install.md) for packages and managed updates, with deliberate manual source installation last. Merging a guide does not publish a new package.
+**Availability:** reusable VFX and MODEL_TO_ACTION v2 are included in `5.2.0`. Follow [installation](install.md) for packages and managed updates. Prepare the recorded Bubo runtime and compatible locked Three.js/Quarks dependencies explicitly; package setup does not provide runtime asset acceptance or promotion.
 
 ## Start with a clear request
 

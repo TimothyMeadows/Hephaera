@@ -2,7 +2,7 @@
 
 `FLOOR_PLAN_TO_MODEL` turns one approved, dimensioned architectural design into detailed unfurnished building models. It supports straight and angled walls, multiple storeys, courtyards, explicit openings and vertical connections. It produces game/environment assets with editable source and portable exports.
 
-Use the [practical guide](https://hephaera.com/docs/floor-plan-to-model/) for the everyday workflow, the [technical reference](https://github.com/TimothyMeadows/Hephaera/blob/main/docs/FLOOR_PLAN_TO_MODEL.md) for flags/records, and the [example walkthrough](https://github.com/TimothyMeadows/Hephaera/blob/main/examples/floor-plan-to-model/README.md) for reproducible prepared inputs. The feature is available on repository main; published `5.1.0-rc.1` predates it. Promoting that GitHub release does not add newer source to its immutable packages. A later reviewed package must include the feature before its installer version can supply these commands. Preserve the normal [package-first installation order](Installation-and-Layout).
+Use the [practical guide](https://hephaera.com/docs/floor-plan-to-model/) for the everyday workflow, the [technical reference](https://github.com/TimothyMeadows/Hephaera/blob/main/docs/FLOOR_PLAN_TO_MODEL.md) for flags/records, and the [example walkthrough](https://github.com/TimothyMeadows/Hephaera/blob/main/examples/floor-plan-to-model/README.md) for reproducible prepared inputs. Included in `5.2.0`. Use the normal [package installation and managed-update workflow](Installation-and-Layout), then explicitly initialize/build the recorded native runtime. Installing a new launcher alone does not update an existing pinned host.
 
 ## Worked example: an empty two-storey hall
 

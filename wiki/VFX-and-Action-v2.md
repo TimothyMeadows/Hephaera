@@ -6,7 +6,7 @@ Use the [practical guide](https://hephaera.com/docs/game-effects-and-actions/) f
 
 ## Availability and scope
 
-The source integration was reviewed and merged as `6b8c8e6ad6080783763f8fe94e982e248af18807`, with Bubo `a47896d730b32d00b165e61820060e7c73d1ec4a`. The installed gitlink, current lock/API/catalog and verified prebuilt runtime must agree; documentation is not a second pin. Published `5.1.0-rc.1` installers predate these features. Its full GitHub release classification preserves the immutable version and contents. See [Installation and layout](Installation-and-Layout): package setup and managed updates first, deliberate manual source installation last. This feature publishes no package.
+The source integration was reviewed and merged as `6b8c8e6ad6080783763f8fe94e982e248af18807`, with Bubo `a47896d730b32d00b165e61820060e7c73d1ec4a`. The installed gitlink, current lock/API/catalog and verified prebuilt runtime must agree; documentation is not a second pin. Included in stable `5.2.0`. See [Installation and layout](Installation-and-Layout): authenticated GitHub package setup and managed updates first, deliberate manual source installation last. Explicit native builds, engine dependency checks and actual target evidence remain required. Historical `5.1.0-rc.1` keeps its original contents.
 
 | Version/profile | Current scope |
 | --- | --- |

@@ -2,7 +2,7 @@
 
 Prepare and inspect a small complete building before designing a production asset. These examples use the pinned Bubo engineering sources and their source license. They are unfurnished architectural exercises; their materials, dimensions and process allowances need review for your project.
 
-This workflow is on repository `main` after floor-plan integration. Published `5.1.0-rc.1` does not contain it. Follow the normal [installation instructions](../../README.md#install), using a source version containing this feature until a later package includes it. Run the commands below from an installed host project's root.
+This workflow is included in `5.2.0`. Follow the normal [installation and managed-update instructions](../../README.md#install), then explicitly initialize/build the recorded native runtime. Run the commands below from an installed host project's root.
 
 ## Choose an exercise
 

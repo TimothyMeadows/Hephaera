@@ -108,9 +108,9 @@ Engine-specific workflows cover **Three.js, Babylon.js, Phaser, Unity, Unreal, a
 
 `STYLE.md` selects visual direction and the art pipeline. **PROOF_TO_MODEL** is the default: classify original sources, approve six consistent views, reconstruct them natively and finish in Blender, then review before runtime promotion. CLOUD, LOCAL, CODE, BLENDER, FLOOR_PLAN_TO_MODEL, and SCHEMATIC_TO_MODEL remain explicit alternatives. The CODE pipeline is specific to Three.js.
 
-**FLOOR PLAN TO MODEL** designs buildings floor by floor, then turns one approved architectural package into detailed unfurnished models with editable source and separate visual/collision exports. See [the workflow](#floor-plan-to-model) and [practical guide](https://hephaera.com/docs/floor-plan-to-model/). It is available in newer `main` source; published `5.1.0-rc.1` packages predate it.
+**FLOOR PLAN TO MODEL** designs buildings floor by floor, then turns one approved architectural package into detailed unfurnished models with editable source and separate visual/collision exports. See [the workflow](#floor-plan-to-model) and [practical guide](https://hephaera.com/docs/floor-plan-to-model/). Included in `5.2.0`; use the [versioned installation and managed-update guidance](#install).
 
-**SCHEMATIC TO MODEL** designs mechanical objects such as vehicles, devices and vessels. Approve the complete dimensioned schematic, build each part independently, then assemble and check its movement. Repeated bolts or wheels retain separate identities, and wires, hoses, springs and belts retain their own deforming geometry. See [the workflow](#schematic-to-model) and [technical guide](docs/SCHEMATIC_TO_MODEL.md). It is available in newer `main` source; published `5.1.0-rc.1` packages predate it.
+**SCHEMATIC TO MODEL** designs mechanical objects such as vehicles, devices and vessels. Approve the complete dimensioned schematic, build each part independently, then assemble and check its movement. Repeated bolts or wheels retain separate identities, and wires, hoses, springs and belts retain their own deforming geometry. See [the workflow](#schematic-to-model) and [technical guide](docs/SCHEMATIC_TO_MODEL.md). Included in `5.2.0`; use the [versioned installation and managed-update guidance](#install).
 
 **AUDIO, MUSIC, and VOICE are independent production pipelines.** Load them together and alongside the visual workflow without changing its selection. Each provides planning, immutable asset versions, validation, human review, and separate runtime promotion. See [Audio, Music, and Voice Pipelines](#audio-music-and-voice-pipelines) for routing and setup.
 
@@ -424,15 +424,15 @@ Hephaera belongs directly at `<project-root>/.hephaera/` in an existing host Git
 
 ## Package Availability
 
-[`5.1.0-rc.1` is the current full GitHub release](https://github.com/TimothyMeadows/Hephaera/releases/tag/5.1.0-rc.1), including both GitHub Packages installers and the setup ZIP. It is also selected by [GitHub's latest-release link](https://github.com/TimothyMeadows/Hephaera/releases/latest). Promotion changed its GitHub classification; its immutable tag, package version and files remain `5.1.0-rc.1`. Package clients still interpret the `-rc.1` suffix as a SemVer prerelease. The **npmjs.com and NuGet.org mirrors are pending**; their examples below apply only after the exact public version is verified.
+Use stable version [`5.2.0`](https://github.com/TimothyMeadows/Hephaera/releases/tag/5.2.0) for floor-plan-to-model, schematic-to-model and reusable VFX/MODEL_TO_ACTION v2. See the [release notes](docs/RELEASE_5_2_0.md) for the included features and limits. Confirm the exact release and package version are published before running setup.
 
-| Source | Current status |
+| Source | Version and access |
 | --- | --- |
-| GitHub Packages: npm and NuGet | Published `5.1.0-rc.1`; authenticated reads |
-| npmjs.com: `@timothymeadows/hephaera` | Public publication pending |
-| NuGet.org: `Hephaera` | Public publication pending |
+| GitHub npm: `@timothymeadows/hephaera` | `5.2.0`; authenticated package reads |
+| GitHub NuGet: `Hephaera` | `5.2.0`; authenticated package reads |
+| npmjs.com and NuGet.org | Deferred; not part of this release |
 
-Both package routes pin the exact baseline Git revision and automatically run the canonical scaffold before reporting success. Acquisition alone does not initialize the host. Maintainers use [public registry setup](docs/PUBLIC_REGISTRY_SETUP.md) for the automatic post-GitHub path and manual catch-up. The [manual Git option](#advanced-manual-installation) remains last.
+Both package routes pin the exact baseline Git revision and automatically run the canonical scaffold before reporting success. Acquisition alone does not initialize the host. Public-registry accounts and publication will be configured separately later; they are not needed for GitHub Packages. The [manual Git option](#advanced-manual-installation) remains last.
 
 ## Fixed Installation Layout
 
@@ -444,50 +444,42 @@ Use `.hephaera` for Codex, Claude, Cursor and every other supported agent. Do no
 | npm | Acquiring the npm installer |
 | .NET 10 SDK/tool runtime | Acquiring and running the NuGet launcher |
 | Git and existing Bash | Exact source checkout and canonical scaffold; Git Bash is preferred on Windows |
-| GitHub package-read credentials | Only for the GitHub Packages alternative; public registry reads need no login |
+| GitHub package-read credentials | Authenticated npm and NuGet reads from GitHub Packages |
 
 The thin packages also fetch the recorded public Git source; they are not offline bundles. Python 3.9+ specifically exposed as `python3` is needed for task/issue/checkpoint helpers, and authenticated `gh` for their GitHub operations. SDKs, Bash providers, Python environments and models are never installed implicitly. See the [full installer reference](docs/INSTALLER.md).
 
 ## npm Setup
 
-**Public route, pending publication:** after npmjs has the exact version, select this token-free scope mapping in the host `.npmrc`, preserving other settings:
+Select this token-free scope mapping in the host `.npmrc`, preserving other settings:
 
 ```ini
-@timothymeadows:registry=https://registry.npmjs.org
+@timothymeadows:registry=https://npm.pkg.github.com
 ```
 
-Explicitly replace an older GitHub mapping for this scope; changing the default registry alone does not replace it. Then run:
-
-```bash
-npm exec --yes --registry=https://registry.npmjs.org --package=@timothymeadows/hephaera@5.1.0-rc.1 -- hephaera install --project .
-```
-
-**Published GitHub alternative:** select `@timothymeadows:registry=https://npm.pkg.github.com` instead. Authenticate interactively using your own GitHub username and expiring PAT **classic** with `read:packages`; keep credentials in user-level storage outside the project:
+Authenticate interactively using your own GitHub username and expiring PAT **classic** with `read:packages`. Keep credentials in user-level storage outside the project. From the host root:
 
 ```bash
 npm login --scope=@timothymeadows --auth-type=legacy --registry=https://npm.pkg.github.com
-npm exec --yes --registry=https://npm.pkg.github.com --package=@timothymeadows/hephaera@5.1.0-rc.1 -- hephaera install --project .
+npm exec --yes --registry=https://npm.pkg.github.com --package=@timothymeadows/hephaera@5.2.0 -- hephaera install --project .
 ```
 
-The explicit installer acquires tooling, installs the pinned baseline and creates the canonical scaffold. It does not rely on lifecycle hooks. A reviewed exact dev dependency is also possible, but downloading it alone does not initialize the project.
+The explicit installer acquires tooling, installs the pinned baseline and creates the canonical scaffold. It does not rely on lifecycle hooks. A reviewed exact dev dependency is also possible, but downloading it alone does not initialize the project. An npmjs.com account is not required for this GitHub route.
 
 ## NuGet Setup
 
-The `Hephaera` .NET tool embeds the same Node core; Node 24 remains required. **NuGet.org publication is pending.** After that version is verified, create the [public-only config](docs/INSTALLER.md#nugetorg-setup-after-publication) at the host root; it clears inherited sources and maps `Hephaera` to `https://api.nuget.org/v3/index.json` without credentials.
+The `Hephaera` .NET tool embeds the same Node core; Node 24 remains required. Use the [authenticated GitHub NuGet configuration](docs/INSTALLER.md#authenticate-for-nuget) at the host root. It maps exact `Hephaera` to the GitHub feed; keep credentials outside tracked files. A NuGet.org account is not required.
 
-Download the published [setup ZIP](https://github.com/TimothyMeadows/Hephaera/releases/download/5.1.0-rc.1/hephaera-setup-5.1.0-rc.1.zip), verify the release checksum and extract it. Keep its wrappers, helper, release identity and bundled config unchanged. Put `NuGet.Hephaera.Public.config` outside that directory. Point `SETUP_DIR` (Bash) or `SetupDir` (PowerShell) at the reviewed extracted directory:
+From the [5.2.0 release](https://github.com/TimothyMeadows/Hephaera/releases/tag/5.2.0), download the setup ZIP and verify its release checksum before extracting it. Keep its wrappers, helper, release identity and bundled config unchanged. Point `SETUP_DIR` (Bash) or `SetupDir` (PowerShell) at the reviewed extracted directory, with the token-free config at the host root:
 
 ```bash
-bash "$SETUP_DIR/setup-nuget.sh" --version 5.1.0-rc.1 --project . --configfile ./NuGet.Hephaera.Public.config
+bash "$SETUP_DIR/setup-nuget.sh" --version 5.2.0 --project . --configfile ./NuGet.Hephaera.config
 ```
 
 ```powershell
-& "$SetupDir/setup-nuget.ps1" --version 5.1.0-rc.1 --project . --configfile ./NuGet.Hephaera.Public.config
+& "$SetupDir/setup-nuget.ps1" --version 5.2.0 --project . --configfile ./NuGet.Hephaera.config
 ```
 
-The existing wrapper accepts the separate regular config path, acquires/verifies the exact local tool, then immediately runs setup. Preserve other local-tool entries; if restoring them requires additional source mappings, review those explicitly. Raw `dotnet tool install` does not scaffold a host.
-
-**Published GitHub alternative:** use the [authenticated GitHub NuGet config](docs/INSTALLER.md#authenticate-for-nuget) and pass `--configfile ./NuGet.Hephaera.config` to the same wrapper. Both GitHub package pages are available: [npm](https://github.com/users/TimothyMeadows/packages/npm/package/hephaera), [NuGet](https://github.com/users/TimothyMeadows/packages/nuget/package/Hephaera). Public registries and GitHub Packages are distinct destinations.
+The wrapper acquires/verifies the exact local tool, then immediately runs setup. Preserve other local-tool entries; restoring them may need additional reviewed source mappings. Raw `dotnet tool install` does not scaffold a host. Package pages: [GitHub npm](https://github.com/users/TimothyMeadows/packages/npm/package/hephaera) and [GitHub NuGet](https://github.com/users/TimothyMeadows/packages/nuget/package/Hephaera).
 
 ## Start the First Session
 
@@ -1562,7 +1554,7 @@ Bubo constructs detailed floors, ceilings, shared walls, openings, door/window a
 
 Review every floor, exterior elevation, roof and section through vertical connections. Independent imports compare geometry, dimensions, materials, hierarchy, openings, door pivots and declared clearances with the approved source. Technical verification, independent model review and human model acceptance are separate gates. Measured traversal geometry does not establish actual engine collision, movement or navigation behavior. There is no promotion operation; game integration remains later work.
 
-This feature is available in newer `main` source and is not included in published `5.1.0-rc.1` packages. Use a deliberately chosen [manual clone/submodule installation](#advanced-manual-installation) for unreleased source; keep package-managed installations under their documented update/recovery workflow. Curved forms, automatic CAD/raster conversion, furnishings, interaction systems and gameplay are deferred.
+This feature is included in `5.2.0`. Follow [package installation and managed updates](#install), and explicitly initialize/build the recorded native runtime before construction. Curved forms, automatic CAD/raster conversion, furnishings, interaction systems and gameplay are deferred.
 
 Read the [plain-language guide](https://hephaera.com/docs/floor-plan-to-model/), [detailed reference](docs/FLOOR_PLAN_TO_MODEL.md), [examples](examples/floor-plan-to-model/README.md) and [reference wiki](https://github.com/TimothyMeadows/Hephaera/wiki/Floor-Plan-to-Model).
 
@@ -1584,7 +1576,7 @@ The sealed package contains editable Blender source, an animation-free assembled
 
 Later animation uses the current preserve-only `mechanical-assembly` handoff, including assemblies with no flexible rigs. It preserves the reviewed components and existing rigs, creates no replacement rig, and inherits no human motion/runtime approval. A source revision invalidates affected decisions and handoff evidence. Diagnostic sampling establishes articulation evidence, not finished animation, continuous collision, manufacturing fitness, physics or engine behavior. This command has no asset-promotion operation.
 
-This feature is available in newer `main` source; published `5.1.0-rc.1` packages predate it. For unreleased source use a deliberately chosen [manual installation](#advanced-manual-installation), while keeping package-managed updates under their existing recovery workflow. See the [technical guide](docs/SCHEMATIC_TO_MODEL.md), [examples](examples/schematic-to-model/README.md), [native export contract](runtime/bubo/resources/schematic-to-model/EXPORT.md), [practical guide](https://hephaera.com/docs/schematic-to-model/) and [reference wiki source](wiki/Schematic-to-Model.md).
+This feature is included in `5.2.0`. Use [package installation and managed updates](#install), then explicitly initialize/build the recorded native runtime before construction. See the [technical guide](docs/SCHEMATIC_TO_MODEL.md), [examples](examples/schematic-to-model/README.md), [native export contract](runtime/bubo/resources/schematic-to-model/EXPORT.md), [practical guide](https://hephaera.com/docs/schematic-to-model/) and [reference wiki source](wiki/Schematic-to-Model.md).
 
 ### Native proof to model
 
@@ -1672,7 +1664,7 @@ One Scene scheduler borrows the existing Quarks service and advances actors, amb
 
 The initial v2 bridge supports THREEJS with reviewed skinned, articulated and rigid motion packages; mechanical-assembly actions and other-engine bridges remain unavailable. Exact source-export admission, technical checks, complete visual review, independent review, human runtime acceptance and native promotion remain separate. Authored accessibility variants need actual readability review. Browser/software-renderer evidence does not certify a physical GPU or packaged Windows, Mac Catalyst, Android or iOS game.
 
-Read the [practical guide](website/content/docs/game-effects-and-actions.md), [VFX asset guide](docs/VFX_ASSETS.md), [action technical reference](docs/MODEL_TO_ACTION.md), [walkthrough](examples/action-vfx/README.md) and [wiki source](wiki/VFX-and-Action-v2.md). This feature requires newer source containing the reviewed integration merge `6b8c8e6ad6080783763f8fe94e982e248af18807`; published immutable `5.1.0-rc.1` installers predate it. Keep [package installation](#install) first and use the [manual source option](#advanced-manual-installation) deliberately when needed.
+Read the [practical guide](website/content/docs/game-effects-and-actions.md), [VFX asset guide](docs/VFX_ASSETS.md), [action technical reference](docs/MODEL_TO_ACTION.md), [walkthrough](examples/action-vfx/README.md) and [wiki source](wiki/VFX-and-Action-v2.md). Included in `5.2.0`, with the reviewed action-v2 integration and Bubo pin. Use [package installation and managed updates](#install); a source merge or tooling download does not update an existing pinned host.
 
 Use the policy contract under `.styles/.workflows/model-to-action/WORKFLOW.md` with an existing reviewed motion package, explicit source review and budgets. Runtime schemas, recipes, audited scripts and engine adapters live in `runtime/bubo/resources/model-to-action/`. Initial shared composition uses in-place clips; root-motion actions require an explicitly compatible movement implementation. The primary `STYLE.md` pipeline and `ENGINE.md` selection remain authoritative. Adobe integrations, hidden downloads and automatic acceptance are excluded. Action selection, independent review and human runtime acceptance remain separate from explicit promotion.
 

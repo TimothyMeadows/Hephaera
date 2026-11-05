@@ -12,7 +12,7 @@ Hephaera supplies guidance and workflows. Your project still supplies its engine
 
 ## Start here
 
-If Hephaera is not in your project yet, follow [installation](install.md). The `5.1.0-rc.1` npm and NuGet installers are published on GitHub Packages and scaffold the host when setup completes; public npmjs.com and NuGet.org mirrors remain pending. The guide covers packages first and deliberate manual clone/submodule installation last. Features added after that release, including floor-plan-to-model, schematic-to-model and reusable VFX/action v2, require a newer baseline revision; merging source documentation does not update installed version-pinned packages.
+If Hephaera is not in your project yet, follow [installation](install.md). Use `5.2.0` for floor-plan-to-model, schematic-to-model and reusable VFX/action v2. Start with authenticated GitHub npm or GitHub NuGet; setup scaffolds the host before reporting success. Public registries are deferred, and manual Git setup remains the advanced last option. Existing pinned projects need an explicit managed update.
 
 Then walk through [your first session](first-session.md). Start with a narrow request so you can see the agent inspect the project, propose a plan, and report its evidence.
 

@@ -1,6 +1,6 @@
 # Hephaera .NET tool
 
-Upcoming package; publication and real GitHub feed verification remain separate. This .NET 10 tool embeds the same Node.js installer core and release manifest as the matching npm package. It requires an existing Node.js 24+, Git, and Bash provider. It does not download npm or install prerequisites.
+Install the exact Hephaera baseline recorded in this package and automatically create the project scaffold. Select a verified version from the GitHub release and package listing. This .NET 10 tool embeds the same Node.js installer core and release manifest as the matching npm package. It requires an existing Node.js 24+, Git, and Bash provider. It does not download npm or install prerequisites.
 
 Use your own GitHub classic PAT with `read:packages`, supplied through a supported user/session credential mechanism. The reviewed `installer/setup/NuGet.Hephaera.config` example routes exactly `Hephaera` to GitHub Packages and other dependencies to nuget.org. Do not commit credentials or use `--add-source` as a source-priority mechanism.
 

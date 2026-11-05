@@ -4,7 +4,7 @@ Use `SCHEMATIC_TO_MODEL` to design a mechanically coherent game object, approve 
 
 A **part definition** describes one reusable component, such as a bolt or wheel. A **physical instance** identifies each actual occurrence. Four identical wheels may share geometry, but each keeps its own object, transform, pivot and movement. Functional internals, fasteners, wires and hoses must be explicitly designed; a detail description does not add omitted geometry automatically.
 
-This feature is available in newer `main` source. Published `5.1.0-rc.1` installer packages predate it. Keep [package-first installation and managed updates](INSTALLER.md) as the normal route; deliberately chosen unreleased source uses the [manual installation option](../README.md#advanced-manual-installation).
+Included in stable `5.2.0`. Use [package installation and managed updates](INSTALLER.md), then explicitly initialize/build the recorded native runtime. Installing tooling does not update an existing pinned host or grant model/runtime acceptance.
 
 ## Start with the object
 

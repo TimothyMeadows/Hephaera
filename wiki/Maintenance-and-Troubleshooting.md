@@ -6,7 +6,7 @@ The primary sources are [AGENTS.md](https://github.com/TimothyMeadows/Hephaera/b
 
 ## Safe managed update sequence
 
-The npm/NuGet installer is upcoming and not published yet. After release, invoke it through the selected exact package version or selected local tool. Inspect `doctor --project PATH` first. Restore uses the exact host lock; updating uses the target release's verified manifest/core, not an old launcher guessing a new baseline.
+Use the selected exact GitHub package version or local NuGet tool. Choose `5.2.0` for the floor-plan, schematic and reusable VFX/action-v2 workflows after confirming exact release/feed publication. Inspect `doctor --project PATH` first. Restore uses the exact host lock; updating uses the target release's verified manifest/core, not an old launcher guessing a new baseline.
 
 Review `update --project PATH --dry-run` before an explicit update. Dirty tracked source, unsafe ownership, path collisions, legacy state and active readers stop the operation. Supported production/dispatch entrypoints retain cooperative read leases through queue waits, execution, cancellation and cleanup; the updater needs exclusive baseline maintenance ownership through postconditions. This is separate from Bubo GPU scheduling and is not an operating-system sandbox against unmanaged processes.
 
@@ -77,7 +77,7 @@ A local documentation build, accepted asset or compiled native package does not 
 
 ## Advanced manual baseline updates
 
-This is the Git fallback for existing manual installations while package distribution remains unreleased. It is not the managed installer's update/recovery path. Review and stop active work first, preserve `.hephaera/.cache` and check local source changes.
+This is the Git update path for deliberately managed manual installations. It is not the managed installer's update/recovery path. Review and stop active work first, preserve `.hephaera/.cache` and check local source changes.
 
 For a manual submodule, explicitly select the baseline update and review the changed host gitlink:
 
@@ -94,4 +94,4 @@ git -C .hephaera submodule update --init --recursive --checkout -- runtime/bubo
 ```
 
 Only the first command advances the baseline. The second checks out Bubo's recorded revision; never recursively update nested dependencies to their latest branches. Rebuild explicitly if its pin changes. A fork remains an advanced customization choice; official package users do not need one. See [Installation and layout](Installation-and-Layout) for first setup and manual scaffold commands.
-For the upcoming managed installer, a crashed owner or interrupted process may leave descendants alive. Retain its receipts, stop remaining owned work and inspect ownership before `recover --project PATH --confirm-quiescent` through the exact package. The flag is an operator assertion, not an OS process scan; active/foreign/malformed owners remain blocked. Ordinary caught-failure recovery with released leases needs no assertion.
+For a managed installation, a crashed owner or interrupted process may leave descendants alive. Retain its receipts, stop remaining owned work and inspect ownership before `recover --project PATH --confirm-quiescent` through the exact package. The flag is an operator assertion, not an OS process scan; active/foreign/malformed owners remain blocked. Ordinary caught-failure recovery with released leases needs no assertion.
