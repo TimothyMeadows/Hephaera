@@ -2,22 +2,48 @@
 
 const fs = require('fs');
 const path = require('path');
+const https = require('node:https');
+const { createHash, X509Certificate } = require('node:crypto');
+
+// This trusted fixture observes the public certificate supplied by its owned
+// server. It never disables certificate/hostname validation or reads a key.
+const originalCreateServer = https.createServer;
+let certificate;
+https.createServer = function capturePublicCertificate(options, ...args) {
+  https.createServer = originalCreateServer;
+  certificate = Buffer.from(options.cert);
+  return originalCreateServer.call(this, options, ...args);
+};
+const fetchVerified = (url) => new Promise((resolve, reject) => {
+  const request = https.get(url, { ca: certificate, minVersion: 'TLSv1.3', agent: false }, (response) => {
+    const chunks = [];
+    if (response.socket.authorized !== true || response.socket.getProtocol() !== 'TLSv1.3') return response.destroy(new Error('fixture HTTPS was not authenticated'));
+    response.on('data', (chunk) => chunks.push(chunk));
+    response.on('end', () => resolve({ ok: response.statusCode === 200, headers: new Map(Object.entries(response.headers)), text: async () => Buffer.concat(chunks).toString() }));
+    response.on('error', reject);
+  });
+  request.setTimeout(3000, () => request.destroy(new Error('fixture HTTPS request timed out')));
+  request.on('error', reject);
+});
 
 module.exports = {
   chromium: {
     async launch(options) {
       if (options?.chromiumSandbox !== true || options?.headless !== true) throw new Error('sandboxed headless launch was not requested');
+      const spki = createHash('sha256').update(new X509Certificate(certificate).publicKey.export({ type: 'spki', format: 'der' })).digest('base64');
+      if (JSON.stringify(options.args) !== JSON.stringify([`--ignore-certificate-errors-spki-list=${spki}`])) throw new Error('browser trust was not limited to the exact run SPKI');
       let cancelEvaluation;
       return {
         async newContext(contextOptions) {
-          if (contextOptions?.serviceWorkers !== 'block') throw new Error('service workers were not blocked');
+          if (contextOptions?.serviceWorkers !== 'block' || contextOptions.ignoreHTTPSErrors) throw new Error('service workers were not blocked or TLS validation was disabled');
           let profile;
           return {
             async newPage() {
               return {
                 async route() {},
                 async goto(url) {
-                  const response = await fetch(url);
+                  if (new URL(url).protocol !== 'https:') throw new Error('evidence server did not use HTTPS');
+                  const response = await fetchVerified(url);
                   const html = await response.text();
                   if (!response.ok || !html.includes('createCodeCharacterEvidenceAdapter')) {
                     throw new Error('loopback evidence page was not served');
@@ -30,7 +56,7 @@ module.exports = {
                     const imported = pending.pop();
                     if (visited.has(imported)) continue;
                     visited.add(imported);
-                    const served = await fetch(imported);
+                    const served = await fetchVerified(imported);
                     if (!served.ok) throw new Error('admitted browser module was not served');
                     const source = await served.text();
                     if (/\.json$/.test(imported)) {

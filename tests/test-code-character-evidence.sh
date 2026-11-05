@@ -250,6 +250,7 @@ if [[ "$node_bin" == *.exe ]] && command -v wslpath >/dev/null 2>&1; then
 fi
 "$node_bin" - "$node_cli" "$node_project" "$node_three_root" <<'NODE'
 const { startServer } = require(process.argv[2]);
+const https = require('node:https');
 (async () => {
   const root = process.argv[3];
   const threeRoot = process.argv[4];
@@ -266,8 +267,16 @@ const { startServer } = require(process.argv[2]);
       ['/project/evidence/adapter.mjs', 404]
     ];
     for (const [target, status] of expectations) {
-      const response = await fetch(`${running.origin}${target}`);
-      if (response.status !== status) throw new Error(`${target} returned ${response.status}; expected ${status}`);
+      const actual = await new Promise((resolve, reject) => {
+        const request = https.get(`${running.origin}${target}`, { ca: running.certificate, minVersion: 'TLSv1.3', agent: false }, response => {
+          if (!response.socket.authorized) return reject(new Error('Evidence HTTPS was not authenticated.'));
+          response.resume();
+          response.once('end', () => resolve(response.statusCode));
+        });
+        request.once('error', reject);
+        request.setTimeout(3000, () => request.destroy(new Error('Evidence fixture request timed out.')));
+      });
+      if (actual !== status) throw new Error(`${target} returned ${actual}; expected ${status}`);
     }
   } finally {
     await running.close();
@@ -297,7 +306,8 @@ const fs = require('fs');
 const report = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
 if (!report.trustedMachineEvidence || report.captureMode !== 'browser' || report.overallDecision !== 'pass') throw new Error('Sandboxed capture did not emit trusted passing machine evidence.');
 if (report.browserSecurity?.chromiumSandbox !== true || report.browserSecurity?.serviceWorkers !== 'blocked' || report.browserSecurity?.osAssignedPort !== true) throw new Error('Browser security evidence is incomplete.');
-if (!/^http:\/\/127\.0\.0\.1:\d+$/.test(report.browserSecurity.origin)) throw new Error('Evidence server did not use loopback and an OS-assigned port.');
+if (!/^https:\/\/127\.0\.0\.1:\d+$/.test(report.browserSecurity.origin)) throw new Error('Evidence server did not use HTTPS loopback and an OS-assigned port.');
+if (report.browserSecurity.tls?.minimumVersion !== 'TLSv1.3' || report.browserSecurity.tls?.trust !== 'exact-run-spki' || !/^[a-zA-Z0-9+/]{43}=$/.test(report.browserSecurity.tls?.certificateSpkiSha256 ?? '')) throw new Error('Exact run TLS identity evidence is incomplete.');
 if (report.contracts?.adapter?.path !== 'evidence/adapter.mjs' || !/^[a-f0-9]{64}$/.test(report.contracts?.adapter?.sha256 ?? '') || !/^[a-f0-9]{64}$/.test(report.contracts?.captureConfiguration?.sha256 ?? '')) throw new Error('Adapter or capture-configuration hashes are missing.');
 NODE
 "$node_bin" - "$node_cli" <<'NODE'

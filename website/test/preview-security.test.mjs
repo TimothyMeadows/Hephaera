@@ -4,9 +4,12 @@ import fs from 'node:fs/promises';
 import { constants } from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
-import net from 'node:net';
+import https from 'node:https';
+import tls from 'node:tls';
 import { createHash } from 'node:crypto';
 import { once } from 'node:events';
+import { spawnSync } from 'node:child_process';
+import localPreviewTls from '../../commands/lib/local-preview-tls.cjs';
 import { startPreview, previewLimits } from '../scripts/serve.mjs';
 import { buildSite, siteRoot } from '../scripts/build.mjs';
 
@@ -49,18 +52,97 @@ async function preview(t, options) {
   return running;
 }
 
-function request(preview, target, { method = 'GET', headers = {} } = {}) {
+function request(preview, target, { method = 'GET', headers = {}, ca = preview.certificate, servername = '', maxVersion } = {}) {
   const url = new URL(preview.url);
   return new Promise((resolve, reject) => {
-    const req = http.request({ hostname: url.hostname, port: url.port, path: target, method, headers, agent: false }, response => {
+    // Keep certificate verification bound to the destination IP when exercising
+    // wrong HTTP Host values; Node otherwise infers SNI from that header.
+    const req = https.request({ hostname: url.hostname, port: url.port, path: target, method, headers, ca, servername, maxVersion, agent: false }, response => {
+      const authorized = response.socket.authorized;
+      const tlsVersion = response.socket.getProtocol();
       const chunks = [];
       response.on('data', chunk => chunks.push(chunk));
-      response.on('end', () => resolve({ status: response.statusCode, headers: response.headers, bytes: Buffer.concat(chunks) }));
+      response.on('end', () => resolve({ status: response.statusCode, headers: response.headers, bytes: Buffer.concat(chunks), authorized, tlsVersion }));
     });
-    req.setTimeout(1000, () => req.destroy(new Error('Fixture HTTP request timed out.')));
+    req.setTimeout(1000, () => req.destroy(new Error('Fixture HTTPS request timed out.')));
     req.on('error', reject); req.end();
   });
 }
+
+test('preview requires TLS 1.3 and its exact peer identity, rejects plaintext and returns no key', async t => {
+  const { root } = await fixture(t);
+  const running = await preview(t, { root });
+  const other = await preview(t, { root });
+  assert.equal(new URL(running.url).protocol, 'https:');
+  assert.ok(Buffer.isBuffer(running.certificate));
+  assert.match(running.certificate.toString(), /^-----BEGIN CERTIFICATE-----/);
+  assert.match(running.spki, /^[A-Za-z0-9+/]{43}=$/);
+  assert.notEqual(running.spki, other.spki, 'Each default listener needs a new key.');
+  assert.notDeepEqual(running.certificate, other.certificate);
+  assert.deepEqual(Object.keys(running).sort(), ['certificate', 'close', 'closed', 'spki', 'url']);
+  assert.doesNotMatch(JSON.stringify(running), /PRIVATE KEY/);
+  const valid = await request(running, '/Hephaera/');
+  assert.equal(valid.status, 200); assert.equal(valid.authorized, true); assert.equal(valid.tlsVersion, 'TLSv1.3');
+  await assert.rejects(request(running, '/Hephaera/', { ca: [] }), /self.signed|certificate/i);
+  await assert.rejects(request(running, '/Hephaera/', { ca: other.certificate }), /self.signed|certificate/i);
+  await assert.rejects(request(running, '/Hephaera/', { servername: 'wrong.example' }), /altname|hostname|certificate/i);
+  await assert.rejects(request(running, '/Hephaera/', { maxVersion: 'TLSv1.2' }), /protocol|unsupported|alert/i);
+  const endpoint = new URL(running.url);
+  await assert.rejects(new Promise((resolve, reject) => {
+    const req = http.get({ hostname: endpoint.hostname, port: endpoint.port, path: '/Hephaera/', agent: false }, response => { response.resume(); resolve(response.statusCode); });
+    req.setTimeout(1000, () => req.destroy(new Error('Plaintext fixture timed out.')));
+    req.on('error', reject);
+  }), /ECONNRESET|socket hang up/);
+  assert.equal((await request(running, '/Hephaera/')).status, 200, 'Refused handshakes must not retire a valid listener.');
+});
+
+test('explicit certificate/key stays private and listener shutdown disposes its owned key', async t => {
+  const { root } = await fixture(t);
+  const originalCreate = localPreviewTls.createLocalTls;
+  const source = originalCreate({ projectRoot: path.resolve(siteRoot, '..') });
+  t.after(() => source.dispose());
+  const suppliedKey = Buffer.from(source.serverOptions.key);
+  t.after(() => suppliedKey.fill(0));
+  const ownedKeys = [];
+  localPreviewTls.createLocalTls = options => {
+    const identity = originalCreate(options);
+    ownedKeys.push(identity.serverOptions.key);
+    return identity;
+  };
+  try {
+    const running = await preview(t, { root, tls: { cert: source.certificate, key: suppliedKey } });
+    assert.equal(running.spki, source.spki);
+    assert.equal((await request(running, '/Hephaera/')).status, 200);
+    assert.ok(ownedKeys[0].some(byte => byte !== 0));
+    await running.close();
+    assert.ok(ownedKeys[0].every(byte => byte === 0), 'Listener closure must erase its owned PEM.');
+    assert.ok(suppliedKey.some(byte => byte !== 0), 'Caller-owned input must remain caller-owned.');
+    const occupying = await preview(t, { root });
+    const port = Number(new URL(occupying.url).port);
+    await assert.rejects(startPreview({ root, port }), /EADDRINUSE/);
+    assert.ok(ownedKeys.at(-1).every(byte => byte === 0), 'Listen failure must erase its owned PEM.');
+    await assert.rejects(startPreview({ root, port: 0, tls: { cert: source.certificate } }), /certificate|key|together|pair/i);
+  } finally { localPreviewTls.createLocalTls = originalCreate; }
+});
+
+test('preview CLI explains exact trust and refuses incomplete or oversized TLS inputs', async t => {
+  const run = args => spawnSync(process.execPath, [path.join(siteRoot, 'scripts/serve.mjs'), ...args], { cwd: siteRoot, encoding: 'utf8', timeout: 5000, maxBuffer: 65536, windowsHide: true });
+  const help = run(['--help']);
+  assert.equal(help.status, 0); assert.match(help.stdout, /SPKI pin/); assert.match(help.stdout, /TLS 1\.3/);
+  for (const args of [['--cert', 'unused.pem'], ['--key', 'unused.pem'], ['--cert', 'a', '--cert', 'b'], ['--http']]) {
+    const refused = run(args);
+    assert.equal(refused.status, 1); assert.doesNotMatch(refused.stdout, /Hephaera preview:/);
+  }
+  const { folder } = await fixture(t);
+  const certFile = path.join(folder, 'inert-certificate.dat'), keyFile = path.join(folder, 'inert-key.dat');
+  await fs.writeFile(certFile, 'inert fixture');
+  await fs.writeFile(keyFile, Buffer.alloc(32 * 1024 + 1));
+  const keyExcess = run(['--cert', certFile, '--key', keyFile]);
+  assert.equal(keyExcess.status, 1); assert.match(keyExcess.stderr, /bounded PEM files/);
+  await fs.writeFile(certFile, Buffer.alloc(64 * 1024 + 1));
+  const certExcess = run(['--cert', certFile, '--key', keyFile]);
+  assert.equal(certExcess.status, 1); assert.match(certExcess.stderr, /bounded PEM files/);
+});
 
 async function observeOpens(operation) {
   const opened = [];
@@ -242,10 +324,10 @@ test('finite request/byte/lifetime limits and cancellation release listener and 
   await assert.rejects(request(lifetime, '/Hephaera/'), /ECONNREFUSED|ECONNRESET/);
   const cancel = await preview(t, { root: owned.root, limits: { concurrency: 1 } });
   const endpoint = new URL(cancel.url);
-  const socket = net.connect({ host: endpoint.hostname, port: endpoint.port });
+  const socket = tls.connect({ host: endpoint.hostname, port: endpoint.port, ca: cancel.certificate });
   t.after(() => socket.destroy());
   socket.on('error', () => {});
-  await once(socket, 'connect');
+  await once(socket, 'secureConnect');
   socket.write('GET /Hephaera/ HTTP/1.1\r\n');
   await assert.rejects(request(cancel, '/Hephaera/'), /ECONNRESET|socket hang up/);
   const socketClosed = once(socket, 'close');

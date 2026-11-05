@@ -2,12 +2,13 @@
 
 const crypto = require('crypto');
 const fs = require('fs');
-const http = require('http');
+const https = require('node:https');
 const path = require('path');
 const { createRequire } = require('module');
 const { analyze, objectSha256 } = require('./code-character-evidence-analyzer.cjs');
 const { contractHashes, profileMeasurementProjection, validateProfile } = require('./code-character-cli.cjs');
 const { relativeInside, rootPath, sha256 } = require('./code-model-cli.cjs');
+const { createLocalTls } = require('./local-preview-tls.cjs');
 
 const VIEW_IDS = new Set(['front', 'rear', 'left', 'right', 'top', 'bottom', 'orbit-left', 'orbit-right', 'hero', 'runtime']);
 
@@ -137,6 +138,18 @@ function locatePackage(root, packageName) {
 }
 
 const SERVER_LIMITS = Object.freeze({ files: 256, fileBytes: 8 * 1024 * 1024, totalBytes: 32 * 1024 * 1024, requests: 4096, concurrent: 16, sockets: 32, lifetimeMs: 120000 });
+const RESPONSE_HEADERS = Object.freeze({ 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer', 'content-security-policy': "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'" });
+
+function immutableResponder(bytes, contentType) {
+  // Admission owns this private snapshot. A request may select the responder,
+  // but supplies no body, filename, MIME type or other response content.
+  const body = Buffer.from(bytes);
+  const headers = Object.freeze({ ...RESPONSE_HEADERS, 'content-type': contentType, 'content-length': body.length });
+  return (response) => {
+    response.writeHead(200, headers);
+    response.end(body);
+  };
+}
 
 function serverLimits(overrides = {}) {
   const limits = { ...SERVER_LIMITS };
@@ -159,7 +172,7 @@ function modulePath(value) {
 
 function snapshotModule(base, relative, limits) {
   // Check every component, including junctions, before opening a declared file.
-  // HTTP requests never reach the filesystem; only this bounded admission does.
+  // HTTPS requests never reach the filesystem; only this bounded admission does.
   const resolvedBase = path.resolve(base);
   const baseReal = fs.realpathSync(resolvedBase);
   if (path.relative(resolvedBase, baseReal) !== '' || fs.lstatSync(resolvedBase).isSymbolicLink()) fail('Evidence module root must not be a filesystem alias.');
@@ -235,17 +248,19 @@ async function startServer(root, threeRoot, adapter, options = {}) {
   const limits = serverLimits(options.limits);
   const prefix = `/evidence-${crypto.randomBytes(32).toString('hex')}/`;
   const routeFor = (kind, relative) => `${prefix}${kind}/${relative.split('/').map(encodeURIComponent).join('/')}`;
-  const inventory = new Map();
+  const responders = new Map();
+  const modules = [];
   let totalBytes = 0;
   const add = (kind, base, relative) => {
     modulePath(relative);
     const route = routeFor(kind, relative);
-    if (inventory.has(route)) fail('Evidence module inventory contains a duplicate.');
-    if (inventory.size >= limits.files) fail('Evidence module inventory exceeds the file count limit.');
+    if (responders.has(route)) fail('Evidence module inventory contains a duplicate.');
+    if (modules.length >= limits.files) fail('Evidence module inventory exceeds the file count limit.');
     const bytes = snapshotModule(base, relative, limits);
     totalBytes += bytes.length;
     if (totalBytes > limits.totalBytes) fail('Evidence module inventory exceeds the aggregate byte limit.');
-    inventory.set(route, { bytes, contentType: /\.json$/i.test(relative) ? 'application/json; charset=utf-8' : 'text/javascript; charset=utf-8' });
+    responders.set(route, immutableResponder(bytes, /\.json$/i.test(relative) ? 'application/json; charset=utf-8' : 'text/javascript; charset=utf-8'));
+    modules.push(Object.freeze({ path: `${kind}/${relative}`, sha256: crypto.createHash('sha256').update(bytes).digest('hex'), bytes: bytes.length }));
   };
   if (!Array.isArray(options.modules ?? []) || (options.modules?.length ?? 0) > limits.files) fail('Evidence modules must be a bounded explicit inventory.');
   add('project', root, adapter.relative);
@@ -257,7 +272,10 @@ async function startServer(root, threeRoot, adapter, options = {}) {
   const html = Buffer.from(pageSource(adapterUrl, routeFor('three', 'build/three.module.js')));
   totalBytes += html.length;
   if (html.length > limits.fileBytes || totalBytes > limits.totalBytes) fail('Evidence page exceeds the byte limit.');
-  const headers = { 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer', 'content-security-policy': "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'" };
+  const pageResponder = immutableResponder(html, 'text/html; charset=utf-8');
+  responders.set(prefix, pageResponder);
+  responders.set(`${prefix}index.html`, pageResponder);
+  const tlsIdentity = createLocalTls({ projectRoot: root });
   const sockets = new Set();
   let host;
   let requests = 0;
@@ -278,9 +296,9 @@ async function startServer(root, threeRoot, adapter, options = {}) {
     return closed;
   };
   const onAbort = () => { void close('cancelled'); };
-  const server = http.createServer((request, response) => {
+  const onRequest = (request, response) => {
     const send = (status, text, extra = {}) => {
-      response.writeHead(status, { ...headers, 'content-type': 'text/plain; charset=utf-8', ...extra });
+      response.writeHead(status, { ...RESPONSE_HEADERS, 'content-type': 'text/plain; charset=utf-8', ...extra });
       response.end(text);
     };
     requests += 1;
@@ -298,20 +316,21 @@ async function startServer(root, threeRoot, adapter, options = {}) {
       // Match the original request target, never a URL-normalized alias.
       const target = request.url;
       if (typeof target !== 'string' || target.length > 2048 || !target.startsWith('/') || target.includes('?') || target.includes('#') || target.includes('\\')) return send(404, 'Not found');
-      if (target === prefix || target === `${prefix}index.html`) {
-        response.writeHead(200, { ...headers, 'content-type': 'text/html; charset=utf-8', 'content-length': html.length });
-        response.end(html);
-      } else {
-        const admitted = inventory.get(target);
-        if (!admitted) return send(404, 'Not found');
-        response.writeHead(200, { ...headers, 'content-type': admitted.contentType, 'content-length': admitted.bytes.length });
-        response.end(admitted.bytes);
-      }
+      const respond = responders.get(target);
+      if (!respond) return send(404, 'Not found');
+      respond(response);
     } catch {
       if (!response.headersSent) send(400, 'Malformed request');
       else response.destroy();
     }
-  });
+  };
+  let server;
+  try {
+    server = https.createServer({ ...tlsIdentity.serverOptions, handshakeTimeout: 5000 }, onRequest);
+  } catch (error) {
+    tlsIdentity.dispose();
+    throw error;
+  }
   server.maxConnections = limits.sockets;
   server.headersTimeout = 5000;
   server.requestTimeout = 10000;
@@ -321,21 +340,30 @@ async function startServer(root, threeRoot, adapter, options = {}) {
     sockets.add(socket);
     socket.once('close', () => sockets.delete(socket));
   });
-  server.once('close', () => { clearTimeout(timer); options.signal?.removeEventListener('abort', onAbort); resolveClosed(stopReason); });
-  await new Promise((resolve, reject) => {
-    server.once('error', reject);
-    server.listen(0, '127.0.0.1', resolve);
-  });
+  server.once('close', () => { clearTimeout(timer); options.signal?.removeEventListener('abort', onAbort); tlsIdentity.dispose(); resolveClosed(stopReason); });
+  try {
+    await new Promise((resolve, reject) => {
+      const onError = (error) => { server.removeListener('listening', onListening); reject(error); };
+      const onListening = () => { server.removeListener('error', onError); resolve(); };
+      server.once('error', onError);
+      server.once('listening', onListening);
+      server.listen(0, '127.0.0.1');
+    });
+  } catch (error) {
+    tlsIdentity.dispose();
+    for (const socket of sockets) socket.destroy();
+    if (server.listening) await close('listen failed');
+    throw error;
+  }
   const address = server.address();
-  if (!address || typeof address === 'string') fail('Evidence server did not receive an OS-assigned loopback port.');
+  if (!address || typeof address === 'string') { await close('listen failed'); fail('Evidence server did not receive an OS-assigned loopback port.'); }
   host = `127.0.0.1:${address.port}`;
-  const origin = `http://${host}`;
+  const origin = `https://${host}`;
   timer = setTimeout(() => { void close('lifetime limit reached'); }, limits.lifetimeMs);
   timer.unref();
   options.signal?.addEventListener('abort', onAbort, { once: true });
   if (options.signal?.aborted) await close('cancelled');
-  const modules = [...inventory].map(([route, item]) => ({ path: decodeURIComponent(route.slice(prefix.length)), sha256: crypto.createHash('sha256').update(item.bytes).digest('hex'), bytes: item.bytes.length }));
-  return { server, origin, url: `${origin}${prefix}`, prefix, close, closed, modules, limits: { ...limits } };
+  return { server, origin, url: `${origin}${prefix}`, prefix, close, closed, modules: Object.freeze(modules), limits: { ...limits }, certificate: tlsIdentity.certificate, spki: tlsIdentity.spki };
 }
 
 function artifactName(key) {
@@ -437,7 +465,9 @@ async function captureOperation(root, values, engineEvidence) {
     options.origin = running.origin;
     captureTask = (async () => {
       try {
-        browser = await playwright.chromium.launch({ headless: true, chromiumSandbox: true, timeout: 30000 });
+        // Playwright launches into its own fresh temporary user-data directory.
+        // Chromium's trust exception is limited to this run's exact public key.
+        browser = await playwright.chromium.launch({ headless: true, chromiumSandbox: true, timeout: 30000, args: [`--ignore-certificate-errors-spki-list=${running.spki}`] });
         if (stopping || cancellation.signal.aborted) {
           await browser.close();
           fail('Evidence capture was cancelled.');
@@ -506,7 +536,7 @@ async function captureOperation(root, values, engineEvidence) {
         sha256: objectSha256({ seed, viewport: { width, height, pixelRatio }, requestedViews, pixelHeights: validated.profile.intent.presentation.pixelHeights, signatureParts: validated.profile.intent.signatureParts, sampleConfig })
       };
       const report = analyze(validated.profile, validated.linked.manifest, observation, reportAnalysisContext);
-      report.browserSecurity = { origin: options.origin, osAssignedPort: true, chromiumSandbox: true, serviceWorkers: 'blocked', externalRequests, admittedModules: running.modules, serverLimits: running.limits };
+      report.browserSecurity = { origin: options.origin, osAssignedPort: true, chromiumSandbox: true, tls: { minimumVersion: 'TLSv1.3', certificateSpkiSha256: running.spki, trust: 'exact-run-spki' }, serviceWorkers: 'blocked', externalRequests, admittedModules: running.modules, serverLimits: running.limits };
       const reportPath = path.join(output.absolute, 'report.json');
       atomicWrite(reportPath, report);
       completed = true;

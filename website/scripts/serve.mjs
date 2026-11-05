@@ -1,10 +1,11 @@
-import http from 'node:http';
+import https from 'node:https';
 import fs from 'node:fs/promises';
 import { constants } from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { siteRoot, normalizeBase } from './build.mjs';
+import localPreviewTls from '../../commands/lib/local-preview-tls.cjs';
 
 export const previewLimits = Object.freeze({
   files: 256, fileBytes: 8 * 1024 * 1024, inventoryBytes: 128 * 1024,
@@ -94,7 +95,7 @@ function routePath(target) {
   return pathname;
 }
 
-export async function startPreview({ root = path.join(siteRoot, 'dist'), basePath = process.env.SITE_BASE_PATH || '/Hephaera/', port = 4319, limits: overrides = {} } = {}) {
+export async function startPreview({ root = path.join(siteRoot, 'dist'), basePath = process.env.SITE_BASE_PATH || '/Hephaera/', port = 4319, limits: overrides = {}, tls } = {}) {
   if (!Number.isInteger(port) || port !== 0 && (port < 1024 || port > 65535)) throw new Error('SITE_PORT must be an unprivileged port.');
   const base = normalizeBase(basePath);
   const limits = boundedLimits(overrides);
@@ -106,7 +107,8 @@ export async function startPreview({ root = path.join(siteRoot, 'dist'), basePat
   let requests = 0, active = 0, responseBytes = 0, closing = false, lifetime;
   let closePromise;
   let authority;
-  const server = http.createServer({ maxHeaderSize: 8192, requestTimeout: 5000, headersTimeout: 5000, connectionsCheckingInterval: 1000 }, (request, response) => {
+  const identity = localPreviewTls.createLocalTls({ projectRoot: path.resolve(siteRoot, '..'), cert: tls?.cert, key: tls?.key });
+  const handleRequest = (request, response) => {
     response.setHeader('X-Content-Type-Options', 'nosniff');
     response.setHeader('Cache-Control', 'no-store');
     response.setHeader('Connection', 'close');
@@ -145,7 +147,13 @@ export async function startPreview({ root = path.join(siteRoot, 'dist'), basePat
     const bytes = files.get(name);
     if (!bytes) { notFound(); return; }
     finish(200, bytes, types[path.posix.extname(name)]);
-  });
+  };
+  let server;
+  try {
+    server = https.createServer({ ...identity.serverOptions, maxHeaderSize: 8192, requestTimeout: 5000, headersTimeout: 5000, connectionsCheckingInterval: 1000, handshakeTimeout: 5000 }, handleRequest);
+  } catch (error) {
+    identity.dispose(); files.clear(); throw error;
+  }
   server.maxConnections = limits.concurrency;
   server.maxRequestsPerSocket = 1;
   server.keepAliveTimeout = 1;
@@ -159,7 +167,7 @@ export async function startPreview({ root = path.join(siteRoot, 'dist'), basePat
     clearTimeout(lifetime);
     closePromise = new Promise(resolve => {
       const grace = setTimeout(() => { for (const socket of sockets) socket.destroy(); }, 250);
-      server.close(() => { clearTimeout(grace); for (const socket of sockets) socket.destroy(); files.clear(); resolve(); });
+      server.close(() => { clearTimeout(grace); for (const socket of sockets) socket.destroy(); files.clear(); identity.dispose(); resolve(); });
       server.closeIdleConnections();
     });
     return closePromise;
@@ -168,20 +176,65 @@ export async function startPreview({ root = path.join(siteRoot, 'dist'), basePat
     await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', resolve); });
     authority = `127.0.0.1:${server.address().port}`;
     lifetime = setTimeout(() => { void close(); }, limits.lifetimeMs);
-    return { url: `http://${authority}${base}`, close, closed: new Promise(resolve => server.once('close', resolve)) };
+    return { url: `https://${authority}${base}`, certificate: identity.certificate, spki: identity.spki, close, closed: new Promise(resolve => server.once('close', resolve)) };
   } catch (error) {
     for (const socket of sockets) socket.destroy();
-    files.clear();
+    files.clear(); identity.dispose();
     throw error;
   }
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const port = Number(process.env.SITE_PORT || 4319);
-  startPreview({ port }).then(preview => {
+const help = `Usage: npm run preview -- [--cert CERT.pem --key KEY.pem]
+
+Serve the bounded public build at https://127.0.0.1:4319/Hephaera/.
+SITE_PORT and SITE_BASE_PATH select the port and build base path.
+By default, an existing OpenSSL creates a fresh short-lived identity entirely
+in memory. No certificate is installed in your trust store. Use the printed
+SPKI pin with an isolated Chromium profile, or explicitly supply an existing
+trusted certificate/key pair valid for 127.0.0.1. TLS 1.3 is required.
+See website/README.md and docs/LOCAL_PREVIEW_TLS.md for exact client trust.
+`;
+
+async function readTlsFile(file, maxBytes) {
+  const handle = await fs.open(file, constants.O_RDONLY | (constants.O_NOFOLLOW || 0) | (constants.O_NONBLOCK || 0));
+  try {
+    const stat = await handle.stat();
+    if (!stat.isFile() || stat.size < 1 || stat.size > maxBytes) throw new Error('TLS inputs must be regular bounded PEM files (certificate: 64 KiB; key: 32 KiB).');
+    const bytes = Buffer.alloc(stat.size);
+    try {
+      let offset = 0;
+      while (offset < bytes.length) {
+        const result = await handle.read(bytes, offset, bytes.length - offset, offset);
+        if (!result.bytesRead) throw new Error('TLS input changed while reading.');
+        offset += result.bytesRead;
+      }
+      return bytes;
+    } catch (error) { bytes.fill(0); throw error; }
+  } finally { await handle.close(); }
+}
+
+async function runPreview(args) {
+  if (args.length === 1 && ['--help', '-h'].includes(args[0])) { console.log(help); return; }
+  const options = {};
+  for (let i = 0; i < args.length; i += 2) {
+    const name = args[i];
+    if (!['--cert', '--key'].includes(name) || !args[i + 1] || args[i + 1].startsWith('--') || Object.hasOwn(options, name)) throw new Error('Use --help, or provide --cert CERT.pem and --key KEY.pem together.');
+    options[name] = args[i + 1];
+  }
+  if (Boolean(options['--cert']) !== Boolean(options['--key'])) throw new Error('--cert and --key must be supplied together.');
+  let key;
+  try {
+    const tls = options['--cert'] ? { cert: await readTlsFile(options['--cert'], 64 * 1024), key: key = await readTlsFile(options['--key'], 32 * 1024) } : undefined;
+    const preview = await startPreview({ port: Number(process.env.SITE_PORT || 4319), tls });
     console.log(`Hephaera preview: ${preview.url} (expires after 30 minutes)`);
+    console.log(`Certificate SPKI SHA-256: ${preview.spki}`);
+    console.log('Trust only this per-run pin in an isolated Chromium profile, or use your explicitly trusted certificate. See website/README.md.');
     const stop = () => { void preview.close(); };
     for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, stop);
     void preview.closed.then(() => { for (const signal of ['SIGINT', 'SIGTERM']) process.removeListener(signal, stop); });
-  }).catch(error => { console.error(error.message); process.exitCode = 1; });
+  } finally { key?.fill(0); }
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  runPreview(process.argv.slice(2)).catch(error => { console.error(error.message); process.exitCode = 1; });
 }

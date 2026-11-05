@@ -3,10 +3,28 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const http = require('node:http');
+const https = require('node:https');
+const tls = require('node:tls');
+const crypto = require('node:crypto');
 const net = require('node:net');
 const path = require('node:path');
 const { once } = require('node:events');
 const { spawnSync } = require('node:child_process');
+const tlsModule = require('../commands/lib/local-preview-tls.cjs');
+const originalCreateLocalTls = tlsModule.createLocalTls;
+const activeIdentities = new Set();
+tlsModule.createLocalTls = (options) => {
+  const identity = originalCreateLocalTls(options);
+  activeIdentities.add(identity);
+  return {
+    serverOptions: identity.serverOptions, certificate: identity.certificate, spki: identity.spki,
+    dispose() {
+      identity.dispose();
+      assert.ok(identity.serverOptions.key.every((byte) => byte === 0), 'server cleanup must zero its owned key buffer');
+      activeIdentities.delete(identity);
+    }
+  };
+};
 const { startServer } = require('../commands/lib/code-character-evidence-cli.cjs');
 
 const repository = path.resolve(__dirname, '..');
@@ -21,7 +39,9 @@ const write = (base, relative, content) => {
 };
 const request = (running, target, options = {}) => new Promise((resolve, reject) => {
   const parsed = new URL(running.origin);
-  const req = http.request({ hostname: parsed.hostname, port: parsed.port, path: target, method: options.method ?? 'GET', headers: { host: parsed.host, ...options.headers }, agent: false }, (res) => {
+  const req = https.request({ hostname: parsed.hostname, servername: '', port: parsed.port, path: target, method: options.method ?? 'GET', headers: { host: parsed.host, ...options.headers }, ca: options.ca ?? running.certificate, minVersion: 'TLSv1.3', agent: false }, (res) => {
+    assert.equal(res.socket.authorized, true);
+    assert.equal(res.socket.getProtocol(), 'TLSv1.3');
     const chunks = [];
     res.on('data', (chunk) => chunks.push(chunk));
     res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, text: Buffer.concat(chunks).toString() }));
@@ -45,6 +65,10 @@ async function main() {
   console.log('[1/7] exact useful routes, relative JS/JSON and Three core closure, immutable bytes');
   let running = await startServer(root, three, adapter, { modules });
   try {
+    assert.match(running.origin, /^https:\/\/127\.0\.0\.1:\d+$/);
+    const certificate = new crypto.X509Certificate(running.certificate);
+    assert.equal(certificate.checkIP('127.0.0.1'), '127.0.0.1');
+    assert.equal(running.spki, crypto.createHash('sha256').update(certificate.publicKey.export({ type: 'spki', format: 'der' })).digest('base64'));
     assert.equal(running.server.address().address, '127.0.0.1');
     const page = await request(running, running.prefix);
     assert.equal(page.status, 200);
@@ -80,6 +104,7 @@ async function main() {
     } finally { fs.openSync = originalOpen; }
   } finally { await running.close(); }
   assert.equal(running.server.listening, false);
+  assert.equal(activeIdentities.size, 0, 'normal close must dispose the TLS identity');
   await assert.rejects(request(running, running.prefix), /ECONNREFUSED|ECONNRESET/);
 
   console.log('[3/7] admission rejects private paths, lexical aliases, links and hardlinks');
@@ -148,9 +173,10 @@ async function main() {
       res.end = () => { markHeld(); return res; };
     }
   });
-  const held = net.connect(new URL(running.origin).port, '127.0.0.1');
+  const held = tls.connect({ port: Number(new URL(running.origin).port), host: '127.0.0.1', ca: running.certificate, minVersion: 'TLSv1.3' });
   try {
-    await once(held, 'connect');
+    await once(held, 'secureConnect');
+    assert.equal(held.authorized, true);
     held.pause();
     held.write(`GET ${running.prefix}project/${adapter.relative} HTTP/1.1\r\nHost: ${new URL(running.origin).host}\r\n\r\n`);
     await responseHeld;
@@ -163,6 +189,7 @@ async function main() {
   cancellation.abort();
   assert.equal(await running.closed, 'cancelled');
   assert.equal(running.server.listening, false);
+  assert.equal(activeIdentities.size, 0, 'cancellation must dispose the TLS identity');
   running = await startServer(root, three, adapter, { limits: { sockets: 2 } });
   const idleSockets = [net.connect(new URL(running.origin).port, '127.0.0.1'), net.connect(new URL(running.origin).port, '127.0.0.1')];
   try {
@@ -176,13 +203,34 @@ async function main() {
   running = await startServer(root, three, adapter, { limits: { lifetimeMs: 25 } });
   assert.equal(await running.closed, 'lifetime limit reached');
   assert.equal(running.server.listening, false);
+  assert.equal(activeIdentities.size, 0, 'lifetime expiry must dispose the TLS identity');
+  const createServer = https.createServer;
+  try {
+    https.createServer = () => { throw new Error('inert TLS server construction failure'); };
+    await assert.rejects(startServer(root, three, adapter), /inert TLS server construction failure/);
+    assert.equal(activeIdentities.size, 0, 'construction failure must dispose the TLS identity');
+    https.createServer = (...args) => {
+      const server = createServer(...args);
+      server.listen = () => { queueMicrotask(() => server.emit('error', new Error('inert TLS listen failure'))); return server; };
+      return server;
+    };
+    await assert.rejects(startServer(root, three, adapter), /inert TLS listen failure/);
+    assert.equal(activeIdentities.size, 0, 'listen failure must dispose the TLS identity');
+  } finally { https.createServer = createServer; }
 
   console.log('[6/7] capabilities are fresh and cannot cross runs');
   const first = await startServer(root, three, adapter);
   const second = await startServer(root, three, adapter);
   try {
     assert.notEqual(first.prefix, second.prefix);
+    assert.notEqual(first.spki, second.spki);
     assert.equal((await request(second, first.prefix)).status, 404);
+    await assert.rejects(request(second, second.prefix, { ca: first.certificate }), /certificate|self-signed|signature/i);
+    await assert.rejects(new Promise((resolve, reject) => {
+      const req = http.get(`${second.origin.replace('https:', 'http:')}${second.prefix}`, resolve);
+      req.setTimeout(3000, () => req.destroy(new Error('plaintext rejection timed out')));
+      req.once('error', reject);
+    }), /ECONNRESET|socket hang up/);
   } finally { await first.close(); await second.close(); }
 
   console.log('[7/7] installed locked Three.js browser modules are useful through exact routes');
@@ -207,9 +255,11 @@ async function main() {
     } finally { await running.close(); }
   }
   console.log('Code-character evidence security tests passed.');
+  assert.equal(activeIdentities.size, 0, 'all owned TLS identities must retire');
 }
 
 main().catch((error) => { console.error(error); process.exitCode = 1; }).finally(() => {
+  tlsModule.createLocalTls = originalCreateLocalTls;
   assert.ok(path.dirname(temporary) === __dirname && path.basename(temporary).startsWith('.evidence-security-'));
   fs.rmSync(temporary, { recursive: true, force: true });
 });
