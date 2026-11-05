@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createHash } from 'node:crypto';
 import MarkdownIt from 'markdown-it';
 
 export const siteRoot = fileURLToPath(new URL('../', import.meta.url));
@@ -251,6 +252,14 @@ export async function buildSite({ basePath = process.env.SITE_BASE_PATH || '/Hep
   }
   await fs.writeFile(path.join(target, 'search-index.json'), JSON.stringify(search));
   await fs.writeFile(path.join(target, '.nojekyll'), '');
+  // Preview serves this exact public build snapshot, never a directory walk.
+  const publicFiles = ['404.html', 'index.html', 'search-index.json', 'assets/owl.png', 'assets/site.css', 'assets/site.js', ...guideImages.keys(), ...pages.map(p => path.posix.join('docs', p.slug, 'index.html'))].sort();
+  const files = [];
+  for (const name of publicFiles) {
+    const bytes = await fs.readFile(path.join(target, name));
+    files.push({ name, size: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') });
+  }
+  await fs.writeFile(path.join(target, '.preview-inventory.json'), JSON.stringify({ schemaVersion: 1, base, files }));
   console.log(`Built ${pages.length + 2} pages at ${base} into ${path.relative(repoRoot, target)}.`);
   return { output: target, base, pages, images: [...guideImages.keys()] };
 }

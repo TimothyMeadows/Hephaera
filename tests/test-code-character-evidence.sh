@@ -27,6 +27,9 @@ project_command() { HEPHAERA_PROJECT_ROOT="$project" "$@"; }
 
 node_bin="$(command -v node 2>/dev/null || command -v node.exe 2>/dev/null || true)"
 [[ -n "$node_bin" ]] || fail "Node.js is required for code-character evidence tests"
+capture_regression_only=false
+if [[ "${1:-}" == --capture-regression-only && $# -eq 1 ]]; then capture_regression_only=true
+elif [[ $# -ne 0 ]]; then fail 'Only --capture-regression-only is supported.'; fi
 
 echo "[1/6] creating a contextual machine-evidence contract"
 printf '{"name":"three","version":"0.180.0","main":"build/three.module.js"}\n' > "$project/node_modules/three/package.json"
@@ -40,6 +43,15 @@ printf '%s\n' \
   "import * as THREE from 'three';" \
   'export function createEvidenceCharacter() { return { root: new THREE.Group(), parts: new Map(), anchors: new Map(), dispose() {} }; }' \
   > "$project/src/models/evidence-character.js"
+node_initial_manifest="$project/.hephaera/.cache/tasks/evidence-test/code-model.json"
+if [[ "$node_bin" == *.exe ]] && command -v wslpath >/dev/null 2>&1; then node_initial_manifest="$(wslpath -w "$node_initial_manifest")"; fi
+"$node_bin" - "$node_initial_manifest" <<'NODE'
+const fs = require('fs');
+const file = process.argv[2];
+const manifest = JSON.parse(fs.readFileSync(file, 'utf8'));
+manifest.target.sourcePath = './src/models/evidence-character.js';
+fs.writeFileSync(file, `${JSON.stringify(manifest, null, 2)}\n`);
+NODE
 profile="$project/.hephaera/.cache/tasks/evidence-test/code-character.json"
 project_command bash commands/create-code-character-profile.sh evidence-character \
   --manifest .hephaera/.cache/tasks/evidence-test/code-model.json --brief 'A deterministic evidence calibration actor' \
@@ -201,7 +213,9 @@ expect_failure "$runtime_dir/escape-input.log" bash commands/measure-code-charac
   --measurements "$repo_root/tests/fixtures/code-character-evidence/structure-pass.json" --output evidence/escape.json
 expect_failure "$runtime_dir/escape-output.log" bash commands/measure-code-character-evidence.sh analyze "$profile" \
   --measurements fixtures/structure-pass.json --output "$runtime_dir/outside.json"
-printf 'export async function createCodeCharacterEvidenceAdapter() {}\n' > "$project/evidence/adapter.mjs"
+printf 'import { fixture } from "./sibling.mjs"; import data from "./data.json" with { type: "json" }; export async function createCodeCharacterEvidenceAdapter() {}\n' > "$project/evidence/adapter.mjs"
+printf 'export const fixture = "bounded";\n' > "$project/evidence/sibling.mjs"
+printf '{"fixture":"bounded"}\n' > "$project/evidence/data.json"
 mkdir "$project/evidence/concurrent.lock"
 expect_failure "$runtime_dir/concurrent.log" bash commands/measure-code-character-evidence.sh capture "$profile" \
   --adapter evidence/adapter.mjs --output-dir evidence/concurrent
@@ -244,24 +258,40 @@ const { startServer } = require(process.argv[2]);
     const address = running.server.address();
     if (address.address !== '127.0.0.1' || !Number.isInteger(address.port) || address.port < 1) throw new Error('server is not bound to an OS-assigned loopback port');
     const expectations = [
-      ['/project/evidence/adapter.mjs', 200],
-      ['/three/three.module.js', 200],
-      ['/project/STYLE.md', 415],
-      ['/project/%E0%A4%A', 400],
-      ['/project/%2e%2e/STYLE.md', 404]
+      [`${running.prefix}project/evidence/adapter.mjs`, 200],
+      [`${running.prefix}three/build/three.module.js`, 200],
+      [`${running.prefix}project/STYLE.md`, 404],
+      [`${running.prefix}project/%E0%A4%A`, 404],
+      ['/project/%2e%2e/STYLE.md', 404],
+      ['/project/evidence/adapter.mjs', 404]
     ];
     for (const [target, status] of expectations) {
       const response = await fetch(`${running.origin}${target}`);
       if (response.status !== status) throw new Error(`${target} returned ${response.status}; expected ${status}`);
     }
   } finally {
-    await new Promise((resolve) => running.server.close(resolve));
+    await running.close();
   }
 })().catch((error) => { console.error(error); process.exitCode = 1; });
 NODE
+"$node_bin" tests/test-code-character-evidence-security.cjs
 cp tests/fixtures/code-character-evidence/playwright-stub.cjs "$project/node_modules/playwright/index.cjs"
+expect_failure "$runtime_dir/private-module.log" bash commands/measure-code-character-evidence.sh capture "$profile" \
+  --adapter evidence/adapter.mjs --module .hephaera/.cache/tasks/evidence-test/code-character.json --output-dir evidence/private-module
+grep -Fq 'Private state cannot be served' "$runtime_dir/private-module.log" || fail "capture admitted a private module"
+HEPHAERA_EVIDENCE_FIXTURE_CANCEL=1 expect_failure "$runtime_dir/cancel-capture.log" bash commands/measure-code-character-evidence.sh capture "$profile" \
+  --adapter evidence/adapter.mjs --module evidence/sibling.mjs --module evidence/data.json --output-dir evidence/cancel-capture
+grep -Fq 'Evidence capture stopped: cancelled' "$runtime_dir/cancel-capture.log" || fail "capture cancellation did not stop its owned server"
+[[ ! -e "$project/evidence/cancel-capture" && ! -e "$project/evidence/cancel-capture.lock" ]] || fail "cancelled capture left output or lock"
+cp "$project/src/models/evidence-character.js" "$runtime_dir/source-before-capture.js"
+HEPHAERA_EVIDENCE_FIXTURE_MUTATE=source expect_failure "$runtime_dir/mutated-source.log" bash commands/measure-code-character-evidence.sh capture "$profile" \
+  --adapter evidence/adapter.mjs --module evidence/sibling.mjs --module evidence/data.json \
+  --module src/models/evidence-character.js --output-dir evidence/mutated-source
+grep -Fq 'Evidence input changed during capture: src/models/evidence-character.js' "$runtime_dir/mutated-source.log" || fail "capture bound old source bytes to a new source identity"
+[[ ! -e "$project/evidence/mutated-source" && ! -e "$project/evidence/mutated-source.lock" ]] || fail "changed-source capture left output or lock"
+cp "$runtime_dir/source-before-capture.js" "$project/src/models/evidence-character.js"
 project_command bash commands/measure-code-character-evidence.sh capture "$profile" \
-  --adapter evidence/adapter.mjs --output-dir evidence/browser-capture >/dev/null
+  --adapter evidence/adapter.mjs --module evidence/sibling.mjs --module evidence/data.json --output-dir evidence/browser-capture >/dev/null
 "$node_bin" - "$node_project/evidence/browser-capture/report.json" <<'NODE'
 const fs = require('fs');
 const report = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
@@ -293,6 +323,10 @@ fi
 "$node_bin" --check "$node_cli_source"
 bash -n commands/measure-code-character-evidence.sh
 bash commands/validate-art-pipelines.sh >/dev/null
-bash tests/test-code-character-contract.sh >/dev/null
-bash tests/test-code-character-skills.sh >/dev/null
+if [[ "$capture_regression_only" == false ]]; then
+  bash tests/test-code-character-contract.sh >/dev/null
+  bash tests/test-code-character-skills.sh >/dev/null
+else
+  echo 'Capture regression mode: nested character contract/skill suites were not rerun.'
+fi
 echo "Code-character evidence tests passed."

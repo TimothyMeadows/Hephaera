@@ -136,41 +136,74 @@ function locatePackage(root, packageName) {
   fail(`Unable to locate the installed ${packageName} package root.`);
 }
 
-function safeServeFile(response, base, relative, label) {
-  const candidate = path.resolve(base, relative);
-  const rel = path.relative(base, candidate);
-  if (!rel || rel.startsWith('..') || path.isAbsolute(rel) || !fs.existsSync(candidate)) {
-    response.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
-    response.end(`${label} not found`);
-    return;
+const SERVER_LIMITS = Object.freeze({ files: 256, fileBytes: 8 * 1024 * 1024, totalBytes: 32 * 1024 * 1024, requests: 4096, concurrent: 16, sockets: 32, lifetimeMs: 120000 });
+
+function serverLimits(overrides = {}) {
+  const limits = { ...SERVER_LIMITS };
+  for (const [key, value] of Object.entries(overrides)) {
+    if (!Object.hasOwn(limits, key) || !Number.isSafeInteger(value) || value < 1 || value > limits[key]) fail(`Invalid evidence server limit: ${key}`);
+    limits[key] = value;
   }
-  const real = fs.realpathSync(candidate);
-  const realRel = path.relative(base, real);
-  if (realRel.startsWith('..') || path.isAbsolute(realRel) || fs.lstatSync(candidate).isSymbolicLink()) {
-    response.writeHead(403, { 'content-type': 'text/plain; charset=utf-8' });
-    response.end(`${label} rejected`);
-    return;
-  }
-  const extension = path.extname(real).toLowerCase();
-  if (!['.js', '.mjs', '.json'].includes(extension)) {
-    response.writeHead(415, { 'content-type': 'text/plain; charset=utf-8' });
-    response.end(`${label} must be JavaScript or JSON`);
-    return;
-  }
-  const contentType = extension === '.json' ? 'application/json; charset=utf-8' : 'text/javascript; charset=utf-8';
-  response.writeHead(200, { 'content-type': contentType, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
-  fs.createReadStream(real).pipe(response);
+  return limits;
 }
 
-function pageSource(adapterUrl) {
+function modulePath(value) {
+  if (typeof value !== 'string' || value.length > 1024 || value.includes('\\') || value.includes(':')) fail('Evidence module requires a canonical project-relative path.');
+  const segments = value.split('/');
+  if (segments.some((segment) => !segment || segment === '.' || segment === '..' || /[\x00-\x1f\x7f]/.test(segment) || /[. ]$/.test(segment))) fail('Evidence module requires a canonical project-relative path.');
+  const lower = segments.map((segment) => segment.toLowerCase());
+  if (lower.includes('.git') || lower.some((segment, index) => ['.hephaera', '.opencaw'].includes(segment) && lower[index + 1] === '.cache')) fail('Private state cannot be served as an evidence module.');
+  if (!/\.(?:m?js|json)$/i.test(value)) fail('Evidence modules must be JavaScript or JSON.');
+  return value;
+}
+
+function snapshotModule(base, relative, limits) {
+  // Check every component, including junctions, before opening a declared file.
+  // HTTP requests never reach the filesystem; only this bounded admission does.
+  const resolvedBase = path.resolve(base);
+  const baseReal = fs.realpathSync(resolvedBase);
+  if (path.relative(resolvedBase, baseReal) !== '' || fs.lstatSync(resolvedBase).isSymbolicLink()) fail('Evidence module root must not be a filesystem alias.');
+  let current = resolvedBase;
+  const segments = relative.split('/');
+  for (let index = 0; index < segments.length; index += 1) {
+    current = path.join(current, segments[index]);
+    const stat = fs.lstatSync(current);
+    if (stat.isSymbolicLink() || path.relative(current, fs.realpathSync(current)) !== '' || (index < segments.length - 1 ? !stat.isDirectory() : !stat.isFile())) fail('Evidence modules must use regular files and non-link directories.');
+  }
+  const lexical = path.relative(resolvedBase, current);
+  const real = path.relative(baseReal, fs.realpathSync(current));
+  if (!lexical || lexical.startsWith('..') || path.isAbsolute(lexical) || lexical !== real) fail('Evidence module resolves outside its declared root.');
+  const descriptor = fs.openSync(current, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0) | (fs.constants.O_NONBLOCK ?? 0));
+  try {
+    const before = fs.fstatSync(descriptor);
+    if (!before.isFile() || before.nlink !== 1 || before.size > limits.fileBytes) fail('Evidence module exceeds the file limit or is not an owned regular file.');
+    const bytes = Buffer.alloc(before.size);
+    let offset = 0;
+    while (offset < bytes.length) {
+      const count = fs.readSync(descriptor, bytes, offset, bytes.length - offset, offset);
+      if (!count) fail('Evidence module changed during admission.');
+      offset += count;
+    }
+    const after = fs.fstatSync(descriptor);
+    const installed = fs.lstatSync(current);
+    if (before.dev !== installed.dev || before.ino !== installed.ino || before.size !== after.size || before.mtimeMs !== after.mtimeMs || before.ctimeMs !== after.ctimeMs || installed.isSymbolicLink() || path.relative(current, fs.realpathSync(current)) !== '') fail('Evidence module changed during admission.');
+    return bytes;
+  } finally {
+    fs.closeSync(descriptor);
+  }
+}
+
+function pageSource(adapterUrl, threeUrl = '/three/three.module.js') {
+  const literal = (value) => JSON.stringify(value).replace(/</g, '\\u003c');
   return `<!doctype html>
 <meta charset="utf-8">
 <title>Hephaera code-character evidence</title>
 <style>html,body{margin:0;background:#111;color:#eee}#stage{position:relative;overflow:hidden;width:800px;height:800px}canvas{display:block}</style>
 <div id="stage"></div>
+<script type="importmap">${JSON.stringify({ imports: { three: threeUrl } }).replace(/</g, '\\u003c')}</script>
 <script type="module">
-import * as THREE from '/three/three.module.js';
-import { createCodeCharacterEvidenceAdapter } from '${adapterUrl}';
+import * as THREE from ${literal(threeUrl)};
+import { createCodeCharacterEvidenceAdapter } from ${literal(adapterUrl)};
 const stage = document.querySelector('#stage');
 let adapter;
 window.__hephaeraEvidence = {
@@ -198,52 +231,129 @@ window.__hephaeraEvidence = {
 </script>`;
 }
 
-async function startServer(root, threeRoot, adapter) {
-  const adapterUrl = `/project/${adapter.relative.split('/').map(encodeURIComponent).join('/')}`;
-  const html = pageSource(adapterUrl);
+async function startServer(root, threeRoot, adapter, options = {}) {
+  const limits = serverLimits(options.limits);
+  const prefix = `/evidence-${crypto.randomBytes(32).toString('hex')}/`;
+  const routeFor = (kind, relative) => `${prefix}${kind}/${relative.split('/').map(encodeURIComponent).join('/')}`;
+  const inventory = new Map();
+  let totalBytes = 0;
+  const add = (kind, base, relative) => {
+    modulePath(relative);
+    const route = routeFor(kind, relative);
+    if (inventory.has(route)) fail('Evidence module inventory contains a duplicate.');
+    if (inventory.size >= limits.files) fail('Evidence module inventory exceeds the file count limit.');
+    const bytes = snapshotModule(base, relative, limits);
+    totalBytes += bytes.length;
+    if (totalBytes > limits.totalBytes) fail('Evidence module inventory exceeds the aggregate byte limit.');
+    inventory.set(route, { bytes, contentType: /\.json$/i.test(relative) ? 'application/json; charset=utf-8' : 'text/javascript; charset=utf-8' });
+  };
+  if (!Array.isArray(options.modules ?? []) || (options.modules?.length ?? 0) > limits.files) fail('Evidence modules must be a bounded explicit inventory.');
+  add('project', root, adapter.relative);
+  for (const relative of options.modules ?? []) add('project', root, relative);
+  add('three', threeRoot, 'build/three.module.js');
+  // Current Three.js splits its browser build into these two sibling modules.
+  if (fs.existsSync(path.join(threeRoot, 'build', 'three.core.js'))) add('three', threeRoot, 'build/three.core.js');
+  const adapterUrl = routeFor('project', adapter.relative);
+  const html = Buffer.from(pageSource(adapterUrl, routeFor('three', 'build/three.module.js')));
+  totalBytes += html.length;
+  if (html.length > limits.fileBytes || totalBytes > limits.totalBytes) fail('Evidence page exceeds the byte limit.');
+  const headers = { 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer', 'content-security-policy': "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'" };
+  const sockets = new Set();
+  let host;
+  let requests = 0;
+  let active = 0;
+  let closing = false;
+  let stopReason = 'closed';
+  let timer;
+  let resolveClosed;
+  const closed = new Promise((resolve) => { resolveClosed = resolve; });
+  const close = async (reason = 'closed') => {
+    if (closing) return closed;
+    closing = true;
+    stopReason = reason;
+    clearTimeout(timer);
+    options.signal?.removeEventListener('abort', onAbort);
+    server.close(() => resolveClosed(reason));
+    for (const socket of sockets) socket.destroy();
+    return closed;
+  };
+  const onAbort = () => { void close('cancelled'); };
   const server = http.createServer((request, response) => {
+    const send = (status, text, extra = {}) => {
+      response.writeHead(status, { ...headers, 'content-type': 'text/plain; charset=utf-8', ...extra });
+      response.end(text);
+    };
+    requests += 1;
+    if (closing || requests > limits.requests) return send(429, 'Evidence request limit reached', { connection: 'close' });
+    if (active >= limits.concurrent) return send(503, 'Evidence concurrency limit reached', { connection: 'close' });
+    active += 1;
+    let released = false;
+    const release = () => { if (!released) { released = true; active -= 1; } };
+    response.once('finish', release);
+    response.once('close', release);
     try {
-      const url = new URL(request.url, 'http://127.0.0.1');
-      if (request.method !== 'GET') {
-        response.writeHead(405, { allow: 'GET' });
-        response.end();
-      } else if (url.pathname === '/' || url.pathname === '/index.html') {
-        response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
+      const hosts = request.rawHeaders.filter((_, index) => index % 2 === 0 && request.rawHeaders[index].toLowerCase() === 'host');
+      if (hosts.length !== 1 || request.headers.host !== host) return send(403, 'Host rejected');
+      if (request.method !== 'GET') return send(405, 'Method rejected', { allow: 'GET' });
+      // Match the original request target, never a URL-normalized alias.
+      const target = request.url;
+      if (typeof target !== 'string' || target.length > 2048 || !target.startsWith('/') || target.includes('?') || target.includes('#') || target.includes('\\')) return send(404, 'Not found');
+      if (target === prefix || target === `${prefix}index.html`) {
+        response.writeHead(200, { ...headers, 'content-type': 'text/html; charset=utf-8', 'content-length': html.length });
         response.end(html);
-      } else if (url.pathname.startsWith('/three/')) {
-        safeServeFile(response, path.join(threeRoot, 'build'), decodeURIComponent(url.pathname.slice('/three/'.length)), 'Three.js module');
-      } else if (url.pathname.startsWith('/project/')) {
-        safeServeFile(response, root, decodeURIComponent(url.pathname.slice('/project/'.length)), 'Project module');
       } else {
-        response.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
-        response.end('Not found');
+        const admitted = inventory.get(target);
+        if (!admitted) return send(404, 'Not found');
+        response.writeHead(200, { ...headers, 'content-type': admitted.contentType, 'content-length': admitted.bytes.length });
+        response.end(admitted.bytes);
       }
     } catch {
-      response.writeHead(400, { 'content-type': 'text/plain; charset=utf-8' });
-      response.end('Malformed request');
+      if (!response.headersSent) send(400, 'Malformed request');
+      else response.destroy();
     }
   });
+  server.maxConnections = limits.sockets;
+  server.headersTimeout = 5000;
+  server.requestTimeout = 10000;
+  server.keepAliveTimeout = 1000;
+  server.setTimeout(5000, (socket) => socket.destroy());
+  server.on('connection', (socket) => {
+    sockets.add(socket);
+    socket.once('close', () => sockets.delete(socket));
+  });
+  server.once('close', () => { clearTimeout(timer); options.signal?.removeEventListener('abort', onAbort); resolveClosed(stopReason); });
   await new Promise((resolve, reject) => {
     server.once('error', reject);
     server.listen(0, '127.0.0.1', resolve);
   });
   const address = server.address();
   if (!address || typeof address === 'string') fail('Evidence server did not receive an OS-assigned loopback port.');
-  return { server, origin: `http://127.0.0.1:${address.port}` };
+  host = `127.0.0.1:${address.port}`;
+  const origin = `http://${host}`;
+  timer = setTimeout(() => { void close('lifetime limit reached'); }, limits.lifetimeMs);
+  timer.unref();
+  options.signal?.addEventListener('abort', onAbort, { once: true });
+  if (options.signal?.aborted) await close('cancelled');
+  const modules = [...inventory].map(([route, item]) => ({ path: decodeURIComponent(route.slice(prefix.length)), sha256: crypto.createHash('sha256').update(item.bytes).digest('hex'), bytes: item.bytes.length }));
+  return { server, origin, url: `${origin}${prefix}`, prefix, close, closed, modules, limits: { ...limits } };
 }
 
 function artifactName(key) {
   return `${key.replace(/[^a-z0-9-]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase()}.png`;
 }
 
-async function captureOperation(root, values) {
-  const options = parseOptions(values, new Set(['view']));
-  rejectUnknown(options, new Set(['adapter', 'output-dir', 'view', 'compare', 'viewport-width', 'viewport-height', 'pixel-ratio']));
+async function captureOperation(root, values, engineEvidence) {
+  const options = parseOptions(values, new Set(['view', 'module']));
+  rejectUnknown(options, new Set(['adapter', 'module', 'output-dir', 'view', 'compare', 'viewport-width', 'viewport-height', 'pixel-ratio']));
   if (options._.length !== 1) fail('Capture requires exactly one PROFILE.');
   if (!options.adapter || !options['output-dir']) fail('Capture requires --adapter and --output-dir.');
   const validated = validateProfile(root, null, 'strict', options._[0]);
   const adapter = regularFile(root, options.adapter, 'Browser evidence adapter');
   if (!/\.m?js$/i.test(adapter.relative)) fail('Browser evidence adapter must be a JavaScript ESM file.');
+  for (const module of options.module ?? []) {
+    modulePath(module);
+    require('./engine-contract.cjs').requireEngine(root, 'THREEJS', { ...(engineEvidence ? { evidence: engineEvidence } : {}), output: module });
+  }
   const requestedViews = options.view ?? validated.profile.silhouette.requiredViews;
   for (const view of requestedViews) if (!VIEW_IDS.has(view) || view === 'runtime') fail(`Unsupported capture view: ${view}`);
   for (const view of validated.profile.silhouette.requiredViews) if (!requestedViews.includes(view)) fail(`Capture cannot omit required view: ${view}`);
@@ -252,6 +362,35 @@ async function captureOperation(root, values) {
   const pixelRatio = Number(options['pixel-ratio'] ?? 1);
   if (!Number.isInteger(width) || width < 64 || width > 4096 || !Number.isInteger(height) || height < 64 || height > 4096) fail('Viewport dimensions must be integers from 64 to 4096.');
   if (!Number.isFinite(pixelRatio) || pixelRatio < 0.5 || pixelRatio > 4) fail('Pixel ratio must be from 0.5 to 4.');
+
+  const inputIdentities = new Map();
+  const rememberInput = (value, label, expectedObject, suppliedBytes) => {
+    const located = regularFile(root, value, label);
+    const bytes = suppliedBytes ?? fs.readFileSync(located.absolute);
+    if (expectedObject && objectSha256(JSON.parse(bytes.toString('utf8'))) !== objectSha256(expectedObject)) fail(`Evidence input changed before capture: ${label}.`);
+    const digest = crypto.createHash('sha256').update(bytes).digest('hex');
+    if (inputIdentities.has(located.relative) && inputIdentities.get(located.relative) !== digest) fail(`Evidence input changed before capture: ${label}.`);
+    inputIdentities.set(located.relative, digest);
+  };
+  rememberInput(validated.located.relative, 'Character profile', validated.profile);
+  rememberInput(validated.linked.linked.relative, 'Linked manifest', validated.linked.manifest);
+  rememberInput(validated.linked.manifest.target.sourcePath, 'Linked source');
+  const moduleLimits = serverLimits();
+  for (const relative of [adapter.relative, ...options.module ?? []]) rememberInput(relative, 'Browser evidence module', null, snapshotModule(root, relative, moduleLimits));
+  if (options.compare) rememberInput(options.compare, 'Comparison report');
+  if (engineEvidence) rememberInput(engineEvidence, 'Engine override evidence');
+  const engineIdentity = () => require('./engine-contract.cjs').requireEngine(root, 'THREEJS', { ...(engineEvidence ? { evidence: engineEvidence } : {}), output: adapter.relative });
+  const initialEngineIdentity = objectSha256(engineIdentity());
+  const reportAnalysisContext = reportContext(root, validated, 'browser', options.compare);
+  const verifyInputs = () => {
+    for (const [relative, digest] of inputIdentities) {
+      const current = regularFile(root, relative, 'Evidence input');
+      if (sha256(current.absolute) !== digest) fail(`Evidence input changed during capture: ${relative}.`);
+    }
+    if (objectSha256(engineIdentity()) !== initialEngineIdentity) fail('Evidence engine identity changed during capture.');
+  };
+  verifyInputs();
+  if (reportAnalysisContext.contracts.source.sha256 !== inputIdentities.get(reportAnalysisContext.contracts.source.path) || (options.compare && reportAnalysisContext.comparison.report.sha256 !== inputIdentities.get(reportAnalysisContext.comparison.report.path))) fail('Evidence context changed before capture.');
 
   const output = relativeInside(root, options['output-dir'], 'Evidence output directory');
   if (fs.existsSync(output.absolute)) fail(`Evidence output directory already exists: ${output.relative}`);
@@ -267,8 +406,14 @@ async function captureOperation(root, values) {
     throw error;
   }
 
-  let server;
+  let running;
   let browser;
+  let captureTask;
+  let stopping = false;
+  const cancellation = new AbortController();
+  const cancel = () => cancellation.abort();
+  process.once('SIGINT', cancel);
+  process.once('SIGTERM', cancel);
   let completed = false;
   try {
     const threePackage = locatePackage(root, 'three');
@@ -277,81 +422,106 @@ async function captureOperation(root, values) {
     const playwrightPackage = locatePackage(root, 'playwright');
     const playwright = playwrightPackage.hostRequire(playwrightPackage.entry);
     if (!playwright?.chromium?.launch) fail('Installed Playwright package does not expose Chromium.');
-    ({ server, origin: options.origin } = await startServer(root, threePackage.root, adapter));
-    try {
-      browser = await playwright.chromium.launch({ headless: true, chromiumSandbox: true });
-    } catch (error) {
-      fail(`Playwright Chromium browser is unavailable or failed its sandboxed launch: ${error.message}. Hephaera installed nothing and did not disable the sandbox.`);
-    }
-    const context = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: pixelRatio, serviceWorkers: 'block' });
-    const page = await context.newPage();
-    const externalRequests = [];
-    await page.route('**/*', async (route) => {
-      const target = new URL(route.request().url());
-      if (target.origin !== options.origin) {
-        externalRequests.push(target.href);
-        await route.abort('blockedbyclient');
-      } else await route.continue();
-    });
-    await page.goto(options.origin, { waitUntil: 'networkidle' });
-    const seed = validated.linked.manifest.runtime.deterministicSeed;
-    await page.evaluate(async ({ profile, seed: deterministicSeed }) => window.__hephaeraEvidence.start({ profile, seed: deterministicSeed }), { profile: validated.profile, seed });
-    fs.mkdirSync(output.absolute);
-    const stage = page.locator('#stage');
-    const captured = [];
-    const captureOne = async (request, key) => {
-      await page.evaluate((value) => window.__hephaeraEvidence.capture(value), request);
-      const filename = artifactName(key);
-      const absolute = path.join(output.absolute, filename);
-      await stage.screenshot({ path: absolute, animations: 'disabled' });
-      captured.push({ key, path: `${output.relative}/${filename}`, sha256: sha256(absolute) });
+    running = await startServer(root, threePackage.root, adapter, { modules: options.module, signal: cancellation.signal });
+    const verifyServedModules = () => {
+      for (const module of running.modules) {
+        const projectModule = module.path.startsWith('project/');
+        const relative = module.path.slice(projectModule ? 'project/'.length : 'three/'.length);
+        if (projectModule && inputIdentities.get(relative) !== module.sha256) fail(`Evidence admitted module changed before capture: ${relative}.`);
+        const current = snapshotModule(projectModule ? root : threePackage.root, relative, running.limits);
+        if (crypto.createHash('sha256').update(current).digest('hex') !== module.sha256) fail(`Evidence served module changed during capture: ${relative}.`);
+      }
     };
-    for (const view of requestedViews) {
-      for (const pixelHeight of validated.profile.intent.presentation.pixelHeights) {
-        await captureOne({ view, pixelHeight, kind: 'whole' }, `${view}:${pixelHeight}:whole`);
-        await captureOne({ view, pixelHeight, kind: 'semantic-mask' }, `${view}:${pixelHeight}:semantic-mask`);
-        for (const partId of validated.profile.intent.signatureParts) {
-          await captureOne({ view, pixelHeight, kind: 'isolated', partId }, `${view}:${pixelHeight}:isolated:${partId}`);
+    verifyInputs();
+    verifyServedModules();
+    options.origin = running.origin;
+    captureTask = (async () => {
+      try {
+        browser = await playwright.chromium.launch({ headless: true, chromiumSandbox: true, timeout: 30000 });
+        if (stopping || cancellation.signal.aborted) {
+          await browser.close();
+          fail('Evidence capture was cancelled.');
+        }
+      } catch (error) {
+        fail(`Playwright Chromium browser is unavailable or failed its sandboxed launch: ${error.message}. Hephaera installed nothing and did not disable the sandbox.`);
+      }
+      const context = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: pixelRatio, serviceWorkers: 'block' });
+      const page = await context.newPage();
+      const externalRequests = [];
+      await page.route('**/*', async (route) => {
+        const target = new URL(route.request().url());
+        if (target.origin !== options.origin) {
+          externalRequests.push(target.href);
+          await route.abort('blockedbyclient');
+        } else await route.continue();
+      });
+      await page.goto(running.url, { waitUntil: 'networkidle', timeout: 30000 });
+      const seed = validated.linked.manifest.runtime.deterministicSeed;
+      await page.evaluate(async ({ profile, seed: deterministicSeed }) => window.__hephaeraEvidence.start({ profile, seed: deterministicSeed }), { profile: validated.profile, seed });
+      fs.mkdirSync(output.absolute);
+      const stage = page.locator('#stage');
+      const captured = [];
+      const captureOne = async (request, key) => {
+        await page.evaluate((value) => window.__hephaeraEvidence.capture(value), request);
+        const filename = artifactName(key);
+        const absolute = path.join(output.absolute, filename);
+        await stage.screenshot({ path: absolute, animations: 'disabled' });
+        captured.push({ key, path: `${output.relative}/${filename}`, sha256: sha256(absolute) });
+      };
+      for (const view of requestedViews) {
+        for (const pixelHeight of validated.profile.intent.presentation.pixelHeights) {
+          await captureOne({ view, pixelHeight, kind: 'whole' }, `${view}:${pixelHeight}:whole`);
+          await captureOne({ view, pixelHeight, kind: 'semantic-mask' }, `${view}:${pixelHeight}:semantic-mask`);
+          for (const partId of validated.profile.intent.signatureParts) {
+            await captureOne({ view, pixelHeight, kind: 'isolated', partId }, `${view}:${pixelHeight}:isolated:${partId}`);
+          }
         }
       }
-    }
-    await captureOne({ view: 'runtime', pixelHeight: 'runtime', kind: 'whole' }, 'runtime:runtime:whole');
-    const structureThresholds = validated.profile.gates.find((gate) => gate.id === 'structure-integrity').claim.thresholds;
-    const interactionThresholds = validated.profile.gates.find((gate) => gate.id === 'interaction-runtime').claim.thresholds;
-    const optimizationThresholds = validated.profile.gates.find((gate) => gate.id === 'optimization-budget').claim.thresholds;
-    const sampleConfig = {
-      actorCount: validated.profile.budgets.representativeActors,
-      constructionRuns: optimizationThresholds.constructionRuns,
-      lifecycleCycles: Math.max(interactionThresholds.lifecycleCycles, optimizationThresholds.lifecycleCycles),
-      groundingToleranceRatio: structureThresholds.groundingToleranceRatio,
-      contactToleranceRatio: interactionThresholds.contactToleranceRatio
-    };
-    const sampled = await page.evaluate((config) => window.__hephaeraEvidence.sample(config), sampleConfig);
-    await page.evaluate(() => window.__hephaeraEvidence.stop());
-    const observation = {
-      schemaVersion: 'hephaera-code-character-observation/v1',
-      capture: { seed, viewport: { width, height, pixelRatio }, views: captured, externalRequests, serviceWorkers: 'blocked' },
-      structure: sampled.structure,
-      motion: sampled.motion,
-      runtime: sampled.runtime
-    };
-    const observationPath = path.join(output.absolute, 'observation.json');
-    atomicWrite(observationPath, observation);
-    const reportAnalysisContext = reportContext(root, validated, 'browser', options.compare);
-    reportAnalysisContext.contracts.adapter = { path: adapter.relative, sha256: sha256(adapter.absolute) };
-    reportAnalysisContext.contracts.captureConfiguration = {
-      sha256: objectSha256({ seed, viewport: { width, height, pixelRatio }, requestedViews, pixelHeights: validated.profile.intent.presentation.pixelHeights, signatureParts: validated.profile.intent.signatureParts, sampleConfig })
-    };
-    const report = analyze(validated.profile, validated.linked.manifest, observation, reportAnalysisContext);
-    report.browserSecurity = { origin: options.origin, osAssignedPort: true, chromiumSandbox: true, serviceWorkers: 'blocked', externalRequests };
-    const reportPath = path.join(output.absolute, 'report.json');
-    atomicWrite(reportPath, report);
-    completed = true;
-    process.stdout.write(`Captured sandboxed browser evidence: ${output.relative}\n`);
-    process.stdout.write(`Machine result: ${report.overallDecision}\n`);
+      await captureOne({ view: 'runtime', pixelHeight: 'runtime', kind: 'whole' }, 'runtime:runtime:whole');
+      const structureThresholds = validated.profile.gates.find((gate) => gate.id === 'structure-integrity').claim.thresholds;
+      const interactionThresholds = validated.profile.gates.find((gate) => gate.id === 'interaction-runtime').claim.thresholds;
+      const optimizationThresholds = validated.profile.gates.find((gate) => gate.id === 'optimization-budget').claim.thresholds;
+      const sampleConfig = {
+        actorCount: validated.profile.budgets.representativeActors,
+        constructionRuns: optimizationThresholds.constructionRuns,
+        lifecycleCycles: Math.max(interactionThresholds.lifecycleCycles, optimizationThresholds.lifecycleCycles),
+        groundingToleranceRatio: structureThresholds.groundingToleranceRatio,
+        contactToleranceRatio: interactionThresholds.contactToleranceRatio
+      };
+      const sampled = await page.evaluate((config) => window.__hephaeraEvidence.sample(config), sampleConfig);
+      await page.evaluate(() => window.__hephaeraEvidence.stop());
+      verifyInputs();
+      verifyServedModules();
+      const observation = {
+        schemaVersion: 'hephaera-code-character-observation/v1',
+        capture: { seed, viewport: { width, height, pixelRatio }, views: captured, externalRequests, serviceWorkers: 'blocked' },
+        structure: sampled.structure,
+        motion: sampled.motion,
+        runtime: sampled.runtime
+      };
+      const observationPath = path.join(output.absolute, 'observation.json');
+      atomicWrite(observationPath, observation);
+      reportAnalysisContext.contracts.adapter = { path: adapter.relative, sha256: running.modules.find((item) => item.path === `project/${adapter.relative}`).sha256 };
+      reportAnalysisContext.contracts.captureConfiguration = {
+        sha256: objectSha256({ seed, viewport: { width, height, pixelRatio }, requestedViews, pixelHeights: validated.profile.intent.presentation.pixelHeights, signatureParts: validated.profile.intent.signatureParts, sampleConfig })
+      };
+      const report = analyze(validated.profile, validated.linked.manifest, observation, reportAnalysisContext);
+      report.browserSecurity = { origin: options.origin, osAssignedPort: true, chromiumSandbox: true, serviceWorkers: 'blocked', externalRequests, admittedModules: running.modules, serverLimits: running.limits };
+      const reportPath = path.join(output.absolute, 'report.json');
+      atomicWrite(reportPath, report);
+      completed = true;
+      process.stdout.write(`Captured sandboxed browser evidence: ${output.relative}\n`);
+      process.stdout.write(`Machine result: ${report.overallDecision}\n`);
+    })();
+    await Promise.race([captureTask, running.closed.then((reason) => { fail(`Evidence capture stopped: ${reason}.`); })]);
   } finally {
+    stopping = true;
+    process.removeListener('SIGINT', cancel);
+    process.removeListener('SIGTERM', cancel);
+    cancellation.abort();
     if (browser) await browser.close().catch(() => {});
-    if (server) await new Promise((resolve) => server.close(resolve));
+    if (running) await running.close();
+    if (captureTask) await captureTask.catch(() => {});
     if (!completed && fs.existsSync(output.absolute)) fs.rmSync(output.absolute, { recursive: true, force: true });
     if (fs.existsSync(lock)) fs.rmdirSync(lock);
   }
@@ -361,9 +531,11 @@ async function main() {
   let [operation, rootArg, ...values] = process.argv.slice(2);
   if (!operation || !rootArg) fail('Internal invocation requires an operation and project root.');
   const root = rootPath(rootArg);
+  const engineEvidenceAt = values.indexOf('--engine-evidence');
+  const engineEvidence = engineEvidenceAt < 0 ? null : values[engineEvidenceAt + 1];
   if (['capture', 'analyze'].includes(operation)) values = require('./engine-contract.cjs').codeProduction(root, 'evidence', operation, values);
   if (operation === 'analyze') return analyzeOperation(root, values);
-  if (operation === 'capture') return captureOperation(root, values);
+  if (operation === 'capture') return captureOperation(root, values, engineEvidence);
   fail(`Unknown code-character evidence operation: ${operation}`);
 }
 

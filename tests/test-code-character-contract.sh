@@ -202,7 +202,9 @@ const [target,link]=process.argv.slice(2).map(value=>path.resolve(value));
 try { fs.symlinkSync(target,link,'file'); }
 catch(error) {
   if(process.platform!=='win32'||!['EPERM','EACCES'].includes(error.code)) throw error;
-  fs.symlinkSync(path.dirname(target),link,'junction');
+  const junctionTarget=path.join(path.dirname(target),'owned-junction-target');
+  fs.mkdirSync(junctionTarget);
+  fs.symlinkSync(junctionTarget,link,'junction');
 }
 if(!fs.lstatSync(link).isSymbolicLink()) throw new Error('Evidence fixture requires an actual link/reparse point.');
 NODE
@@ -215,6 +217,13 @@ if ! grep -Eq 'must not be a symbolic link|does not exist' "$runtime_dir/symlink
   sed 's/^/symlink rejection: /' "$runtime_dir/symlink.log" >&2
   fail "symbolic-link rejection was not reported"
 fi
+"$node_bin" - "$project/evidence/linked.txt" <<'NODE'
+const fs=require('fs'),path=require('path');
+const link=path.resolve(process.argv[2]);
+if(!fs.lstatSync(link).isSymbolicLink()) throw new Error('Refusing to remove a non-link evidence fixture.');
+try { fs.unlinkSync(link); }
+catch(error) { if(process.platform!=='win32'||!['EPERM','EISDIR'].includes(error.code)) throw error; fs.rmdirSync(link); }
+NODE
 printf 'input request packet\n' > "$project/evidence/blockout-input-packet.md"
 printf 'input request evidence\n' > "$project/evidence/blockout-input.txt"
 project_command bash commands/record-code-character-gate.sh "$profile" \

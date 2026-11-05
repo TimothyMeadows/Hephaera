@@ -66,7 +66,7 @@ test('publication output is deterministic and contains only the selected public 
   const first = await snapshot();
   await buildSite({ output });
   assert.deepEqual(await snapshot(), first);
-  const expected = ['.nojekyll', '404.html', 'index.html', 'search-index.json', 'assets/owl.png', 'assets/site.css', 'assets/site.js', ...built.images, ...pages.map(p => path.posix.join('docs', p.slug, 'index.html'))].sort();
+  const expected = ['.nojekyll', '.preview-inventory.json', '404.html', 'index.html', 'search-index.json', 'assets/owl.png', 'assets/site.css', 'assets/site.js', ...built.images, ...pages.map(p => path.posix.join('docs', p.slug, 'index.html'))].sort();
   assert.deepEqual(first.map(([name]) => name.split(path.sep).join('/')).sort(), expected);
   for (const file of built.images) assert.deepEqual(await fs.readFile(path.join(output, file)), await fs.readFile(path.join(siteRoot, file)));
 });

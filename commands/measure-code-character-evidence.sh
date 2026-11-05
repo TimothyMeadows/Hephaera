@@ -11,6 +11,7 @@ Analyzes deterministic calibration observations or captures trusted machine evid
 host-installed Three.js and Playwright Chromium browser. Installs nothing and never disables the browser sandbox.
 
 Capture options:
+  --module FILE           Repeatable; explicitly admit a relative JS/MJS/JSON dependency
   --view VIEW             Repeatable; must include every profile-required view
   --compare REPORT        Add a revision comparison against an earlier evidence report
   --viewport-width N      Browser viewport width (default: 800)
