@@ -329,10 +329,18 @@ try {
   }
   function timed(operation) { gl.finish(); const started = performance.now(), value = operation(), cpuEnd = performance.now(); gl.finish(); return {value, cpuMs: cpuEnd - started, finishWallMs: performance.now() - started}; }
   function phase() {
-    const samples = []; let maxSystems = 0, maxParticles = 0; gl.finish(); const started = performance.now();
+    const resourceKeys = ['systems', 'capacity', 'particles', 'pooledParticles', 'batches', 'bufferBytes', 'reservedBufferBytes', 'vertices', 'indices', 'reservedVertices', 'reservedIndices', 'trailPoints', 'textureBytes', 'unboundedTextures', 'drawCalls', 'productionSystems', 'packages'];
+    const counters = value => Object.fromEntries(resourceKeys.map(key => { if (!Number.isFinite(value[key]) || value[key] < 0) throw Error('Invalid actual owned resource counter: ' + key); return [key, value[key]]; }));
+    const initialService = service.stats(), resourceMaxima = counters(initialService), resourceMaximaAt = Object.fromEntries(resourceKeys.map(key => [key, 'initial'])), resourceSamples = [];
+    const samples = []; let maxSystems = initialService.systems, maxParticles = initialService.particles; gl.finish(); const started = performance.now();
     for (let index = 0; index < 32; index++) { const a = performance.now(); step(1 / 120); const b = performance.now(); render(); const c = performance.now(); gl.finish(); const d = performance.now();
-      samples.push({updateCpuMs: b - a, renderSubmitCpuMs: c - b, finishWaitMs: d - c, frameFinishWallMs: d - a}); const observed = service.stats(); maxSystems = Math.max(maxSystems, observed.systems); maxParticles = Math.max(maxParticles, observed.particles); }
-    return {samples, perFrameWallMs: (performance.now() - started) / 32, maxSystems, maxParticles, finalService: service.stats(), draws: {...renderer.info.render}, memory: {...renderer.info.memory}};
+      samples.push({updateCpuMs: b - a, renderSubmitCpuMs: c - b, finishWaitMs: d - c, frameFinishWallMs: d - a}); const observed = service.stats(); maxSystems = Math.max(maxSystems, observed.systems); maxParticles = Math.max(maxParticles, observed.particles);
+      const measured = counters(observed); resourceSamples.push({sampleIndex: index, serviceTime: observed.time, counters: measured});
+      for (const key of resourceKeys) if (measured[key] > resourceMaxima[key]) { resourceMaxima[key] = measured[key]; resourceMaximaAt[key] = index; }
+    }
+    return {samples, perFrameWallMs: (performance.now() - started) / 32, maxSystems, maxParticles, initialService, resourceMaxima, resourceMaximaAt, resourceSamples,
+      finalService: service.stats(), draws: {...renderer.info.render}, memory: {...renderer.info.memory},
+      instrumentation: 'Initial counter snapshot precedes the timed loop. Resource observations reuse the existing service.stats call after each update/render/finish timing span. Whole-loop perFrameWallMs includes stats and counter accumulation; per-update/render samples exclude that instrumentation.'};
   }
   async function benchmark(id) {
     if (playing) throw Error('Normal playback owns the presentation clock'); reset(); const value = loaded.get(id); if (!value) throw Error('Explicit benchmark model missing'); const previousGuard = projectionGuardEnabled; projectionGuardEnabled = false;
