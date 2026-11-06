@@ -138,11 +138,45 @@ def load_json(root, path):
         raise TaskError(f"Malformed JSON state: {path.relative_to(root)}") from exc
 
 
+def command_executable(args, root):
+    # Only fixed Git/GitHub commands are used by this module. Do not let a
+    # project-local PATH entry or a Windows batch shim introduce a shell.
+    if (not isinstance(args, (list, tuple)) or not args or len(args) > 128 or
+            any(not isinstance(arg, str) or "\0" in arg for arg in args)):
+        raise TaskError("Commands require a bounded argument array.")
+    name = Path(args[0]).name.lower()
+    command = {"git": "git", "git.exe": "git", "gh": "gh", "gh.exe": "gh"}.get(name)
+    if command is None:
+        raise TaskError("Task operations use only the installed Git and GitHub CLI executables.")
+    root = root.resolve()
+    directories = []
+    for item in os.get_exec_path():
+        entry = Path(item)
+        if not entry.is_absolute():
+            continue
+        resolved = entry.resolve()
+        if resolved != root and root not in resolved.parents:
+            directories.append(str(resolved))
+    candidate = shutil.which(command, path=os.pathsep.join(directories))
+    if not candidate:
+        raise TaskError(f"Installed {command} CLI is unavailable outside the project; no software was installed.")
+    executable = Path(candidate).resolve()
+    if (executable == root or root in executable.parents or not executable.is_file() or
+            executable.suffix.lower() in {".bat", ".cmd"} or
+            (os.name == "nt" and executable.suffix.lower() != ".exe")):
+        raise TaskError("Task commands require an installed native executable outside the project, not a batch shim.")
+    if Path(args[0]).is_absolute() and Path(args[0]).resolve() != executable:
+        raise TaskError("Explicit task executable differs from the admitted installed CLI.")
+    return str(executable)
+
+
 def run(args, root, data=None):
+    executable = command_executable(args, root)
     try:
-        result = subprocess.run(args, cwd=root, input=data, capture_output=True,
-                                text=True, timeout=60, check=False,
-                                env={**os.environ, "GH_HOST": "github.com", "GH_PROMPT_DISABLED": "1"})
+        result = subprocess.run([executable, *args[1:]], cwd=root, input=data, capture_output=True,
+                                text=True, timeout=60, check=False, shell=False,
+                                env={**os.environ, "GH_HOST": "github.com", "GH_PROMPT_DISABLED": "1",
+                                     "NoDefaultCurrentDirectoryInExePath": "1"})
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise TaskError(f"{Path(args[0]).name} unavailable or timed out; external outcomes may be unknown.") from exc
     if result.returncode:
@@ -152,10 +186,7 @@ def run(args, root, data=None):
 
 
 def api(root, endpoint, method="GET", payload=None):
-    gh = shutil.which("gh") or shutil.which("gh.exe")
-    if not gh:
-        raise TaskError("GitHub CLI (gh) is required; no software will be installed.")
-    args = [gh, "api", "--hostname", "github.com", "--method", method, endpoint]
+    args = ["gh", "api", "--hostname", "github.com", "--method", method, endpoint]
     if payload is not None:
         args += ["--input", "-"]
     output = run(args, root, json.dumps(payload) if payload is not None else None)

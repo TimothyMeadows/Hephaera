@@ -5,13 +5,13 @@ Use the setup ZIP from the exact verified GitHub release. Both wrappers use the 
 After authenticating to the selected GitHub Packages feed, run from a trusted host repository:
 
 ```bash
-bash /path/to/reviewed/installer/setup/setup-nuget.sh --version 5.2.0 --project . --configfile ./NuGet.Hephaera.config
+bash /path/to/reviewed/installer/setup/setup-nuget.sh --version 5.2.1 --project . --configfile ./NuGet.Hephaera.config
 ```
 
 Windows PowerShell 5.1:
 
 ```powershell
-& 'C:\path\to\reviewed\installer\setup\setup-nuget.ps1' --version 5.2.0 --project . --configfile .\NuGet.Hephaera.config
+& 'C:\path\to\reviewed\installer\setup\setup-nuget.ps1' --version 5.2.1 --project . --configfile .\NuGet.Hephaera.config
 ```
 
 Paths are examples, not download URLs. Use the exact reviewed release files and version. Both wrappers require every named option. `-- --with-bubo-source` explicitly requests only recorded Bubo source, never a native build or models. No token is accepted as a script argument.
@@ -21,7 +21,7 @@ The helper validates an explicit host Git root, owns only its `.config/dotnet-to
 The matching npm front door uses explicit execution with no lifecycle hook:
 
 ```bash
-npm exec --yes --registry=https://npm.pkg.github.com --package=@timothymeadows/hephaera@5.2.0 -- hephaera install --project .
+npm exec --yes --registry=https://npm.pkg.github.com --package=@timothymeadows/hephaera@5.2.1 -- hephaera install --project .
 ```
 
 `npmrc.example` contains only a scope mapping. `NuGet.Hephaera.config` contains no credentials and maps exactly `Hephaera` to `HephaeraGitHub`; other dependencies use nuget.org. Provide `NuGetPackageSourceCredentials_HephaeraGitHub` through session-local/user credential handling, not tracked cleartext. Real tokens must not be put in the command line, Git, generated packages, or logs.

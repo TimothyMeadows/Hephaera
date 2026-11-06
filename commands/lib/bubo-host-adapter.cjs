@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const cp = require('child_process');
 const crypto = require('crypto');
+const timers = require('node:timers/promises');
 const runtime = require('./bubo-runtime.cjs');
 const transition = require('./state-transition.cjs');
 const engines = require('./engine-contract.cjs');
@@ -226,6 +227,13 @@ async function invokeOwned(workflow, operation, options) {
   return execute(workflow, operation, options, prepared, info);
 }
 async function execute(workflow, operation, options, prepared, info, emit = true, lifecycle) {
+  // Every compiled caller (including media/VFX preparation) shares this final
+  // launch boundary. Reject malformed delays before creating state or a child;
+  // Node otherwise coerces invalid timer delays into a one-millisecond timer.
+  const budgets = prepared.context?.budgets;
+  if (!Number.isSafeInteger(budgets?.timeoutSeconds) || budgets.timeoutSeconds < 1 || budgets.timeoutSeconds > 86400
+      || !Number.isSafeInteger(budgets?.maxLogBytes) || budgets.maxLogBytes < 1 || budgets.maxLogBytes > 1073741824)
+    fail('Native execution requires finite admitted timeout and log bounds.');
   // Trusted compiled callers may persist ownership. Hooks are never accepted
   // through recipe JSON, CLI options or the native execution contract.
   if (lifecycle !== undefined && (!lifecycle || typeof lifecycle !== 'object' || Array.isArray(lifecycle)
@@ -265,33 +273,54 @@ async function executeOwned(workflow, operation, options, prepared, info, emit =
   catch (error) { notify('closed', { pid: null, status: null, signal: null, error: String(error.message), spawned: false, launchState: 'spawn-failed' }); throw error; }
   let spawnError, sawSpawn = false;
   const pidKnown = () => Number.isSafeInteger(child.pid) && child.pid > 0;
-  child.once('spawn', () => { sawSpawn = true; });
+  const onSpawn = () => { sawSpawn = true; };
+  const onError = error => { spawnError = error; };
+  let onClose;
+  child.once('spawn', onSpawn);
   const retired = new Promise(resolve => {
-    child.once('error', error => { spawnError = error; });
-    child.once('close', (status, signal) => resolve({ status, signal }));
+    onClose = (status, signal) => resolve({ status, signal });
+    child.once('error', onError);
+    child.once('close', onClose);
   });
   let text = '', overflow = false;
-  child.stdout.setEncoding('utf8'); child.stdout.on('data', chunk => { text += chunk; if (Buffer.byteLength(text) > 8 * 1024 * 1024) { overflow = true; child.kill(); } });
   // SIGINT reaches Bubo's managed cancellation handler on Linux, allowing it
   // to retire the native setsid group. Windows closes the owned native job.
   const cancel = () => child.kill(process.platform === 'win32' ? 'SIGTERM' : 'SIGINT');
+  const onData = chunk => { text += chunk; if (Buffer.byteLength(text) > 8 * 1024 * 1024) { overflow = true; cancel(); } };
+  child.stdout.setEncoding('utf8'); child.stdout.on('data', onData);
   process.once('SIGINT', cancel); process.once('SIGTERM', cancel);
-  const timeout = setTimeout(cancel, (prepared.context.budgets.timeoutSeconds + 60) * 1000);
-  let status, closed;
+  const deadlineController = new AbortController();
+  let status, closed, deadline;
   try {
-    try { if (pidKnown()) notify('spawned', { pid: child.pid, launchState: 'started' }); }
+    try {
+      // The timer accepts only a finite delay, inert result data and our owned
+      // signal. It cannot receive executable callbacks from any caller.
+      deadline = timers.setTimeout((prepared.context.budgets.timeoutSeconds + 60) * 1000, 'deadline', { signal: deadlineController.signal, ref: false });
+      if (pidKnown()) notify('spawned', { pid: child.pid, launchState: 'started' });
+      const outcome = await Promise.race([retired, deadline]);
+      if (outcome === 'deadline') { cancel(); closed = await retired; }
+      else closed = outcome;
+    }
     catch (error) {
       cancel(); closed = await retired;
       notify('closed', { pid: child.pid ?? null, status: closed.status, signal: closed.signal, error: String(error.message), spawned: pidKnown() || sawSpawn, launchState: pidKnown() ? 'started' : 'unknown' });
       throw error;
     }
-    closed = await retired; status = closed.status;
+    status = closed.status;
     const launchState = pidKnown() ? 'started' : spawnError && !sawSpawn ? 'spawn-failed' : 'unknown';
     notify('closed', { pid: child.pid ?? null, status, signal: closed.signal, error: spawnError ? String(spawnError.message) : null, spawned: pidKnown() || sawSpawn, launchState });
     if (spawnError) throw spawnError;
     if (!pidKnown()) fail('Native child PID was not observed; preserve unknown ownership and retained launch intent.');
   }
-  finally { clearTimeout(timeout); process.removeListener('SIGINT', cancel); process.removeListener('SIGTERM', cancel); }
+  finally {
+    deadlineController.abort();
+    try { await deadline?.catch(error => { if (error.name !== 'AbortError') throw error; }); }
+    finally {
+      process.removeListener('SIGINT', cancel); process.removeListener('SIGTERM', cancel);
+      child.stdout.removeListener('data', onData);
+      child.removeListener('spawn', onSpawn); child.removeListener('error', onError); child.removeListener('close', onClose);
+    }
+  }
   if (overflow) fail('Bubo result exceeded the bounded host buffer.');
   let result; try { result = JSON.parse(text); } catch { fail('Bubo did not return one valid machine-readable result.'); }
   fs.writeFileSync(path.join(folder, 'result.json'), JSON.stringify(result, null, 2) + '\n', { flag: 'wx' });

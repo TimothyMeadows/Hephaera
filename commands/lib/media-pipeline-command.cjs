@@ -55,9 +55,8 @@ function required(options,...keys) {
   for(const key of keys)if(!options[key])fail('Explicit --'+key+' is required.');
 }
 function read(root,name,{array=false}={}) {
-  const full=runtime.projectPath(root,name), stat=fs.statSync(full);
-  if(!stat.isFile() || stat.size>1048576)fail('Pipeline input must be a bounded regular JSON file.');
-  const value=JSON.parse(fs.readFileSync(full,'utf8'));
+  const full=runtime.projectPath(root,name);
+  const value=runtime.json(full,1048576);
   if(!value || typeof value!=='object' || (array?!Array.isArray(value):Array.isArray(value)))fail(array?'Expected a JSON array.':'Expected a JSON object.');
   return value;
 }
@@ -199,7 +198,7 @@ async function runOwned(spec,values) {
     required(options,'workspace','media-state');
     const request=spec.request(context.brief,{root,asset:context.state.asset});
     const policyReferences=typeof spec.generationReferences==='function'?spec.generationReferences(context.brief,{root,asset:context.state.asset}):[];
-    const result=await lifecycle.dispatch({...stateOptions,provider:selected,request,workspace:options.workspace,mediaState:options['media-state'],controls:controls(options),policyReferences});
+    const result=await lifecycle.dispatch(stateOptions,{provider:selected,request,workspace:options.workspace,mediaState:options['media-state'],controls:controls(options),policyReferences});
     lifecycle.recordCandidate({...stateOptions,provider:selected,manifests:result.hostMediaProvenance,referenceMapper:referenceMapper(spec,root,context.brief,'neutral')});
     return {schemaVersion:1,domain:spec.domain,status:'staged',stateFile:context.state.stateFile,
       provenance:result.hostMediaProvenance,assetStatus:lifecycle.status(stateOptions),promotion:false};

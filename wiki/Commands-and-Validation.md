@@ -14,7 +14,7 @@ Production manifests and receipts bind exact current input, policy and tool iden
 
 ## Versioned installer entry point
 
-The GitHub npm and NuGet packages expose the same Hephaera installer; select stable `5.2.0` after confirming exact release/feed publication. Public registries are deferred. For a verified exact destination/version, explicit `install/init --project PATH` installs the pinned baseline and always completes the canonical scaffold; acquisition alone does not. `doctor/status` reports readiness. Exact locked restore, target-version update/dry-run, journal-aware repair/recover and non-destructive deactivation remain distinct operations. See [Installation and layout](Installation-and-Layout) for authentication, invocation and the usable manual fallback. Installer tooling does not replace the baseline's workflow commands or provision native tools/models.
+The GitHub npm and NuGet packages expose the same Hephaera installer; select stable `5.2.1` after confirming exact release/feed publication. Public registries are deferred. For a verified exact destination/version, explicit `install/init --project PATH` installs the pinned baseline and always completes the canonical scaffold; acquisition alone does not. `doctor/status` reports readiness. Exact locked restore, target-version update/dry-run, journal-aware repair/recover and non-destructive deactivation remain distinct operations. See [Installation and layout](Installation-and-Layout) for authentication, invocation and the usable manual fallback. Installer tooling does not replace the baseline's workflow commands or provision native tools/models.
 
 ## Resolution and contract families
 

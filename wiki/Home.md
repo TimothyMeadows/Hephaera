@@ -4,7 +4,7 @@ Hephaera is a shared AI production baseline for video game development. It gives
 
 Use the [practical documentation](https://hephaera.com/docs/) for a guided first installation or an everyday task. This Wiki explains the contracts, command families, evidence requirements and failure boundaries behind those guides. The [repository README](https://github.com/TimothyMeadows/Hephaera/blob/main/README.md) is the source overview; [AGENTS.md](https://github.com/TimothyMeadows/Hephaera/blob/main/AGENTS.md) is the shared operating contract.
 
-Use stable `5.2.0` for floor-plan, schematic and reusable VFX/action-v2 production. Follow [Installation and layout](Installation-and-Layout) for exact release/feed availability and authentication: GitHub npm first, GitHub NuGet second, deliberate manual Git setup last. Public npmjs.com and NuGet.org publication is deferred. Existing pinned projects need an explicit managed update; native builds, tools and asset acceptance remain separate.
+Select security patch `5.2.1` after confirming publication; it retains floor-plan, schematic and reusable VFX/action-v2 production from `5.2.0`. Follow [Installation and layout](Installation-and-Layout) for exact release/feed availability and authentication: GitHub npm first, GitHub NuGet second, deliberate manual Git setup last. Public npmjs.com and NuGet.org publication is deferred. Existing pinned projects need an explicit managed update; native builds, tools and asset acceptance remain separate.
 
 ## Start and configure
 

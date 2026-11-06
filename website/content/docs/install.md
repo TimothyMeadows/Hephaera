@@ -1,6 +1,6 @@
 # Install Hephaera in your project
 
-Use stable version [`5.2.0`](https://github.com/TimothyMeadows/Hephaera/releases/tag/5.2.0) for floor plans, mechanical schematics and reusable effects tied to model actions. Its release page provides the setup ZIP, checksums and publication result. Confirm the exact version is published before running setup.
+Select security patch [`5.2.1`](https://github.com/TimothyMeadows/Hephaera/releases/tag/5.2.1) after confirming its release and package versions are published. It retains floor plans, mechanical schematics and reusable effects tied to model actions from `5.2.0`. The published release page provides the setup ZIP, checksums and publication result. [Release notes](https://github.com/TimothyMeadows/Hephaera/blob/main/docs/RELEASE_5_2_1.md) describe the fixes and remaining coverage limits.
 
 Start with authenticated GitHub npm, or use the GitHub NuGet tool. Public npmjs.com and NuGet.org publication is deferred; you do not need accounts there. The [manual Git option](#advanced-manual-fallback) is last.
 
@@ -30,7 +30,7 @@ Authenticate interactively with your GitHub username and expiring PAT **classic*
 
 ```bash
 npm login --scope=@timothymeadows --auth-type=legacy --registry=https://npm.pkg.github.com
-npm exec --yes --registry=https://npm.pkg.github.com --package=@timothymeadows/hephaera@5.2.0 -- hephaera install --project .
+npm exec --yes --registry=https://npm.pkg.github.com --package=@timothymeadows/hephaera@5.2.1 -- hephaera install --project .
 ```
 
 This installs/scaffolds your host without a hidden dependency hook. The [GitHub npm package page](https://github.com/users/TimothyMeadows/packages/npm/package/hephaera) is separate from npmjs.com.
@@ -39,16 +39,16 @@ This installs/scaffolds your host without a hidden dependency hook. The [GitHub 
 
 The package ID is `Hephaera`. It embeds the same Node core, so keep Node 24 available alongside .NET 10.
 
-From the [5.2.0 release](https://github.com/TimothyMeadows/Hephaera/releases/tag/5.2.0), download `hephaera-setup-5.2.0.zip`, check `CHECKSUMS-5.2.0.txt`, and extract it. Keep the entire bundle unchanged. Its wrappers and helper check bundled file hashes before acquiring the exact local tool and running setup.
+From the [5.2.1 release](https://github.com/TimothyMeadows/Hephaera/releases/tag/5.2.1), download `hephaera-setup-5.2.1.zip`, check `CHECKSUMS-5.2.1.txt`, and extract it. Keep the entire bundle unchanged. Its wrappers and helper check bundled file hashes before acquiring the exact local tool and running setup.
 
 Follow the [GitHub NuGet configuration and authentication directions](https://github.com/TimothyMeadows/Hephaera/blob/main/docs/INSTALLER.md#authenticate-for-nuget). Copy the token-free config to the host without modifying the bundle and keep credentials outside tracked files. Point `SETUP_DIR` (Bash) or `SetupDir` (PowerShell) at the reviewed extracted directory:
 
 ```bash
-bash "$SETUP_DIR/setup-nuget.sh" --version 5.2.0 --project . --configfile ./NuGet.Hephaera.config
+bash "$SETUP_DIR/setup-nuget.sh" --version 5.2.1 --project . --configfile ./NuGet.Hephaera.config
 ```
 
 ```powershell
-& "$SetupDir/setup-nuget.ps1" --version 5.2.0 --project . --configfile ./NuGet.Hephaera.config
+& "$SetupDir/setup-nuget.ps1" --version 5.2.1 --project . --configfile ./NuGet.Hephaera.config
 ```
 
 The wrapper preserves other local tools, verifies the acquired tool and immediately runs setup. Restoring other tools may need additional reviewed source mappings. Raw `dotnet tool install` only acquires tooling.

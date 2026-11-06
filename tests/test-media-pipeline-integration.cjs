@@ -31,6 +31,13 @@ function execute(executable,args,cwd=fixture,expected=0) {
 }
 const git = (root,...args) => execute('git',['-C',root,...args]).stdout.trim();
 const revision = git(source,'rev-parse','HEAD');
+// Installed fixtures must exercise the current candidate even before a commit.
+// Keep its bounded overlay and byte identities separate from the checkout SHA.
+const candidateFiles=['commands/lib/media-pipeline-command.cjs','commands/lib/media-pipeline-state.cjs','commands/lib/bubo-host-adapter.cjs','commands/lib/bubo-runtime.cjs'];
+const sha256=bytes=>require('crypto').createHash('sha256').update(bytes).digest('hex');
+const candidateSources=candidateFiles.map(name=>{const bytes=fs.readFileSync(path.join(source,name));return {path:name,bytes,sha256:sha256(bytes)};});
+const candidateStatus=git(source,'status','--porcelain','--untracked-files=no','--',...candidateFiles);
+const installationOverlays=[];
 const bash = process.env.HEPHAERA_BASH || (process.platform==='win32' ? path.join(process.env.ProgramFiles || 'C:/Program Files','Git/bin/bash.exe') : 'bash');
 function write(root,name,value) {
   const file=path.join(root,name); fs.mkdirSync(path.dirname(file),{recursive:true});
@@ -66,6 +73,13 @@ function install(form) {
   if(form==='submodule')git(root,'add','.hephaera');
   check(git(baseline,'rev-parse','HEAD')===revision,form+': actual baseline checks out explicit source commit');
   check(form==='clone'?fs.statSync(path.join(baseline,'.git')).isDirectory():fs.statSync(path.join(baseline,'.git')).isFile(),form+': actual Git installation form is retained');
+  for(const current of candidateSources) {
+    const file=path.join(baseline,current.path),beforeSha256=sha256(fs.readFileSync(file));
+    fs.writeFileSync(file,current.bytes);
+    const afterSha256=sha256(fs.readFileSync(file));
+    check(afterSha256===current.sha256,form+': installed candidate matches current '+current.path);
+    installationOverlays.push({form,path:current.path,beforeSha256,afterSha256});
+  }
   const local = name => require(path.join(baseline,'commands/lib',name+'.cjs'));
   return {form,root,baseline,runtime:local('bubo-runtime'),contracts:local('media-pipeline-contract'),state:local('media-pipeline-state'),
     engines:local('engine-contract'),adapter:local('bubo-media-adapter'),coordinator:local('media-pipeline-command'),
@@ -226,14 +240,14 @@ async function exercise(host) {
     for(const domain of domains) {
       const planned=cli(host,domain,'init',['--task',task,'--asset','generation without visual context','--version','planning-only','--brief',briefs[domain].file,'--workspace',workspace]);
       const asset=state.load({root,stateFile:planned.stateFile}).asset;
-      state.nativeRequest({root,stateFile:planned.stateFile,provider:'LOCAL',workspace,mediaState,request:specs[domain].request(briefs[domain].brief,{root,asset})});
+      state.nativeRequest({root,stateFile:planned.stateFile},{provider:'LOCAL',workspace,mediaState,request:specs[domain].request(briefs[domain].brief,{root,asset})});
       check(planned.status.stage==='planned'&&!fs.existsSync(engineFile)&&!fs.existsSync(styleFile),form+': '+domain+' generation planning creates neither ENGINE nor STYLE');
     }
   } finally {fs.writeFileSync(engineFile,engineBytes);fs.writeFileSync(styleFile,styleBytes);}
   for(const domain of domains) {
     const created=cli(host,domain,'init',['--task',task,'--asset','same human asset','--version','v1','--brief',briefs[domain].file,'--workspace',workspace]);
     assets[domain]={...state.load({root,stateFile:created.stateFile}).asset,stateFile:created.stateFile};
-    prepared[domain]=state.nativeRequest({root,stateFile:created.stateFile,provider:'LOCAL',workspace,mediaState,request:specs[domain].request(briefs[domain].brief,{root,asset:assets[domain]})});
+    prepared[domain]=state.nativeRequest({root,stateFile:created.stateFile},{provider:'LOCAL',workspace,mediaState,request:specs[domain].request(briefs[domain].brief,{root,asset:assets[domain]})});
     const doctor=cli(host,domain,'doctor',['--state',created.stateFile,'--workspace',workspace]);
     check(doctor.nativeReadiness==='unverified'&&!doctor.runtime.initialized&&doctor.generation===false,form+': '+domain+' doctor exposes missing native initialization without inference');
   }
@@ -271,7 +285,9 @@ async function exercise(host) {
 }
 async function main() {
   for(const form of ['clone','submodule'])await exercise(install(form));
-  const result={status:'pass',assertions:observations.length,platform:process.platform,sourceRevision:revision,observations,hosts,
+  for(const current of candidateSources)check(sha256(fs.readFileSync(path.join(source,current.path)))===current.sha256,'Candidate source stayed frozen throughout integration: '+current.path);
+  const result={status:'pass',assertions:observations.length,platform:process.platform,sourceRevision:revision,
+    candidateSource:{dirty:Boolean(candidateStatus),gitStatus:candidateStatus,files:candidateSources.map(({path,sha256})=>({path,sha256})),installationOverlays},observations,hosts,
     limits:['Owned synthetic permissions, reviews, metadata and harmless nonaudio bytes only','Actual installed CLI/context/binding code; no Bubo process/model/inference/setup/download or actual terms acceptance',
       'Metadata lifecycle fixtures bypass domain acoustic validation and cannot establish sound quality or human/target acceptance','Cancellation substitution proves host propagation only; actual native ownership/claim/cancellation is separate pinned CPU/CI evidence',
       'Six-profile binding uses synthetic capability metadata and consumed-claim sentinel; no native acceptance claim is created or spent','Shared GPU includes visual reconstruction and media; the shared six-case acceptance ledger applies to LOCAL media only','No private recordings/transcripts/generated speech or real asset promotion']};

@@ -65,8 +65,8 @@ Domain validators remain responsible for applicable rights/consent, supported se
 | --- | --- |
 | `init` | Takes `root`, existing `task`, `domain`, explicit `modality`, original `asset` name, safe `version` and a project-relative JSON `brief` path; optional `references` and `parent` are file identities. Returns `stateFile` and the asset record. The domain contract must already be configured. |
 | `status` | Takes `root` and `stateFile`; returns domain/version/request identity, current `assetSha256` fingerprint, stale reasons, execution readiness, stage and review status. It creates no files. |
-| `nativeRequest` | Takes the state plus a native request object, explicit `provider: 'LOCAL'`, cache-local `workspace` and physically shared `mediaState`; returns the owned native request and final state/output paths without dispatching. Shared MEDIA policy must exist. |
-| `dispatch` | Uses the same inputs plus optional whitelisted `controls`, requires `executionAvailable`, saves the native request/start event and invokes the existing Bubo adapter. Retained starts prevent a fresh rerun of the same version even after failure. |
+| `nativeRequest(owner, payload)` | Takes a separate exact owner `{ root, stateFile }` and generation payload `{ provider: 'LOCAL', request, workspace, mediaState }`; returns the owned native request and final state/output paths without dispatching. `workspace` is a cache child and `mediaState` is the physically shared ledger. Shared MEDIA policy must exist. |
+| `dispatch(owner, payload)` | Uses the same separate owner and generation payload, with optional whitelisted `controls` and trusted internal `policyReferences`; requires `executionAvailable`, saves the native request/start event and invokes the existing Bubo adapter. Retained starts prevent a fresh rerun of the same version even after failure. |
 | `recordCandidate` | Takes a provider-neutral manifest path and explicit `LOCAL` or `CLOUD` provider. Reuses the existing manifest validator, binds every exact staged output and records pending review. Replacing that candidate requires a new version. |
 | `recordTechnical` | Imports an `hephaera-media-technical/v1` report with the current asset fingerprint, exact ordered output identities, explicit check verdicts/reasons and any measured output properties. Unavailable or failed checks cannot produce a passed report. |
 | `recordReview` | Imports an `hephaera-media-review/v1` content or runtime review with the current fingerprint/output set, accepted/rejected verdict, reviewer, reason and a distinct source-evidence file identity. Runtime review also binds the current engine identity. |
@@ -83,7 +83,27 @@ Historical VOICE imports preserve original-root-relative native recording/transc
 
 Promotion authorization requires an exact typed `{path, sha256}` `sourceEvidence`, which is returned in the admitted plan. A plain source path is insufficient: the assertion's current bytes must remain bound before a later executor performs any runtime write.
 
-Shared `dispatch` accepts its documented inputs, a bounded trusted internal `policyReferences` list and a `controls` object. Policy references come from compiled host/domain code, not a public CLI override or native DTO field. Supported control keys are `timeout`, `max-log-bytes`, `max-private-bytes` and `platform-modules`; they retain the existing adapter's finite bounds and exact flag values. Selected platform-module manifest bytes are retained with dispatch evidence. Protected setup/API/provider-state switches and unknown controls are rejected, rather than ignored or passed through. Bubo still owns native process and module verification.
+Both `nativeRequest` and `dispatch` require two separate argument objects. The owner contains only explicit string `root` and `stateFile` paths from the host's loaded asset state. The generation payload permits only `provider`, `request`, `workspace`, `mediaState`, `controls` and `policyReferences`; it cannot contain `root` or `stateFile`. Unknown fields, symbols, accessor properties and custom inherited prototypes on either argument object are rejected before loading state. Native request data also rejects lifecycle `root` and `stateFile` fields. Native task/request/output assertions must match the version-owned identities. Dispatch freezes a canonical owner copy before asynchronous execution, so later mutation of the caller's owner cannot redirect completion or failure records.
+
+For a trusted compiled host caller, preparation and execution use the same separate arguments:
+
+```javascript
+const owner = { root, stateFile: loaded.stateFile };
+const payload = {
+  provider: 'LOCAL',
+  request,
+  workspace,
+  mediaState,
+  controls: { timeout: '120' },
+  policyReferences
+};
+const prepared = lifecycle.nativeRequest(owner, payload); // No native dispatch.
+const result = await lifecycle.dispatch(owner, payload);
+```
+
+Passing `{ ...owner, ...payload }` as one argument, adding `root` or `stateFile` to `payload`, or adding an executable/tool selector is rejected. The CLI coordinator constructs these arguments itself; generation JSON does not select the lifecycle owner.
+
+Shared `dispatch` accepts a bounded trusted internal `policyReferences` list and a `controls` object in its payload. Policy references come from compiled host/domain code, not a public CLI override or native DTO field. Supported control keys are `timeout`, `max-log-bytes`, `max-private-bytes` and `platform-modules`; they retain the existing adapter's finite bounds and exact flag values. Selected platform-module manifest bytes are retained with dispatch evidence. Protected setup/API/provider-state switches and unknown controls are rejected, rather than ignored or passed through. Bubo still owns native process and module verification.
 
 The native output base is `<workspace>/staging/<domain>`; native admission appends the version's owned request ID. Domain-specific output ownership must not change `mediaState` into a new per-domain budget root. The foundation APIs enforce host workflow admission; they do not claim an OS sandbox or independently verify a listener's judgment.
 

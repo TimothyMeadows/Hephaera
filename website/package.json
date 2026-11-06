@@ -11,5 +11,5 @@
     "test": "node --test test/*.test.mjs",
     "wiki:check": "node scripts/wiki.mjs"
   },
-  "dependencies": { "markdown-it": "15.0.2" }
+  "dependencies": { "markdown-it": "15.0.3" }
 }

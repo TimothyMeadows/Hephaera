@@ -1,6 +1,7 @@
 'use strict';
 // Actual owned Node children exercise transport ownership, without native authoring or installation.
 const assert = require('node:assert/strict'), fs = require('node:fs'), path = require('node:path');
+const timers = require('node:timers/promises');
 const { execute } = require('../commands/lib/bubo-host-adapter.cjs');
 const base = path.resolve(__dirname, '..');
 const evidence = path.join(base, '.hephaera/.cache/tasks/hephaera-vfx-threejs/evidence');
@@ -11,7 +12,7 @@ fs.writeFileSync(script, `const fs=require('node:fs'),crypto=require('node:crypt
 const args=process.argv.slice(2),context=args[args.indexOf('--host-context')+1];
 if(args[0]==='wait')setInterval(()=>{},1000);
 else console.log(JSON.stringify({schemaVersion:'bubo-execution-result/v1',apiVersion:2,status:'succeeded',hostContextSha256:crypto.createHash('sha256').update(fs.readFileSync(context)).digest('hex'),data:{ownedFixture:true}}));\n`);
-const prepared = { root, stateRoot: '.hephaera/.cache/tasks/transport', context: { budgets: { timeoutSeconds: 1 } } };
+const prepared = { root, stateRoot: '.hephaera/.cache/tasks/transport', context: { budgets: { timeoutSeconds: 1, maxLogBytes: 1048576 } } };
 const dead = pid => { try { process.kill(pid, 0); return false; } catch (error) { return error.code === 'ESRCH'; } };
 let checks = 0;
 const check = (value, reason) => { assert(value, reason); checks++; };
@@ -45,6 +46,21 @@ async function run() {
   checks++;
   const plain = await execute(script, 'ok', new Map(), prepared, { executable: process.execPath }, false);
   check(plain.data.ownedFixture, 'existing no-hook callers retain the original transport behavior');
+  const signalsBefore=['SIGINT','SIGTERM'].map(name=>process.listenerCount(name));
+  const originalDeadline=timers.setTimeout;let ownedDeadline;
+  try {
+    // Accelerate only the test clock. Production still supplies the admitted
+    // 61-second bound and a data-only deadline to the real abortable API.
+    timers.setTimeout=(delay,value,options)=>{
+      check(delay===61000&&value==='deadline'&&options.signal instanceof AbortSignal,'Actual child uses the finite data-only deadline contract');
+      ownedDeadline=options.signal;return originalDeadline(50,value,options);
+    };
+    let expired;
+    await assert.rejects(execute(script,'wait',new Map(),prepared,{executable:process.execPath},false,{closed(value){expired=value;}}),/machine-readable|execution failed/);
+    check(Number.isSafeInteger(expired.pid)&&dead(expired.pid)&&expired.launchState==='started','Expired Promise deadline waits for actual owned child retirement');
+    check(ownedDeadline.aborted,'Expired deadline is retired in final cleanup');
+  } finally {timers.setTimeout=originalDeadline;}
+  check(['SIGINT','SIGTERM'].every((name,index)=>process.listenerCount(name)===signalsBefore[index]),'Actual completion/failure paths remove process signal listeners');
   console.log(`Bubo execution ownership hooks passed: ${checks}. Actual fixtures retained at ${root}`);
 }
 run().catch(error => { console.error(error); process.exitCode = 1; });

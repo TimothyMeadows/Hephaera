@@ -40,6 +40,8 @@ jobs:
       - name: Host policy, clone/submodule installations and admission
         shell: bash
         run: |
+          node --test tests/test-code-model-security.cjs tests/test-bubo-host-security.cjs tests/test-bubo-runtime-files.cjs tests/test-local-preview-tls.cjs
+          node tests/test-code-character-evidence-security.cjs
           node tests/test-floor-plan-selection.cjs
           node tests/test-floor-plan-host.cjs
           node tests/test-schematic-selection.cjs

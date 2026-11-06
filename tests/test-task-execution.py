@@ -72,6 +72,52 @@ class FakeGitHub:
         raise execution.TaskError("Simulated missing issue")
 
 
+class ToolBoundaryTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory(prefix=".task-tool-test-", dir=ROOT)
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name).resolve()
+
+    def test_installed_git_still_runs_without_a_shell(self):
+        self.assertIn("git version", execution.run(["git", "--version"], self.root))
+
+    def test_project_path_shim_is_not_launched(self):
+        local = self.root / "bin"
+        local.mkdir()
+        (local / ("git.exe" if os.name == "nt" else "git")).write_text("INERT: must never launch")
+        with mock.patch.dict(os.environ, {"PATH": str(local) + os.pathsep + os.environ.get("PATH", "")}):
+            admitted = Path(execution.command_executable(["git", "--version"], self.root))
+        self.assertNotIn(self.root, admitted.parents)
+
+    def test_batch_shim_and_unknown_program_fail_before_launch(self):
+        shim = self.root.parent / (self.root.name + ".cmd")
+        shim.write_text("INERT: no executable content")
+        self.addCleanup(shim.unlink)
+        with mock.patch.object(execution.shutil, "which", return_value=str(shim)), \
+                mock.patch.object(execution.subprocess, "run") as launched:
+            with self.assertRaisesRegex(execution.TaskError, "batch shim"):
+                execution.run(["gh", "api", "repos/example/project"], self.root)
+            launched.assert_not_called()
+        with mock.patch.object(execution.subprocess, "run") as launched:
+            for args in (["cmd.exe", "/c", "inert"], "git --version", [], ["git", "nul\0argument"]):
+                with self.assertRaises(execution.TaskError):
+                    execution.run(args, self.root)
+            launched.assert_not_called()
+
+    def test_metacharacters_stay_separate_arguments_and_stdin(self):
+        arguments = ["git", "check-ref-format", "owned ; & $(inert) value"]
+        completed = subprocess.CompletedProcess(arguments, 0, stdout="owned", stderr="")
+        with mock.patch.object(execution.subprocess, "run", return_value=completed) as launched:
+            self.assertEqual(execution.run(arguments, self.root, "owned\nstdin"), "owned")
+        call = launched.call_args
+        self.assertEqual(call.args[0][1:], arguments[1:])
+        self.assertTrue(Path(call.args[0][0]).is_absolute())
+        self.assertFalse(call.kwargs["shell"])
+        self.assertEqual(call.kwargs["input"], "owned\nstdin")
+        self.assertEqual(call.kwargs["timeout"], 60)
+        self.assertEqual(call.kwargs["env"]["GH_HOST"], "github.com")
+
+
 class Fixture(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix=".task-execution-test-", dir=ROOT)
