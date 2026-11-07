@@ -15,6 +15,8 @@ Execution resources, schemas, recipes and technical contracts belong to the pinn
 - Record human source-motion selection bound to the exact package/model/rig and every used clip, with `rights: {authorized: true, license: TEXT}` covering the source model and selected motions. This is recorded permission/provenance, not license acceptance on the user's behalf. The assertion may review staged clips; it does not fabricate prior runtime approval.
 - Supply an explicit recipe, bake FPS, bounded steps/effects, real anchor identities, target binding policies and technical review settings. Missing clips, anchors, markers or settings block the affected operation.
 
+Before composition, record [action-phase intent](../../../skills/build-model-actions/references/sequence-contract.md#state-action-intent-before-composition) in existing task notes. Apply the [whole-action and casting review](../../../skills/build-model-actions/references/presentation-and-review.md#review-action-phases-and-boundaries), using actual resolved timing and separately labeled contact evidence. Existing in-place/profile restrictions and gameplay authority remain applicable; these notes add no recipe fields or automatic motion correction.
+
 ## Production rules
 
 1. Use `commands/model-to-action.sh` with the existing .NET 10 runtime and Blender 4.5 LTS. Consult help for `init`, `doctor`, `inspect`, `compose`, `export`, `review`, `record`, `validate`, `status` and `promote`. No installation or provider selection is implied.

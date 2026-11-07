@@ -67,6 +67,8 @@ The current production bridge is Three.js. It preserves the project's visual pip
 
 A static model is not automatically ready to animate. Inspect articulation, topology, scale, rights, and any existing rig first. Model-to-animation creates reviewed motion; model-to-action composes clips into sequences. Neither decides combat damage, targeting, or movement authority just because an animation played.
 
+Before making motion, agree on a short brief: what each clip should communicate, where support or contact is intended, what must clear equipment, and which exaggerations are deliberate. Watch the full delivered motion at normal speed, then inspect awkward moments slowly. Compare source and export from similar views. Record what the tools measured separately from what a person saw; missing evidence is still missing, while a real measured zero can be valid. The [motion brief and review guidance](https://github.com/TimothyMeadows/Hephaera/blob/main/skills/build-model-animations/references/motion-profiles.md#state-motion-intent-before-authoring) covers the details.
+
 A reviewed schematic assembly uses the current preserve-only `mechanical-assembly` handoff. It carries the separate rigid components and flexible rigs forward; diagnostic readiness clips do not become approved production animations, and changed source state invalidates an old handoff.
 
 Read [visual pipelines](https://github.com/TimothyMeadows/Hephaera/wiki/Visual-Pipelines) and [animation and actions](https://github.com/TimothyMeadows/Hephaera/wiki/Animation-and-Actions) for the detailed stages. If your task is about sound instead, use [audio, music, and voice](audio-music-voice.md).

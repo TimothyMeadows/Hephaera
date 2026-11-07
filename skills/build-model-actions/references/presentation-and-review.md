@@ -6,6 +6,20 @@ Effects bind actual exported anchors. Charge cues follow those anchors. At relea
 
 Inspect whole sequences: pose continuity, blend extremes, contact/foot sliding, repeated steps, equipment, release anchor alignment and end pose. Blender cue proxies are technical review aids; verify actual engine effects separately. Test variable frame deltas across boundaries, pause/resume, missing/invalid targets, interruption, repeated actors and lifecycle cleanup. Browser/software rendering does not certify physical GPU timing or another engine's native assets.
 
+## Review action phases and boundaries
+
+Use the pre-composition intent from [the sequence contract](sequence-contract.md#state-action-intent-before-composition). Watch the complete delivered sequence at normal speed, then inspect difficult windows more slowly: entry/exit poses, support changes, repetition seams, blends, release and recovery. Accepted source clips do not automatically establish continuity across the new boundaries. Keep actual resolved source/action timing and sampled coverage explicit; follow the shared [comparison and evidence guidance](../../build-model-animations/references/review-and-delivery.md#contact-evidence-and-coverage).
+
+Inspect body motion with effects off and combined readability with effects on through existing review tools. Distinguish Blender cue proxies from actual selected-engine effects. If a tool or retained artifact cannot show an important phase, comparison or effects-off/on view, report the missing coverage; do not substitute a release still or fabricate a capture. Required unavailable evidence leaves the relevant acceptance unproven.
+
+### Casting example
+
+For a planted charge followed by a deliberate weight shift, hand release and recovery, state the intended support intervals and compatible entry/exit poses before composing. The release uses the existing exact hand anchor and cue. Review the charge-to-release blend for unwanted foot drift, the release silhouette and equipment clearance, then release-to-recovery for popping or lost balance. Visible weight/support judgments remain visual evidence. Preserve an intentional exaggerated hold or impact from the style brief.
+
+As a small illustrative variation, consider the same action with bulky shoulder equipment. Declare the visible criterion first: the release hand clears the equipment and remains readable from the intended gameplay camera. Use existing evidence where available, with effects off and on; label hypothetical findings as illustrative. This example authorizes no new generation, geometry or test environment.
+
+Contact or release observations do not confirm a hit, damage or an automatic sound trigger. Gameplay keeps outcome authority, and separately reviewed audio/VFX cues retain their bindings. Preserve the in-place input restriction, one rig owner, shared presentation clock and actual interruption/cleanup checks. Mechanical-assembly animation review remains in its supported upstream workflow.
+
 Keep authoritative movement, collisions, contacts, damage, resource costs, cooldowns and projectile outcomes in gameplay. Presentation events may inform a host integration, but they are not exactly-once authoritative commands. Source/action selection, independent review and human runtime acceptance remain distinct. Evidence binds current model/package/engine hashes and actual runtime-test, runtime-capture and performance-profile artifacts. No automated report manufactures acceptance or permission to promote.
 
 ## THREEJS v2 receiving bridge

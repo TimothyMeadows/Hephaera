@@ -12,6 +12,8 @@ Plan a casting action for this reviewed model: charge at its actual hand anchor,
 
 The agent should explain what is ready and what is missing. A model needs real reviewed clips and anchors. A static display mesh, an empty named clip or a guessed hand position cannot stand in for them. Use model-to-animation first when individual motions are missing.
 
+Describe the preparation, weight shift, release and recovery before composing. Name intended contacts and equipment clearance, and keep deliberate stylized holds in the brief. Review the whole sequence at normal speed, then slow down around blends and release. Where existing tools allow it, inspect body motion with effects off and combined readability with effects on; report missing views. The [casting review example](https://github.com/TimothyMeadows/Hephaera/blob/main/skills/build-model-actions/references/presentation-and-review.md#casting-example) includes a bulky-equipment variation and keeps visual observations separate from measurements.
+
 Use `create-game-vfx` for an effect with its own source files and review history. Use `build-model-actions` when effects must follow an ordered sequence of actual clips. These workflows keep the project's primary visual pipeline and engine selection.
 
 ## Make the simple version first
