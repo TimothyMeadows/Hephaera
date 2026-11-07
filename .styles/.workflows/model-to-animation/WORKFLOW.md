@@ -18,6 +18,8 @@ Execution resources, schemas, recipes and technical contracts belong to the pinn
 - Keep original-image classification facts separate from model-inspection findings. Generated/model renders do not retrospectively establish anatomy or material facts about the original images.
 - For retargeting, select an actual source motion GLB plus explicit target/source clip and bone mapping, rest-axis correction and root translation policy. Read current command help for exact fields. No implicit provider, skeleton convention or backend fallback.
 
+Before authoring or retargeting, record the short task-note [motion-intent brief](../../../skills/build-model-animations/references/motion-profiles.md#state-motion-intent-before-authoring). Use the shared [contact-evidence and comparison guidance](../../../skills/build-model-animations/references/review-and-delivery.md#contact-evidence-and-coverage) for complete normal-speed playback, supplemental slow inspection and honest measurement coverage. These notes add no recipe fields or numerical capabilities.
+
 ## Reviewed mechanical assemblies
 
 For a reviewed SCHEMATIC_TO_MODEL assembly, select the versioned native recipe profile `mechanical-assembly` and pass its exact `--handoff PROJECT_JSON` alongside the selected `--model GLB` during initialization. The handoff binds the sealed package, approved design, physical component inventory, actual rest graph/skins, metadata, provenance, current technical/independent decisions and source-state hashes. The receiving adapter admits that specific read-only package directory and checks its complete inventory; Bubo retains and revalidates every native source expectation. Missing or changed payload, review or current design/parts/assembly/export state invalidates receiving.

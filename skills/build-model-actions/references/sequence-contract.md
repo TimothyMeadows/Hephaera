@@ -4,6 +4,16 @@ Read the actual native command help and workflow schemas before writing recipe d
 
 The source-motion review includes `rights: {"authorized": true, "license": "applicable model and clip terms"}`. Record actual rights to use/modify the model and selected motions. A file copy, tool license or workflow selection does not establish asset rights or accept legal terms for someone else.
 
+## State action intent before composition
+
+In existing task notes, describe the action's purpose, intended camera/scale and preparation, weight transfer, release/contact, follow-through and recovery where applicable. Reference the actual source clips, occurrence IDs, entry/exit expectations, intended support partners and presentation markers. Record equipment clearance, important silhouettes, supported limits, manual review criteria and intentional style choices before evaluating the result. Share the [motion brief](../../build-model-animations/references/motion-profiles.md#state-motion-intent-before-authoring) rather than duplicating it per step or adding recipe fields.
+
+Trimming, accelerating, repeating or blending accepted clips can change support intervals and recovery. Compare source/action phases through the existing compiler's resolved occurrence/marker timing and inspect the actual composite. Source and action seconds are distinct; do not rebuild that mapping in review notes or treat a source contact label as proof of contact after composition. Use the [evidence rules](../../build-model-animations/references/review-and-delivery.md#contact-evidence-and-coverage) for measured, visual, inferred and unavailable claims.
+
+Existing in-place and profile restrictions govern this brief. A requested root policy cannot override them, and the preserve-only `mechanical-assembly` animation handoff does not become an action input.
+
+## Compile the declared sequence
+
 Each source step has a stable ID and explicit source trim, rate, repetition count and incoming blend. Expanded occurrences retain source clip ID/hash and exact source/action times. Bake timing must fit the chosen FPS. Keep overlap within adjacent steps without triple overlap. Empty spans, missing source channels and silently repeated source loops fail.
 
 Cue addresses identify a step occurrence and either an action-clock offset after that occurrence starts or an actual unique source marker. Marker mapping accounts for the trim and rate. Reject absent, duplicated or clipped markers. Fixed target bindings name a world-point input and a distance limit. They do not describe a gameplay target entity or grant targeting authority.
