@@ -16,6 +16,8 @@ Declare every texture colorspace, scene color transform, target render engine, a
 
 Capture neutral-light material spheres or swatches, representative asset views, final-light views, extreme roughness/metal response, texture-missing fallback, and target export comparison. Approval is bound to the material graph and image dependency identities in the scene report.
 
+For repeating materials, obtain the UV/texturing owner's assembled-repeat and mip evidence alongside the selected-target material check. Confirm actual map semantics and importer settings against the declared consumer; a filename cannot establish roughness versus smoothness, normal orientation or packed non-color channels. Apply only the maps the chosen stylized/PBR material actually needs.
+
 ## Constructed surface detail
 
 Identify what must read as silhouette geometry, geometric relief, baked normal detail or roughness/color variation at the target camera. Give bevels and layered plates enough physical scale to produce coherent highlights; do not substitute dark painted seams for required thickness or clearances. Separate metal surfaces from dielectric coatings, transparent covers and emissive interiors rather than force one material family over every part.

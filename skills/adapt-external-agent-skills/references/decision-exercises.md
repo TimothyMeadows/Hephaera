@@ -1,0 +1,11 @@
+# Focused decision exercises for skill changes
+
+Use a small planning-only exercise when a new or substantially changed skill needs evidence that another agent can make its non-obvious decisions. Choose cases that challenge the actual changed behavior, such as a missing prerequisite, exhausted allowance, conflicting reference requirement or misleading artifact metadata. A spelling/link-only correction does not need a simulated workflow, and this practice adds no evaluation service or global test framework.
+
+Before seeing responses, record the claims and canonical evidence that will establish correct handling. Give an independent reviewer a fresh context, the candidate skill and applicable references/contracts, actual available capabilities and a realistic user request. Do not provide expected answers, prior reviewer responses or the author's justification. The assignment requests a proposed workflow and explicit uncertainty; it grants no execution, generation, installation or public-write permission.
+
+Judge the proposed decisions against current contracts and actual tool interfaces, not matching phrases. Check whether the skill preserves task scope, routes to supported owners, honors existing budgets and approvals, and leaves unavailable evidence unresolved. Separate a reviewer mistake from missing or ambiguous instructions by inspecting the relevant guidance. Correct a demonstrated gap narrowly; avoid turning every example into a universal rule.
+
+For a substantive correction, use a fresh case/reviewer context to test the affected decision, retaining failed and superseded evidence. If exact tools or contracts are unavailable, report that limit rather than inventing an interface. A comparison without the changed guidance can be useful when its added value is uncertain; it is not required for every edit.
+
+Keep the task, candidate hashes, supplied context, proposed workflows, evaluator findings and limits in existing task evidence. A paper pass establishes comprehension of the supplied instructions only. Static catalog checks, executable behavior, image/audio quality, native/engine/device testing and human acceptance retain their own evidence and authorization requirements.

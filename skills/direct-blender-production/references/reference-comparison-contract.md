@@ -4,6 +4,8 @@
 
 Use approved, rights-cleared originals as references. Record which properties are requirements under STYLE.md: proportions, silhouette, material family, construction or detail language. Record visible evidence, supported hidden-surface inference and unresolved assumptions separately. A generated view or model render cannot establish a fact about an original in PROOF_TO_MODEL.
 
+When references contribute different properties, use `plan-hybrid-game-assets` to record their permitted influence and the features that must remain unchanged. Check for unintended transfer as well as missing influence; a material or camera reference must not silently replace the subject, dimensions or intentional asymmetry. This planning record creates no additional authoring or image-conditioning capability.
+
 Match projection, viewing direction, framing and subject scale before diagnosing geometry. Record uncertain focal length or perspective as an assumption; do not distort a correct model to fit one uncertain camera. Keep a reproducible neutral-light setup, exposure and color transform alongside the intended final presentation. Compare the same settings and artifact identities between revisions.
 
 ## Work from structure to detail

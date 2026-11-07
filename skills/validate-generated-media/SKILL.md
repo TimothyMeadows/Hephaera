@@ -21,6 +21,8 @@ engines: [AGNOSTIC]
 5. Check rights, consent, provenance, tool and model revisions, workflow digest, parameters, seed and runtime budgets. For LOCAL, compare actual execution/settings and measured cleanup with the request; preserve failed/rejected attempts and confirm shared approval-state/candidate consumption has not reset across tasks or workspace changes. Use Bubo's catalog/API for model identities rather than duplicating pins here.
 6. Record each candidate as accepted or rejected with reasons; promote only accepted, human-reviewed outputs in a separate action.
 
+Use `iterate-art-to-sanity` for image defects within the already authorized allowance; record findings per required item rather than treating an aggregate score as acceptance. For sprites, tiles or layered art, use `create-game-art-sheets` content review and retain its current frame/cell and assembled-layout evidence. Header dimensions, an alpha-capable format or endpoint similarity do not establish transparency, semantic anchors or usable animation. Missing rights/provenance and exhausted budgets remain blockers regardless of visual quality.
+
 ## Output
 
 - A manifest validation result and hash report.

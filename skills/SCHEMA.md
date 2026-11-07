@@ -124,6 +124,10 @@ A skill is valid if:
 
 ---
 
+# Behavioral Review
+
+For a new or substantially changed decision-making workflow, use the focused decision-exercise guidance in `adapt-external-agent-skills` when it would expose a real ambiguity beyond static validation. Keep realistic cases and independent findings in task evidence; paper exercises establish instruction comprehension, not executable or output quality. Trivial wording/format changes need no simulation. Existing catalog checks and applicable code/native tests remain separate.
+
 # Anti-Patterns
 
 Do NOT:

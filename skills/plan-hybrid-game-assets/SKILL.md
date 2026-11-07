@@ -23,6 +23,8 @@ engines: [AGNOSTIC]
 
 When Blender is the selected production lane, use `direct-blender-production` to establish the immutable source, working-copy, backend, checkpoint, inspection, staging, and review contract.
 
+For assets derived from references or an approved visual set, read [reference contributions](references/reference-contributions.md) to record what each source informs, required invariants and conflicts before authoring.
+
 ## Output
 
 - An asset decision matrix and production plan.

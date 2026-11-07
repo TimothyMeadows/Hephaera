@@ -20,6 +20,8 @@ Maintain an explicit table for each delivered image: semantic, source channel, d
 
 ## Evidence
 
+For a surface intended to repeat, inspect both seam axes and corners in a small repeated arrangement at the intended density, then check the delivered material in its selected target. Include tonal bands, directional light baked into color, repetition frequency and smallest shipped mips. A 2-by-2 proof is a useful start, not a universal sufficient sample; edge-pixel differences are diagnostics rather than one global pass threshold. Keep valid stylized and non-power-of-two delivery choices when the actual target supports them.
+
 Deliver density measurements, checker/stretch views, atlas-region ownership, source/cage/bake settings, unpacked and packed identities, mip/alpha samples and selected-target review. Missing shader support, map dependencies or applicable target testing blocks that delivery claim. Existing UV/bake provenance and independent review remain required.
 
 ## Primary references
