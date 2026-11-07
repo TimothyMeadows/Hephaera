@@ -17,6 +17,8 @@ Use when sprites, tiles, props, VFX, UI icons, parallax layers, generated concep
 
 For Blender-authored assets, use `optimize-and-export-blender-assets` to measure and verify the staged export before this handoff records runtime ownership.
 
+For sheets and layered art, carry the current frame/cell-specific content review from `create-game-art-sheets`: explicit order, semantic anchors, alpha/edge evidence, full playback and applicable joined-tile or parallax views. Distinguish header measurements from observed content and leave missing target evidence open. A handoff does not authorize automatic cropping, alignment, mirroring or other repairs.
+
 ## Output
 - concise handoff brief
 - source and runtime asset paths

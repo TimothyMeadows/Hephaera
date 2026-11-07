@@ -19,4 +19,4 @@ Use when generated images contain text or when content-safety constraints must b
 - Safety policy:
   - no nudity
   - no graphic violence
-- Combine with iterative sanity checking until compliant.
+- Use `iterate-art-to-sanity` for defect-specific review within the existing candidate/revision allowance. Failed language or safety checks do not authorize another attempt, a provider switch or automatic acceptance; retain unresolved findings when production must stop.

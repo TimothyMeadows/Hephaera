@@ -15,6 +15,8 @@ Use whenever an art role creates, reviews, or hands off assets for an isometric-
 5. Review gameplay readability: walkable ground, blockers, hazards, doors, stairs, cover, interactables, pickups, objectives, and UI markers.
 6. Require handoff metadata for any asset whose runtime behavior depends on pivots, collision, animation timing, sorting, or map placement.
 
+Review representative joined tiles, transitions, corners and tall props at game scale before extending a set. Exercise the declared camera offsets for layered/parallax work to expose insufficient bleed, doubled scenery, halos or occlusion errors. Use `create-game-art-sheets` for content evidence; a correct footprint or isolated thumbnail cannot establish the assembled result. Missing views stay unavailable rather than being repaired by clipping or a changed projection.
+
 ## Output
 - pass/fail or ready/needs-work summary
 - projection and scale assumptions

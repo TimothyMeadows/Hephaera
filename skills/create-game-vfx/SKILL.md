@@ -30,6 +30,8 @@ For THREEJS, particle production uses the engine-selected `threejs-build-particl
 6. Validate timing against authoritative gameplay events and test cleanup under repeated activation.
 7. Define the effect's clock, cancellation owner, overlap/intensity cap, and expiration under pause, focus loss, scene exit, and prediction correction. Coordinate its layer with camera, sound, HUD, and optional haptics through the gameplay-feedback owner; a visual impact is not a tactile effect.
 
+When reviewing a set of concurrent effects, name the competing cue meanings and which must remain legible. At the declared gameplay camera and concurrency, check whether routine effects obscure the important cue's origin, affected region or timing, including the authored accessibility variants. Use existing complete captures where they cover that case; missing coverage stays open. Record the obstructing layer and correction rather than inventing a universal effect-count threshold, automatic visibility metric or gameplay outcome.
+
 When a staged effect is authored or simulated in Blender, use `simulate-blender-effects` for deterministic solver and cache ownership before this skill defines runtime timing, pooling, and gameplay validation.
 
 Read [vehicle-speed-and-warp.md](references/vehicle-speed-and-warp.md) for motion-package anchors, continuous travel effects, warp phases and cancellation. Use `build-model-animations` for the model/motion package; this skill owns the selected-engine effects and their runtime evidence.

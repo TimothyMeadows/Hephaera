@@ -18,6 +18,8 @@ Use when creating or reviewing tilesets, environment sets, prop sheets, characte
 8. Produce a manifest-ready contract before final art creation so engineering, design, QA, and documentation can validate the same assumptions.
 9. Pair this skill with `prepare-game-art-handoff` when the sheet is ready for runtime integration.
 
+For reference-derived sets, use `plan-hybrid-game-assets` to declare reference contributions and invariant features. Before handoff, read [content review](references/content-review.md) for frame-specific evidence, actual transparency, semantic anchors, loop playback and assembled tile/parallax checks.
+
 ## Sample-Driven Sheet Profile
 When the host repository contains a sample like `assets/sky-knight`, use it as a local style/layout reference after inspection:
 

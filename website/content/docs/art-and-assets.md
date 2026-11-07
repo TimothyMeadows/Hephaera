@@ -51,6 +51,10 @@ Creating missing proofs through CLOUD or LOCAL is a separate generation request 
 
 Keep candidates outside runtime asset folders until review. Check silhouette, materials, topology, scale, performance limits, and the intended game camera. Approval of a picture is not approval of a rig, a motion range, or runtime behavior. Promotion into the project is a separate explicit step for the accepted version.
 
+For a set of assets, say what each reference contributes and what must stay consistent. Review failures item by item, and repair only within the allowance already agreed. If it runs out, keep the findings and remaining work visible rather than retrying until something looks acceptable. These review practices work with existing local tools and do not need a hosted service.
+
+For sprites, check the actual poses, frame order, feet or other contact points, transparency and complete playback. A correctly sized PNG can still contain clipped equipment or unusable motion. Review repeating textures and joined tiles together, and move layered backgrounds through the intended camera range to expose seams or missing scenery. Missing inspection or target evidence stays an open check; review does not authorize automatic cropping, alignment or other repairs.
+
 ## Reuse existing assets safely
 
 External libraries are optional. If `STYLE.md` already configures one and the task needs a 3D asset, inspect it before making a replacement. The source library stays read-only. Copy a selected asset or complete bundle into the repository through the existing copy command before loading or editing it, then check its license and modification rights.

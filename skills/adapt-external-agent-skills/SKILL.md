@@ -21,6 +21,8 @@ engines: [AGNOSTIC]
 5. Place deterministic execution under `commands/`; keep reasoning in `SKILL.md`.
 6. Bind the capability to the narrowest relevant roles and validate the entire catalog.
 
+For guidance that materially changes decisions, use [focused decision exercises](references/decision-exercises.md) to check realistic task handling in a fresh context. Keep ordinary schema/link checks and applicable executable tests; a paper exercise cannot replace them.
+
 ## Output
 
 - A disposition with rationale and affected Hephaera surfaces.

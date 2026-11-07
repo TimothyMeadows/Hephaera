@@ -131,7 +131,7 @@ Curated reusable skills included in Hephaera. Install the baseline at `<project-
 - `prepare-game-art-handoff` - Prepare game art assets for engine/runtime handoff with metadata and validation checks.
 - `create-game-art-sheets` - Plan tilesets, environment sheets, prop atlases, and directional animation sheets.
 - `tcg-art-direction` - Plan original TCG/CCG card frames, board styling, tokens/minions, hand/deck/graveyard zones, VFX, and IP-safe fantasy card-game art direction.
-- `iterate-art-to-sanity` - Iterate generated art until sanity checks pass.
+- `iterate-art-to-sanity` - Review generated art and diagnose permitted repairs within existing candidate/revision allowances.
 - `enforce-art-language-safety` - Enforce language and visual safety constraints for generated art.
 
 ## Engine Features
