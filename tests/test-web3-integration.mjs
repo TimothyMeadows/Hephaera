@@ -85,7 +85,6 @@ for (const [chainId, chainName] of [[1, 'ETHEREUM'], [8453, 'BASE'], [13371, 'IM
       assert.equal(new URL(url).hostname, '127.0.0.1');
       assert.equal(await publicClient.getChainId(), chainId);
       const [admin, minter, seller, buyer] = accounts;
-      const read = (contract, functionName, args = [], extra = {}) => publicClient.readContract({ ...contract, functionName, args, ...extra });
       async function send(contract, functionName, args = [], actor = 0) {
         const transactionHash = await wallets[actor].writeContract({ ...contract, functionName, args });
         const receipt = await publicClient.waitForTransactionReceipt({ hash: transactionHash });
@@ -152,6 +151,22 @@ for (const [chainId, chainName] of [[1, 'ETHEREUM'], [8453, 'BASE'], [13371, 'IM
       // order signature/nonces, fees, royalty payment or exchange protection.
       // Adapter checks below verify this closed fixture's real transfer/payment.
       const amount = '1000000000000';
+      const adapterRpcReads = [];
+      let expectedAdapterHash;
+      const canonicalClient = viem.createPublicClient({ chain: context.chain, transport: viem.custom({
+        async request(request) {
+          if (['eth_call', 'eth_getBalance'].includes(request.method)) {
+            const reference = request.params[1];
+            assert.deepEqual(Object.keys(reference).sort(), ['blockHash', 'requireCanonical']);
+            assert.match(reference.blockHash, /^0x[0-9a-fA-F]{64}$/);
+            assert.equal(reference.blockHash, expectedAdapterHash);
+            assert.equal(reference.requireCanonical, true);
+            adapterRpcReads.push({ method: request.method, blockHash: reference.blockHash });
+          }
+          return publicClient.request(request);
+        },
+      }) });
+      let advanceHeadDuringInspect = true;
       const intent = { chainId: String(chainId), settlement: { adapterId: 'test-only-atomic-sale', version: '1', address: sale.address, runtimeCodeHash: saleCodeHash },
         maker: sellerLogin.address, taker: buyerLogin.address, asset: serial,
         payment: { tokenAddress: viem.zeroAddress, amount, decimals: 18 }, fees: [], expiresAt: nowSeconds() + 150, nonce: '1' };
@@ -163,25 +178,40 @@ for (const [chainId, chainName] of [[1, 'ETHEREUM'], [8453, 'BASE'], [13371, 'IM
           return { orderKey: viem.keccak256(viem.toHex(JSON.stringify(selected))), request: { chainId: selected.chainId,
             to: sale.address, data: viem.encodeFunctionData({ abi: sale.abi, functionName: 'buy721', args: [nft.address, selected.maker, 1n] }), value: selected.payment.amount } };
         },
-        async inspect({ intent: selected }) {
-          const block = await publicClient.getBlock({ blockTag: 'latest' }), at = { blockNumber: block.number };
-          if (!same(await read(nft, 'ownerOf', [1n], at), selected.maker)) return { status: 'filled' };
-          const approved = await read(nft, 'getApproved', [1n], at);
-          if (!same(approved, sale.address) && !await read(nft, 'isApprovedForAll', [selected.maker, sale.address], at)) return { status: 'stale-approval' };
-          await publicClient.simulateContract({ ...sale, functionName: 'buy721', args: [nft.address, selected.maker, 1n],
-            account: selected.taker, value: BigInt(selected.payment.amount), blockNumber: block.number });
+        async inspect({ intent: selected, blockRef }) {
+          assert.equal(blockRef.requireCanonical, true);
+          expectedAdapterHash = blockRef.blockHash;
+          const block = await publicClient.getBlock({ blockHash: blockRef.blockHash });
+          assert.equal(block.hash, blockRef.blockHash);
+          if (advanceHeadDuringInspect) {
+            advanceHeadDuringInspect = false;
+            await publicClient.request({ method: 'evm_mine' });
+            assert.notEqual((await publicClient.getBlock({ blockTag: 'latest' })).hash, blockRef.blockHash);
+          }
+          const at = { ...nft, ...blockRef };
+          if (!same(await canonicalClient.readContract({ ...at, functionName: 'ownerOf', args: [1n] }), selected.maker)) return { status: 'filled' };
+          const approved = await canonicalClient.readContract({ ...at, functionName: 'getApproved', args: [1n] });
+          if (!same(approved, sale.address) && !await canonicalClient.readContract({ ...at, functionName: 'isApprovedForAll', args: [selected.maker, sale.address] })) return { status: 'stale-approval' };
+          await canonicalClient.simulateContract({ ...sale, ...blockRef, functionName: 'buy721', args: [nft.address, selected.maker, 1n],
+            account: selected.taker, value: BigInt(selected.payment.amount) });
           return { status: 'executable', remainingQuantity: '1', checkedAt: nowSeconds(),
             block: { number: block.number.toString(), hash: block.hash }, runtimeCodeHash: saleCodeHash };
         },
-        async interpretReceipt({ intent: selected, receipt }) {
+        async interpretReceipt({ intent: selected, receipt, blockRef }) {
+          assert.equal(blockRef.blockHash, receipt.blockHash); assert.equal(blockRef.requireCanonical, true);
           const transfers = viem.parseEventLogs({ abi: nft.abi, logs: receipt.logs, eventName: 'Transfer' })
             .filter(log => same(log.address, nft.address) && same(log.args.from, selected.maker) && same(log.args.to, selected.taker) && log.args.tokenId === 1n);
-          const block = await publicClient.getBlock({ blockNumber: receipt.blockNumber });
+          const block = await publicClient.getBlock({ blockHash: blockRef.blockHash });
+          assert.equal(block.number, receipt.blockNumber);
+          const parent = await publicClient.getBlock({ blockHash: block.parentHash });
+          assert.equal(parent.number + 1n, block.number);
           // Anvil automines one transaction per block here, so this difference
           // isolates actual native payment to the seller, who pays no sale gas.
           assert.equal(block.transactions.length, 1); assert.equal(block.transactions[0], receipt.transactionHash);
-          const before = await publicClient.getBalance({ address: selected.maker, blockNumber: receipt.blockNumber - 1n });
-          const after = await publicClient.getBalance({ address: selected.maker, blockNumber: receipt.blockNumber });
+          expectedAdapterHash = parent.hash;
+          const before = await canonicalClient.getBalance({ address: selected.maker, blockHash: parent.hash, requireCanonical: true });
+          expectedAdapterHash = blockRef.blockHash;
+          const after = await canonicalClient.getBalance({ address: selected.maker, ...blockRef });
           return transfers.length === 1 && after - before === BigInt(selected.payment.amount)
             ? { status: 'settled', quantity: '1' } : { status: 'unrelated' };
         },
@@ -227,6 +257,9 @@ for (const [chainId, chainName] of [[1, 'ETHEREUM'], [8453, 'BASE'], [13371, 'IM
       // reorg policy; no automatic chain lock/recovery is claimed by the helper.
       assert.equal((await matches.release('buyer-new-match')).released, true);
       assert.ok((await matches.inspect()).some(item => item.matchId === 'seller-active-match'));
+      assert.ok(adapterRpcReads.some(read => read.method === 'eth_call'));
+      assert.ok(adapterRpcReads.filter(read => read.method === 'eth_getBalance').length >= 2);
+      assert.equal(advanceHeadDuringInspect, false, 'preflight retains its supplied hash when latest advances');
       t.diagnostic(JSON.stringify({ evidence: 'local-loopback-Anvil-only', labeledChainId: String(chainId),
         compiler: solc.version(), evmVersion: 'cancun', optimizerRuns: 200, dependencies: fixture.dependencies, lockSha256,
         sourceSha256: Object.fromEntries(Object.entries(sources).map(([name, source]) => [name, sha256(source)])),
