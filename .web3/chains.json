@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "hephaera-web3-chains/v1",
+  "observedDate": "2026-11-08",
+  "chains": {
+    "ETHEREUM": { "chainId": "1", "network": "mainnet", "nativeSymbol": "ETH", "source": "https://ethereum.org/developers/docs/networks/", "constraints": ["Ethereum L1; do not replace with an L2 silently."] },
+    "SEPOLIA": { "chainId": "11155111", "network": "testnet", "nativeSymbol": "ETH", "source": "https://ethereum.org/developers/docs/networks/", "constraints": ["Test assets have no production acceptance."] },
+    "BASE": { "chainId": "8453", "network": "mainnet", "nativeSymbol": "ETH", "source": "https://docs.base.org/get-started/connect-to-base", "constraints": ["L2 inclusion, Ethereum batch finality and withdrawal completion are distinct."] },
+    "BASE_SEPOLIA": { "chainId": "84532", "network": "testnet", "nativeSymbol": "ETH", "source": "https://docs.base.org/get-started/connect-to-base", "constraints": ["Test assets have no production acceptance."] },
+    "IMMUTABLE": { "chainId": "13371", "network": "mainnet", "nativeSymbol": "IMX", "source": "https://docs.immutable.com/docs/products/immutable-chain/overview", "constraints": ["Current single-validator sidechain; OP migration is planned, not delivered proof-backed finality.", "Official Solidity ceiling 0.8.28; Cancun EVM; PREVRANDAO is not a randomness source.", "Verify Immutable-managed operator compatibility; Passport and hosted orderbook are optional services."] },
+    "IMMUTABLE_TESTNET": { "chainId": "13473", "network": "testnet", "nativeSymbol": "tIMX", "source": "https://docs.immutable.com/docs/products/immutable-chain/op-stack-migration", "constraints": ["Deprecated for game usage by end2026; recheck current availability before use.", "Generic local EVM tests do not certify chain finality, bridge or ecosystem approval."] }
+  }
+}

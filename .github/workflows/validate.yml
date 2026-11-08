@@ -17,6 +17,9 @@ jobs:
         with:
           submodules: recursive
           persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24.15.0'
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: 10.0.x
@@ -37,6 +40,12 @@ jobs:
       - name: Explicit pinned postprocessing test dependencies (no package scripts)
         shell: bash
         run: npm ci --ignore-scripts --no-audit --no-fund --prefix tests/fixtures/threejs-postprocessing --cache .local/ci-npm-cache
+      - name: Explicit pinned Web3 local test tools (no package scripts)
+        shell: bash
+        run: npm ci --ignore-scripts --no-audit --no-fund --prefix tests/fixtures/web3 --cache .local/ci-npm-cache
+      - name: Web3 policy, signatures and disposable local EVM examples
+        shell: bash
+        run: node --test tests/test-web3-policy.cjs tests/test-web3-contracts.mjs tests/test-web3-wallets.mjs tests/test-web3-ownership.mjs tests/test-web3-trading.mjs tests/test-web3-integration.mjs
       - name: Host policy, clone/submodule installations and admission
         shell: bash
         run: |

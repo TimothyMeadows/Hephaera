@@ -1,0 +1,4 @@
+interface:
+  display_name: "Integrate Game Wallets"
+  short_description: "Connect wallets and verify scoped game authentication"
+  default_prompt: "Use $integrate-game-wallets to integrate explicit player-wallet connection, scoped SIWE authentication and target-specific lifecycle verification."

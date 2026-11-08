@@ -68,6 +68,7 @@ Each game project installs Hephaera in `.hephaera/`. Durable project memory, tas
   - [Native Web-Game Packaging](#native-web-game-packaging)
   - [Three.js Particles](#threejs-particles)
   - [Three.js Postprocessing](#threejs-postprocessing)
+  - [Web3 Game Assets](#web3-game-assets)
   - [Roles](#roles)
   - [Role, Skill, and Command Bindings](#role-skill-and-command-bindings)
   - [Skills](#skills)
@@ -684,6 +685,7 @@ Hephaera uses concise host-level contracts so agents do not have to rediscover f
 | Contract | Host file | Template source | Purpose |
 | --- | --- | --- | --- |
 | Game engine | `ENGINE.md` | `.engine/` | One game engine, engine-owned languages, prerequisites, and compatible capabilities |
+| Web3 game assets | Optional `WEB3.md` and `web3-game.json` | `.web3/` | Opt-in chain-owned assets, scoped wallet/ownership/trading workflows and separate target evidence |
 | Native web-game packaging | `web-game-package.json` after explicit initialization | `.packaging/maui/` | Engine-selected MAUI host, versioned web snapshot and explicit native build/package |
 | Architecture | `ARCHITECTURE.md` | `.architecture/` | Technology, boundaries, data, deployment, and engineering conventions |
 | Visual style and art pipeline | `STYLE.md` | `.styles/*.md`, `.styles/.pipelines/` | Visual language plus one primary production path and supported alternatives |
@@ -822,6 +824,16 @@ bash .hephaera/commands/threejs-postprocessing.sh scaffold --output src/engine/p
 The tested stack uses Three0.182.0/postprocessing6.39.5. The starter uses LDR byte targets and FXAA with explicit size, lifecycle and resource ownership. Selection installs nothing. HDR/heavier effects require reviewed host integration and target checks. MAUI WebViews can support WebGL2, but actual packaged GPU/color/performance acceptance remains device-specific and unverified by source/CPU tests. Ray tracing and path tracing are deferred to prioritize device coverage.
 
 
+## Web3 Game Assets
+
+Opt into Ethereum mainnet, Base or current Immutable Chain when the game needs chain-owned assets. Six focused skills cover asset planning, contract authoring, player wallets, canonical ownership, asset trading and lifecycle verification. They preserve the selected engine, visual/audio pipelines and Bubo responsibilities; choosing Three.js never enables Web3 automatically.
+
+For a trading card game, separate wallet login, actual card ownership and permission to enter a match. Use unique ERC721 instances or quantity-aware ERC1155 editions, declare what a sale during a match means, and use a reviewed atomic settlement protocol for trades. A server reservation cannot stop an external transfer, and a typed signature is not replay protection by itself.
+
+`web3-game.sh` inspects/validates local policy and explicitly initializes fresh `WEB3.md`/`web3-game.json` from a reviewed spec. It connects no wallet, imports/installs no SDK and contacts/signs/submits nothing. Reusable helpers and locally tested contract examples support host-owned integration; actual SDK, chain, wallet/device, audit and store readiness remain separate. Immutable has operator/service/migration constraints, MAUI requires explicit wallet handoff, and Apple/Steam distribution rules can conflict with playable NFTs.
+
+Read [Web3 game support](docs/WEB3_GAME_SUPPORT.md), the [practical guide](https://hephaera.com/docs/web3-game-assets/) and [detailed wiki source](wiki/Web3-Game-Assets.md). An older package pin needs a reviewed source/version update containing this feature; no new package release is implied here.
+
 ## Roles
 
 Roles are optional named perspectives. Use one when you want a specific specialist lens, not because Hephaera requires a role to work.
@@ -932,6 +944,7 @@ $design-game-systems
 | Generative media | `plan-generative-media-pipeline`, `use-bubo-local-generation`, `produce-generative-audio`, `validate-generated-media` | Plan, generate, stage, review, and validate selected image/audio production |
 | Three.js particles | `threejs-build-particles` | Integrate the default Quarks backend with bounded effects and lifecycle ownership |
 | Three.js postprocessing | `threejs-build-postprocessing` | Integrate bounded WebGL2 screen effects with target capability checks |
+| Web3 game assets | `plan-web3-game-assets`, `build-evm-game-contracts`, `integrate-game-wallets`, `verify-onchain-game-assets`, `integrate-game-asset-trading`, `verify-web3-game-lifecycle` | Plan and verify opt-in chain assets without implicit services/signing |
 | Native web-game packaging | `package-web-games` | Prepare four-platform MAUI packages and release evidence |
 | Sound effects and ambience | `build-audio-assets` | Run the independent AUDIO lifecycle, including complete listening and loop review |
 | Instrumental and songs | `build-music-assets` | Run MUSIC with exact supplied lyrics/rights and full-track review |
@@ -976,6 +989,7 @@ Or run the command directly:
 | Historical state transition | `state-transition.sh` |
 | Three.js particles | `threejs-particles.sh` |
 | Three.js postprocessing | `threejs-postprocessing.sh` |
+| Web3 game policy | `web3-game.sh` |
 | Native web-game packaging | `web-game-package.sh` |
 | Engine selection and compatibility | `generate-engine.sh`, `validate-engine-contract.sh`, `resolve-engine.sh`, `resolve-skill.sh`, `resolve-role-capabilities.sh`, `validate-engines.sh` |
 | Gameplay design, UI, and feedback | `print-gameplay-system-brief.sh`, `validate-gameplay-review.sh` |

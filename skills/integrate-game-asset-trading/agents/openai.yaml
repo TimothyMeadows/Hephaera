@@ -1,0 +1,4 @@
+interface:
+  display_name: "Integrate Game Asset Trading"
+  short_description: "Prepare exact trades and reconcile uncertain settlement"
+  default_prompt: "Use $integrate-game-asset-trading to integrate the explicitly selected settlement protocol with exact unsigned terms, scoped authorization and idempotent canonical reconciliation."
