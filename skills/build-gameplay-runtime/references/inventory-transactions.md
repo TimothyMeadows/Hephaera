@@ -48,3 +48,7 @@ Make retries idempotent. A repeated transaction ID must return the prior result 
 - Simulate failure at each commit boundary and prove no-loss rollback.
 - Round-trip saves and compare canonical state, not UI order.
 - Play through pickup, equip, consume, craft, death, reload, and scene transition with presentation disabled to prove state ownership is independent.
+
+## Explicitly selected chain-owned inventory
+
+Use `verify-onchain-game-assets` and `integrate-game-asset-trading` when Web3 is selected. Bind exact chain/collection/token/quantity and canonical code/block/freshness evidence before admission. RPC failure, stale projections and unknown transaction outcomes are not inventory truth. Keep durable reconciliation and reservations with the authoritative host, not render nodes or a single-process helper. A snapshot license does not prevent external sale; strict exclusivity needs a separately reviewed contract lock/escrow. Token ownership never replaces content rights or gameplay rules.

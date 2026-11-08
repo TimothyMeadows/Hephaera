@@ -1,0 +1,4 @@
+interface:
+  display_name: "Build EVM Game Contracts"
+  short_description: "Author bounded EVM game assets with local proof"
+  default_prompt: "Use $build-evm-game-contracts to prepare and locally verify a pinned game collection candidate with explicit supply and authority rules."

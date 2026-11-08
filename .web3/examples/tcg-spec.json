@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "hephaera-web3/v1",
+  "chains": ["ETHEREUM", "BASE", "IMMUTABLE"],
+  "origin": "https://game.example",
+  "matchPolicy": "snapshot-license",
+  "ownership": {
+    "maxAgeSeconds": 60,
+    "blockTag": "finalized",
+    "rpcEnvironment": {
+      "ETHEREUM": "GAME_ETH_RPC_URL",
+      "BASE": "GAME_BASE_RPC_URL",
+      "IMMUTABLE": "GAME_IMX_RPC_URL"
+    }
+  },
+  "walletKinds": ["eoa", "erc1271", "erc6492", "eip7702"],
+  "collections": [],
+  "services": [],
+  "distribution": { "channel": "web", "nftUnlocksGameplay": true }
+}

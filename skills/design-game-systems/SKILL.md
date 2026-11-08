@@ -22,6 +22,8 @@ engines: [AGNOSTIC]
 6. Playtest representative new and experienced players, record observed choices and reasons, compare alternative explanations, and revise the smallest relevant rule. Preserve rejected hypotheses and changes so a later metric does not erase contradictory evidence.
 7. For implementation, resolve the project engine and select a compatible feature skill with `resolve-skill.sh`. This agnostic design workflow neither selects an engine nor supplies its APIs.
 
+For explicitly selected chain-owned assets, use `plan-web3-game-assets` to separate wallet control, ownership and game eligibility. Declare mid-match transfer and scarcity/quantity rules; neither token prices nor a supply spreadsheet establishes game balance.
+
 ## Output
 
 - A rules specification with loop diagram or concise flow, decisions, state transitions, resources, failure/recovery, and tunable ranges.

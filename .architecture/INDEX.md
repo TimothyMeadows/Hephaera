@@ -24,6 +24,7 @@ Available templates in this Hephaera baseline:
 - PYTHON
 - PLAYWRIGHT
 - SIGNALR_WEBSOCKETS
+- SOLIDITY
 - SPA
 - SQLITE
 - TERRAFORM

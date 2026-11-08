@@ -1,0 +1,4 @@
+interface:
+  display_name: "Plan Web3 Game Assets"
+  short_description: "Plan chain-owned assets and gameplay eligibility"
+  default_prompt: "Use $plan-web3-game-assets to define the selected game chains, asset lifecycle, ownership rules and review boundaries."

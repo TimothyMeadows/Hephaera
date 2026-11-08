@@ -23,6 +23,7 @@
 - [VFX and action v2](VFX-and-Action-v2)
 - [Web-game packaging](Web-Game-Packaging)
 - [Three.js extensions](Threejs-Extensions)
+- [Web3 game assets](Web3-Game-Assets)
 
 **Operations**
 

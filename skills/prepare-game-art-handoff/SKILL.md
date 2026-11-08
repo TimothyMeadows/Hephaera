@@ -19,6 +19,8 @@ For Blender-authored assets, use `optimize-and-export-blender-assets` to measure
 
 For sheets and layered art, carry the current frame/cell-specific content review from `create-game-art-sheets`: explicit order, semantic anchors, alpha/edge evidence, full playback and applicable joined-tile or parallax views. Distinguish header measurements from observed content and leave missing target evidence open. A handoff does not authorize automatic cropping, alignment, mirroring or other repairs.
 
+For explicitly selected tokenized assets, bind the approved content/catalog version and source rights to the exact token metadata manifest through `plan-web3-game-assets`. Minting is not runtime promotion, ownership does not transfer copyright automatically, and remote metadata cannot replace asset review or the authoritative game rules.
+
 ## Output
 - concise handoff brief
 - source and runtime asset paths

@@ -30,6 +30,7 @@ Select security patch `5.2.1` after confirming publication; it retains floor-pla
 | [Animation and actions](Animation-and-Actions) | Model readiness, real clips, action composition and presentation ownership |
 | [VFX and action v2](VFX-and-Action-v2) | Reusable layered effects, exact action timing, shared Scene ownership and receiving evidence |
 | [Web-game packaging](Web-Game-Packaging) | MAUI hosts and explicit Windows, macOS, Android and iOS packages |
+| [Web3 game assets](Web3-Game-Assets) | Opt-in Ethereum/Base/Immutable skills, contracts, wallets, ownership/trading and actual target evidence |
 | [Three.js extensions](Threejs-Extensions) | Quarks particles and pmndrs postprocessing without changing the host renderer |
 
 ## Operate and maintain

@@ -708,12 +708,19 @@ Skills:
 - `unity-integrate-voice-chat`
 - `unity-integrate-purchases`
 - `unity-integrate-ads`
+- `plan-web3-game-assets`
+- `build-evm-game-contracts`
+- `integrate-game-wallets`
+- `verify-onchain-game-assets`
+- `integrate-game-asset-trading`
+- `verify-web3-game-lifecycle`
 
 Commands:
 
 - `commands/generate-architecture.sh`
 - `commands/dotnet-build.sh`
 - `commands/dotnet-test.sh`
+- `commands/web3-game.sh`
 
 ### computer-science/code-migrator
 
@@ -842,6 +849,8 @@ Skills:
 - `unity-optimize-web`
 - `threejs-build-particles`
 - `threejs-build-postprocessing`
+- `integrate-game-wallets`
+- `integrate-game-asset-trading`
 
 Commands:
 
@@ -867,6 +876,7 @@ Commands:
 - `commands/validate-svg-assets.sh`
 - `commands/threejs-particles.sh`
 - `commands/threejs-postprocessing.sh`
+- `commands/web3-game.sh`
 
 ### computer-science/fullstack-engineer
 
@@ -878,6 +888,12 @@ Skills:
 - `solution-build`
 - `test-dotnet`
 - `verify-and-explain`
+- `plan-web3-game-assets`
+- `build-evm-game-contracts`
+- `integrate-game-wallets`
+- `verify-onchain-game-assets`
+- `integrate-game-asset-trading`
+- `verify-web3-game-lifecycle`
 
 Commands:
 
@@ -886,6 +902,7 @@ Commands:
 - `commands/web-performance-report.sh`
 - `commands/dotnet-build.sh`
 - `commands/dotnet-test.sh`
+- `commands/web3-game.sh`
 
 ### computer-science/game-designer
 
@@ -899,6 +916,7 @@ Skills:
 - `review-isometric-production`
 - `design-game-systems`
 - `build-game-ui`
+- `plan-web3-game-assets`
 
 Commands:
 
@@ -908,6 +926,7 @@ Commands:
 - `commands/record-code-character-gate.sh`
 - `commands/validate-style-contract.sh`
 - `commands/print-isometric-production-checklist.sh`
+- `commands/web3-game.sh`
 
 ### computer-science/gameplay-engineer
 
@@ -1001,6 +1020,12 @@ Skills:
 - `unity-integrate-ads`
 - `threejs-build-particles`
 - `threejs-build-postprocessing`
+- `plan-web3-game-assets`
+- `build-evm-game-contracts`
+- `integrate-game-wallets`
+- `verify-onchain-game-assets`
+- `integrate-game-asset-trading`
+- `verify-web3-game-lifecycle`
 
 Commands:
 
@@ -1023,6 +1048,7 @@ Commands:
 - `commands/web-performance-report.sh`
 - `commands/threejs-particles.sh`
 - `commands/threejs-postprocessing.sh`
+- `commands/web3-game.sh`
 
 ### computer-science/generative-media-pipeline-engineer
 
@@ -1156,6 +1182,8 @@ Skills:
 - `unity-run-tooling`
 - `unreal-run-tooling`
 - `godot-run-tooling`
+- `verify-web3-game-lifecycle`
+- `verify-onchain-game-assets`
 
 Commands:
 
@@ -1177,6 +1205,7 @@ Commands:
 - `commands/dotnet-test.sh`
 - `commands/comment-pr-qa-results.sh`
 - `commands/comment-issue-test-results.sh`
+- `commands/web3-game.sh`
 
 ### computer-science/rapid-prototyper
 
@@ -1217,6 +1246,12 @@ Skills:
 - `unity-integrate-voice-chat`
 - `unity-integrate-purchases`
 - `unity-integrate-ads`
+- `plan-web3-game-assets`
+- `build-evm-game-contracts`
+- `integrate-game-wallets`
+- `verify-onchain-game-assets`
+- `integrate-game-asset-trading`
+- `verify-web3-game-lifecycle`
 
 Commands:
 
@@ -1228,6 +1263,7 @@ Commands:
 - `commands/stackhawk-scan.sh`
 - `commands/security-scan.sh`
 - `commands/dependency-check.sh`
+- `commands/web3-game.sh`
 
 ### computer-science/senior-developer
 
@@ -1241,6 +1277,12 @@ Skills:
 - `format-dotnet`
 - `verify-and-explain`
 - `audit-untrusted-agent-source`
+- `plan-web3-game-assets`
+- `build-evm-game-contracts`
+- `integrate-game-wallets`
+- `verify-onchain-game-assets`
+- `integrate-game-asset-trading`
+- `verify-web3-game-lifecycle`
 
 Commands:
 
@@ -1254,6 +1296,7 @@ Commands:
 - `commands/dotnet-test.sh`
 - `commands/dotnet-format.sh`
 - `commands/audit-agent-source.sh`
+- `commands/web3-game.sh`
 
 ### computer-science/software-architect
 
@@ -1263,6 +1306,12 @@ Skills:
 - `verify-and-explain`
 - `audit-untrusted-agent-source`
 - `profile-application-performance`
+- `plan-web3-game-assets`
+- `build-evm-game-contracts`
+- `integrate-game-wallets`
+- `verify-onchain-game-assets`
+- `integrate-game-asset-trading`
+- `verify-web3-game-lifecycle`
 
 Commands:
 
@@ -1270,6 +1319,7 @@ Commands:
 - `commands/audit-agent-source.sh`
 - `commands/web-performance-report.sh`
 - `commands/validate-hephaera.sh`
+- `commands/web3-game.sh`
 
 ### computer-science/sre
 

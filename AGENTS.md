@@ -104,6 +104,14 @@ THREEJS automatically selects pmndrs `postprocessing` for new screen effects via
 
 The Three.js CODE art pipeline requires THREEJS. Selecting Unity or another engine never reinterprets CODE, changes STYLE.md or installs Three.js. Use a compatible workflow explicitly. Shared handoff commands consume the engine resolver; a legacy engine argument asserts the resolved selection rather than creating another selection mechanism.
 
+## Optional Web3 game assets
+
+Web3 is opt-in through host `WEB3.md` and `web3-game.json`; read them and `./.web3/CONTRACT.md` only for relevant chain-owned game asset work. Use `plan-web3-game-assets`, `build-evm-game-contracts`, `integrate-game-wallets`, `verify-onchain-game-assets`, `integrate-game-asset-trading` and `verify-web3-game-lifecycle`. Resolve skills/engine owners normally. Ethereum mainnet, Base and current Immutable have distinct chain, finality, compiler, wallet/operator and service requirements; refresh the dated registry before production. Retired Immutable X is not the current EVM target.
+
+`./commands/web3-game.sh` performs strict local policy/identity inspection and explicit fresh initialization only. It installs nothing, contacts no chain and signs/broadcasts nothing. Shared `.web3/runtime` helpers accept explicit trusted host ports; game code owns actual SDK, RPC, signing transport, durable indexer/storage and selected settlement protocol. In-memory reservations do not lock external transfers; snapshot licensing is not strict escrow. Wallet login, on-chain ownership, game eligibility, content license and human acceptance remain separate. Keep large IDs/quantities as integers and reconcile uncertain effects before retrying.
+
+Web3 selection changes no engine, architecture, visual/media pipeline or Bubo dependency. It grants no wallet/signing/deployment/payment, hosted account, asset promotion or release permission. Preserve MAUI navigation boundaries; narrow return-state utilities do not certify a native wallet transport. Actual chain/device and distribution eligibility require their own evidence; current Apple NFT-functionality and Steam NFT-exchange restrictions can conflict with the game. Read `./docs/WEB3_GAME_SUPPORT.md`.
+
 ## Art style and pipeline workflow
 The canonical visual contract for the host repository is:
 

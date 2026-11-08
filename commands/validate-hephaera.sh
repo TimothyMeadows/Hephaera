@@ -55,6 +55,7 @@ node ./tests/test-threejs-postprocessing.cjs
 node ./tests/test-threejs-postprocessing-runtime.mjs
 node ./tests/test-web-game-packaging.cjs
 node ./tests/test-web-game-package-transactions.cjs
+node --test ./tests/test-web3-policy.cjs ./tests/test-web3-contracts.mjs ./tests/test-web3-wallets.mjs ./tests/test-web3-ownership.mjs ./tests/test-web3-trading.mjs ./tests/test-web3-integration.mjs
 ./tests/test-unreal-capabilities.sh
 ./tests/test-unity-capabilities.sh
 ./tests/test-unity-service-contracts.sh

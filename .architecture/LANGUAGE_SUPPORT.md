@@ -38,6 +38,7 @@ For implementation work, prefer this order unless the role cannot reasonably use
 | KUBERNETES | YAML |
 | HELM | YAML, Go templates |
 | GITHUB_ACTIONS | YAML |
+| SOLIDITY | Solidity for explicitly selected EVM game contracts; host SDK/backend code keeps its own template |
 | MARKDOWN | GitHub-flavored Markdown |
 
 ## Enforcement Rules

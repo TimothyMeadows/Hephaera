@@ -1,0 +1,4 @@
+interface:
+  display_name: "Verify Web3 Game Lifecycle"
+  short_description: "Check Web3 contracts, ownership, trades and targets"
+  default_prompt: "Use $verify-web3-game-lifecycle to review the exact game Web3 integration, adversarial evidence and remaining target requirements."

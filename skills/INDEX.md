@@ -48,6 +48,15 @@ Curated reusable skills included in Hephaera. Install the baseline at `<project-
 - `generate-architecture` - Generate `ARCHITECTURE.md` from selected templates.
 - `generate-style` - Generate `STYLE.md` from selected art styles plus a primary art pipeline and allowed alternatives.
 
+## Web3 Game Assets
+
+- `plan-web3-game-assets` - Define opt-in chain-owned assets, supply, rights, custody, game eligibility and explicit chain/service dependencies.
+- `build-evm-game-contracts` - Author selected ERC721/ERC1155 contracts with reviewed libraries, explicit compiler/EVM and meaningful local properties.
+- `integrate-game-wallets` - Integrate selected player wallets, scoped authentication, changing authority and constrained native-return protocols.
+- `verify-onchain-game-assets` - Verify chain-scoped ownership and quantities, then apply explicit game admission and reorg/recovery rules.
+- `integrate-game-asset-trading` - Prepare exact unsigned asset/payment intent and reconcile a selected settlement adapter without implicit signing.
+- `verify-web3-game-lifecycle` - Collect independent contract, wallet, ownership, trading, target and release evidence with honest unverified prerequisites.
+
 ## Data Platforms
 
 - `install-database-cli-tools` - Install or preview install commands for CLI clients across supported database engines.

@@ -21,3 +21,5 @@ Read `docs/WEB_GAME_PACKAGING.md` and `.packaging/maui/PACKAGING.md` from the sh
 ## Output
 
 Return the exact package/run receipt, source/configuration identity, checks performed and unavailable native/device/store evidence. Preserve the local durable state; do not call source fixtures a native release pass. Linux/TV are unsupported; Wine/Proton compatibility remains unverified.
+
+For an explicitly configured Web3 game, use `integrate-game-wallets` and `verify-web3-game-lifecycle` for the selected native wallet transport and target evidence. Keep the existing popup/navigation restrictions; return-state validation is not an arbitrary JavaScript-to-native bridge or proof that external wallet launch works. Review actual NFT/payment distribution rules before promising a store release.

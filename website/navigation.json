@@ -9,5 +9,6 @@
   { "slug": "schematic-to-model", "file": "schematic-to-model.md", "title": "Schematics to assembled models", "summary": "Approve a complete mechanical design, build separate parts and review their assembled movement." },
   { "slug": "game-effects-and-actions", "file": "game-effects-and-actions.md", "title": "Game effects and model actions", "summary": "Build reusable effects, time them to real clips and review the complete action." },
   { "slug": "audio-music-voice", "file": "audio-music-voice.md", "title": "Audio, music and voice", "summary": "Find the right workflow for the sound your game needs." },
+  {"slug": "web3-game-assets", "file": "web3-game-assets.md", "title": "Chain-owned game assets", "summary": "Plan Ethereum, Base and Immutable assets, prove ownership and review wallet and trading boundaries."},
   { "slug": "delivery-and-troubleshooting", "file": "delivery-and-troubleshooting.md", "title": "Review, deliver and troubleshoot", "summary": "Check the result, prepare delivery and handle missing tools." }
 ]

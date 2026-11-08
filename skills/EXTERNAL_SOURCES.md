@@ -142,6 +142,14 @@ This ledger records Hephaera's disposition of each selected capability idea. It 
 | CA-124 | consolidate | Genre and mood checklists | Existing STYLE.md translation and art-direction owners; no duplicate style skills |
 | CA-125 | reject | Mutable bridge installers, broad code execution and screenshot-only acceptance | Existing tool discovery, exact-script validation and independent/human review remain authoritative |
 
+| CA-126 | create | Opt-in chain-owned game asset planning and strict local policy | `plan-web3-game-assets`, `web3-game.sh` and independent Web3 contract |
+| CA-127 | create | Host-owned EVM collection authoring and local invariants | `build-evm-game-contracts`, explicit Solidity template and original library-based examples |
+| CA-128 | create | Scoped player authentication and wallet lifecycle | `integrate-game-wallets` with explicit trusted verification/transport ports |
+| CA-129 | create | Canonical ownership and game entitlement | `verify-onchain-game-assets` with hash-bound reads, quantity admission and explicit host durability |
+| CA-130 | create | Exact unsigned trading and uncertain-effect reconciliation | `integrate-game-asset-trading`; actual settlement protocol remains host-selected |
+| CA-131 | create | Distinct contract/backend/wallet/game/target evidence | `verify-web3-game-lifecycle`; local tests never imply public-chain or store certification |
+| CA-132 | reject | Autonomous account/delegation/spending, mandatory hosted products and copied skill payloads | No inherited external authority; SDK/library dependencies are separately pinned and explicitly installed |
+
 ## Adaptation boundary
 
 - Hephaera guidance is independently authored from capability intent. Distinctive external wording is not retained.

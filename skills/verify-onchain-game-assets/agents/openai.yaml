@@ -1,0 +1,4 @@
+interface:
+  display_name: "Verify On-chain Game Assets"
+  short_description: "Verify canonical asset quantities and match admission"
+  default_prompt: "Use $verify-onchain-game-assets to verify exact registered asset ownership, inventory recovery and quantity-aware match admission with explicit trust and freshness evidence."
