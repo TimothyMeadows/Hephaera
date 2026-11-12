@@ -39,7 +39,7 @@ async function main() {
     assert.equal(report.transport, 'native browser HTTP on my.hephaera.com bound to 127.0.0.1'); assert.equal(report.metrics.largeHistoryCheck, true); assert.ok(report.metrics.liveUpdateMs < 1000);
     const evidence = '.hephaera/.cache/tasks/session-visualizer/evidence/performance-' + runId;
     store.directory(REPO, evidence);
-    for (const name of ['report.json', 'desktop.png', 'mobile.png', 'structure.png', 'task-details.png']) fs.copyFileSync(store.safe(root, resultInfo.evidence + '/' + name, 'file'), store.safe(REPO, evidence + '/' + name, 'file'), fs.constants.COPYFILE_EXCL);
+    for (const name of ['report.json', 'desktop.png', 'mobile.png', 'structure.png', 'task-details.png', 'goal-progress.png', 'goal-progress-mobile.png']) fs.copyFileSync(store.safe(root, resultInfo.evidence + '/' + name, 'file'), store.safe(REPO, evidence + '/' + name, 'file'), fs.constants.COPYFILE_EXCL);
     console.log(JSON.stringify({ status: 'passed', metrics: report.metrics, evidence, fixture: relative }));
   } finally {
     await service.close(); store.end(root, session.id);

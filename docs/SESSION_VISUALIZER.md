@@ -40,6 +40,30 @@ On Git Bash/MSYS, the bridge keeps path arguments and environment values intact 
 
 ## Conversational reports and coverage
 
+### Goal task progress
+
+Active Goals have a gold progress bar showing completed tasks, percentage, remaining tasks and total tasks. The total comes from the explicitly linked Goal's canonical Task Queue, including tasks that have not started. A successful checkpoint or command does not advance it. Zero queued tasks stays explicitly empty;100% does not finish the Goal report automatically. Multiple active Goals have separate bars, and missing/unlinked/ambiguous queues show progress unavailable without an invented denominator.
+
+When Goal mode is actually active, report its real identity:
+
+```bash
+bash .hephaera/commands/session-visualizer.sh emit --session UUID --category goal --mode goal --goal movement-goal --label "Deliver movement controls" --action started
+# Retain the returned activity UUID and include the same --goal on updates.
+bash .hephaera/commands/session-visualizer.sh emit --session UUID --activity ACTIVITY_UUID --category goal --mode goal --goal movement-goal --label "Deliver movement controls" --action finished --status succeeded
+```
+
+This links only `.hephaera/.cache/goals/movement-goal/GOAL.md`. Existing Goal reports without an ID can be linked by updating that same activity with `--goal`; no historical counts are backfilled. Creating a Goal file alone does not activate Goal mode or its progress panel.
+
+The optional recorder reads at most128KiB and counts at most2000 top-level numbered/bulleted task checkboxes in exactly one `## Task Queue` section. Nested substeps, other sections, comments and fenced examples do not count. Duplicate tasks, malformed checkbox rows and scaffold placeholders make counts unavailable. Only counts, canonical reference and source hash are recorded as version3 events; task names, full Goal prose and other source contents are not served. Versions1/2 remain readable, including version2 task context.
+
+While a live session stream is caught up, the server checks only explicitly linked active Goal queues, at most every500ms. It records changed counts or availability as command-observed **queue snapshots**, without attributing those edits to the session, changing Goal/task state, or certifying task QA. Snapshots use a stable child activity across refresh, multiple viewers and server restart. Monitoring is bounded to16 linked Goals per session and32 recently viewed sessions; older/unviewed sessions retain their last recorded snapshots. Closed browsers do not record every intermediate queue state. Reopening records the then-current queue, and replay always uses the original recorded counts without reading today's Goal file.
+
+The native progress element has a text equivalent and an accessible value; Goal titles support keyboard selection. Static progress bars respect reduced motion. Normal task sessions without an active Goal have no Goal progress panel.
+
+![Synthetic Goal task progress](images/session-visualizer/goal-progress.png)
+
+[Mobile Goal progress](images/session-visualizer/goal-progress-mobile.png). These examples use synthetic task queues, not private project content.
+
 ### Task names, purpose and operation details
 
 The current/recent-work panel shows actual task titles, concise purposes and the latest recorded operation. Task-linked canvas cards, timeline rows, accessible list entries and selected details show the same information. An explicit task report can say the task completed; a successful checkpoint or command describes that operation's result. Running task reports remain running when a checkpoint succeeds.

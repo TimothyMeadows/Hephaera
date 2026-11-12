@@ -19,6 +19,8 @@ let producerSequence = 0, warned = false;
 const context = new AsyncLocalStorage();
 let taskContextCapture;
 try { taskContextCapture = require('./session-task-context.cjs').capture; } catch { /* Optional enrichment; base observation remains usable. */ }
+let goalProgressHelper;
+try { goalProgressHelper = require('./session-goal-progress.cjs'); } catch { /* Optional progress metadata. */ }
 const fail = message => { throw new Error(message); };
 const native = value => process.platform === 'win32' ? value.replace(/^\/(?:mnt\/)?([a-zA-Z])\//, (_, d) => d.toUpperCase() + ':/') : value;
 function rootPath(value) {
@@ -151,10 +153,13 @@ function createSession(root, { sessionId = crypto.randomUUID(), host = 'other', 
     return value;
   });
 }
+function goalProgress(root, goal) {
+  try { return goalProgressHelper?.capture(root, goal, { readText }); } catch { return undefined; }
+}
 function validateEvent(root, event) {
-  const keys = ['schemaVersion','id','sessionId','sequence','producerId','producerSequence','at','activityId','parentId','phase','category','action','status','source','label','owner','role','skill','task','mode','operation','blocker','durationMs','exitCode','evidence','taskContext'];
-  if (!event || Object.keys(event).some(k => !keys.includes(k)) || ![1,2].includes(event.schemaVersion)) fail('Invalid activity event.');
-  if (event.schemaVersion === 2) {
+  const keys = ['schemaVersion','id','sessionId','sequence','producerId','producerSequence','at','activityId','parentId','phase','category','action','status','source','label','owner','role','skill','task','mode','operation','blocker','durationMs','exitCode','evidence','taskContext','goal','goalProgress'];
+  if (!event || Object.keys(event).some(k => !keys.includes(k)) || ![1,2,3].includes(event.schemaVersion)) fail('Invalid activity event.');
+  if (event.schemaVersion === 2 || event.schemaVersion === 3 && event.taskContext !== undefined) {
     const value = event.taskContext;
     if (!value || Object.keys(value).some(k => !['schemaVersion','taskId','title','summary','reference','sha256'].includes(k)) || value.schemaVersion !== 1
       || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,119}$/.test(value.taskId || '') || value.taskId !== event.task
@@ -162,7 +167,17 @@ function validateEvent(root, event) {
     label(value.title); if (value.summary !== undefined) label(value.summary, 320);
     // A recorded snapshot stays readable after its source changes or disappears.
     // Its reference is display-only; never reopen the task during replay.
-  } else if (event.taskContext !== undefined) fail('Task context requires a version2 event.');
+  } else if (event.taskContext !== undefined) fail('Task context requires a version2 or version3 event.');
+  if (event.schemaVersion === 3) {
+    if (typeof event.goal !== 'string' || event.goal.length > 120 || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(event.goal)) fail('Invalid Goal identity.');
+    if (event.goalProgress !== undefined) {
+      const value = event.goalProgress;
+      if (!value || value.schemaVersion !== 1 || value.goalId !== event.goal || value.reference !== '.hephaera/.cache/goals/' + event.goal + '/GOAL.md'
+        || typeof value.available !== 'boolean' || Object.keys(value).some(k => !['schemaVersion','goalId','reference','available','total','completed','sha256'].includes(k))) fail('Invalid Goal progress.');
+      if (value.available ? !Number.isInteger(value.total) || value.total < 0 || value.total > 2000 || !Number.isInteger(value.completed) || value.completed < 0 || value.completed > value.total || !/^[a-f0-9]{64}$/.test(value.sha256 || '')
+        : ['total','completed','sha256'].some(k => Object.hasOwn(value,k))) fail('Invalid Goal counts.');
+    }
+  } else if (event.goal !== undefined || event.goalProgress !== undefined) fail('Goal progress requires a version3 event.');
   for (const k of ['id','sessionId','producerId','activityId']) id(event[k]);
   label(event.label);
   if (event.parentId !== null) id(event.parentId);
@@ -210,9 +225,10 @@ function emit(root, sessionId, fields) {
     if (taskContext === undefined && fields.task && taskContextCapture) {
       try { taskContext = taskContextCapture(root, fields.task, { readText, label }); } catch { /* Keep base telemetry. */ }
     }
-    const event = validateEvent(root, { schemaVersion: taskContext ? 2 : 1, id: crypto.randomUUID(), sessionId, sequence: state.count + 1,
+    const progress = fields.goalProgress !== undefined ? fields.goalProgress : fields.goal ? goalProgress(root, fields.goal) : undefined;
+    const event = validateEvent(root, { schemaVersion: fields.goal !== undefined ? 3 : taskContext ? 2 : 1, id: crypto.randomUUID(), sessionId, sequence: state.count + 1,
       producerId, producerSequence: ++producerSequence, at: new Date().toISOString(), activityId: crypto.randomUUID(), parentId: null,
-      phase: 'work', category: 'command', action: 'updated', status: 'running', source: 'agent-reported', evidence: [], ...fields, ...(taskContext ? { taskContext } : {}) });
+      phase: 'work', category: 'command', action: 'updated', status: 'running', source: 'agent-reported', evidence: [], ...fields, ...(taskContext ? { taskContext } : {}), ...(progress ? { goalProgress: progress } : {}) });
     const bytes = Buffer.byteLength(JSON.stringify(event) + '\n');
     if (bytes > 16384) fail('Activity metadata exceeds its serialized byte bound.');
     if (state.capped || state.count >= MAX_EVENTS || state.bytes + bytes > MAX_BYTES) {
@@ -297,4 +313,4 @@ async function observe(root, fields, action, outcome) {
   };
   return context.run(span, async () => { try { const value = await action(); finish('succeeded'); return value; } catch (error) { finish(error.name === 'AbortError' ? 'cancelled' : 'failed'); throw error; } });
 }
-module.exports = { CACHE, MAX_EVENTS, MAX_BYTES, UUID, PHASES, STATUSES, CATEGORIES, SOURCES, native, rootPath, safe, directory, privateCache, read, write, label, id, settings, createSession, session, emit, page, history, end, remove, begin, observe };
+module.exports = { CACHE, MAX_EVENTS, MAX_BYTES, UUID, PHASES, STATUSES, CATEGORIES, SOURCES, native, rootPath, safe, directory, privateCache, read, write, label, id, settings, createSession, session, emit, page, history, end, remove, begin, observe, goalProgress };

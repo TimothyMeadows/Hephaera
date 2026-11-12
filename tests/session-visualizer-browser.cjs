@@ -172,7 +172,42 @@ async function main() {
     await evaluate(`(()=>{const slider=document.getElementById('scrubber');slider.value='1';slider.dispatchEvent(new Event('input',{bubbles:true}))})()`);await waitFor(`document.getElementById('current-work-panel').hidden`);
     await click('#go-live');await waitFor(`document.querySelector('[data-task="${taskId}"]')!==null`);
     await evaluate(`document.querySelector('[data-task="${taskId}"]').focus()`);assert.equal(await evaluate(`document.activeElement.dataset.task`),taskId);
-    await evaluate('scrollTo(0,0)');await delay(150);const contextualDesktop=await call('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});fs.writeFileSync(path.join(output,'desktop.png'),Buffer.from(contextualDesktop.data,'base64'));
+    // Queue state includes unstarted tasks; successful commands do not finish a Goal.
+    const unlinkedGoal=reportFixture('Unlinked Goal','work',null,'running','goal','goal');
+    await waitFor(`document.querySelector('[data-goal-activity="${unlinkedGoal}"] .goal-progress-unavailable')!==null`);
+    assert.equal(await evaluate(`document.querySelector('[data-goal-activity="${unlinkedGoal}"] progress')===null`),true);
+    store.emit(root,options.session,{activityId:unlinkedGoal,label:'QA fixture: Unlinked Goal',phase:'work',category:'goal',mode:'goal',status:'succeeded',action:'finished',source:'agent-reported',owner:'Browser QA fixture'});
+    const goalId='qa-goal-'+crypto.randomUUID(),goalDirectory=store.directory(root,'.hephaera/.cache/goals/'+goalId),goalFile=path.join(goalDirectory,'GOAL.md');
+    const goalQueue=(completed,total)=>'# Synthetic delivery goal\n\n## Task Queue\n'+Array.from({length:total},(_,i)=>'- ['+(i<completed?'x':' ')+'] Synthetic task '+i).join('\n')+'\n';
+    fs.writeFileSync(goalFile,goalQueue(1,4));const activeGoal=reportFixture('Deliver movement controls','work',null,'running','goal','goal',{goal:goalId});
+    const goalCursor=store.page(root,options.session,0,1).total,goalSelector='[data-goal-activity="'+activeGoal+'"]';
+    await waitFor(`document.querySelector('${goalSelector} progress')?.value===1`);
+    assert.equal(await evaluate(`document.querySelector('${goalSelector} progress').max`),4);
+    assert.ok(await evaluate(`document.querySelector('${goalSelector} progress').getAttribute('aria-valuetext').includes('3 remaining')`));
+    reportFixture('Goal task checkpoint','work',activeGoal,'succeeded','command');
+    await waitFor(`document.querySelector('${goalSelector} .goal-progress-status').textContent==='running'`);
+    await evaluate(`document.querySelector('${goalSelector} .goal-progress-title').focus()`);
+    const goalUpdateStarted=performance.now();fs.writeFileSync(goalFile,goalQueue(2,5));
+    await waitFor(`document.querySelector('${goalSelector} progress')?.value===2 && document.querySelector('${goalSelector} progress')?.max===5`);
+    const goalLiveUpdateMs=performance.now()-goalUpdateStarted;
+    assert.equal(await evaluate(`document.activeElement.dataset.focusKey`),'goal-'+activeGoal);
+    assert.equal(await evaluate(`document.querySelector('${goalSelector} .goal-progress-remaining').textContent`),'3 remaining / 5 total');
+    fs.unlinkSync(goalFile);await waitFor(`document.querySelector('${goalSelector} .goal-progress-unavailable')!==null`);
+    await evaluate(`(()=>{const slider=document.getElementById('scrubber');slider.value='${goalCursor}';slider.dispatchEvent(new Event('input',{bubbles:true}))})()`);
+    await waitFor(`document.querySelector('${goalSelector} progress')?.value===1 && document.querySelector('${goalSelector} progress')?.max===4`);
+    await click('#go-live');await waitFor(`document.querySelector('${goalSelector} .goal-progress-unavailable')!==null`);
+    fs.writeFileSync(goalFile,goalQueue(2,5));await waitFor(`document.querySelector('${goalSelector} progress')?.value===2`);
+    const emptyGoalId='qa-empty-'+crypto.randomUUID(),emptyDirectory=store.directory(root,'.hephaera/.cache/goals/'+emptyGoalId);fs.writeFileSync(path.join(emptyDirectory,'GOAL.md'),goalQueue(0,0));
+    const emptyGoal=reportFixture('Empty Goal','work',null,'running','goal','goal',{goal:emptyGoalId});
+    await waitFor(`document.querySelectorAll('.goal-progress-card').length===2`);
+    assert.ok(await evaluate(`document.querySelector('[data-goal-activity="${emptyGoal}"]').textContent.includes('No tasks queued')`));
+    store.emit(root,options.session,{activityId:emptyGoal,label:'QA fixture: Empty Goal',phase:'work',category:'goal',mode:'goal',status:'succeeded',action:'finished',source:'agent-reported',owner:'Browser QA fixture'});
+    await waitFor(`document.querySelectorAll('.goal-progress-card').length===1`);
+    await evaluate(`document.querySelector('${goalSelector} .goal-progress-title').focus()`);
+    await call('Input.dispatchKeyEvent',{type:'keyDown',key:'Enter',code:'Enter',text:'\r',unmodifiedText:'\r',windowsVirtualKeyCode:13});await call('Input.dispatchKeyEvent',{type:'keyUp',key:'Enter',code:'Enter',windowsVirtualKeyCode:13});
+    assert.equal(await evaluate(`document.querySelector('#details .detail-title').textContent`),'QA fixture: Deliver movement controls');
+    await evaluate('scrollTo(0,0)');await delay(150);const goalDesktop=await call('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});fs.writeFileSync(path.join(output,'goal-progress.png'),Buffer.from(goalDesktop.data,'base64'));
+    const contextualDesktop=await call('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});fs.writeFileSync(path.join(output,'desktop.png'),Buffer.from(contextualDesktop.data,'base64'));
     await call('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
     assert.equal(await evaluate(`matchMedia('(prefers-reduced-motion: reduce)').matches`), true);
     assert.equal(await evaluate(`(()=>{const n=document.querySelector('.edge.active');return !n||getComputedStyle(n).animationName==='none'})()`), true);
@@ -181,11 +216,14 @@ async function main() {
     await delay(250);
     assert.equal(await evaluate(`document.documentElement.scrollWidth<=innerWidth`), true);
     const mobile = await call('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false }); fs.writeFileSync(path.join(output, 'mobile.png'), Buffer.from(mobile.data, 'base64'));
+    await evaluate(`document.getElementById('goal-progress-panel').scrollIntoView({block:'start'})`);await delay(100);
+    assert.equal(await evaluate(`document.querySelector('${goalSelector} progress').getBoundingClientRect().width<=innerWidth`),true);
+    const goalMobile=await call('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});fs.writeFileSync(path.join(output,'goal-progress-mobile.png'),Buffer.from(goalMobile.data,'base64'));
     assert.deepEqual(external, []); assert.deepEqual(errors, []);
     fs.writeFileSync(path.join(output, 'report.json'), JSON.stringify({ status: 'passed', platform: process.platform, transport: 'native browser HTTP on my.hephaera.com bound to 127.0.0.1',
-      checks: ['task title and purpose at a glance','checkpoint success preserves running task report','task context on canvas timeline list and details','task source rewrite cannot change recorded context','task context replay and keyboard focus','IPv4 loopback HTTP','no certificate or security exception flags','ordinary HTTP hostname context','QA-only resolver mapping','actual browser peer127.0.0.1','live session','private DevTools pipe','fragment capability removal','parallel branches','verification revision loop','browser refresh and resumed stream','recorded Goal parent hierarchy','mode expansion by keyboard',...(options.structures ? ['recorded Brainstorm and Gauntlet hierarchies'] : []),'stage expansion','keyboard activation and focus','keyboard focus during live updates','list view',...(listPagingChecked ? ['list pagination'] : []),'replay','live return','label escaping','reduced motion','mobile layout','no external page requests','no uncaught browser errors'],
-      metrics: { recordedEventsBeforeUpdate: focusFixture.sequence - 1, liveUpdateMs, largeHistoryCheck: focusFixture.sequence > 10000 },
-      screenshots: ['desktop.png','mobile.png','structure.png','task-details.png'], limits: 'Existing Chromium on this host only; no Linux/macOS or other coding-host acceptance inferred.' }, null, 2));
+      checks: ['canonical Goal task counts','live queue snapshots','immutable Goal replay','unavailable Goal progress','multiple and empty Goals','Goal completion is explicit','Goal keyboard focus','responsive Goal progress','task title and purpose at a glance','checkpoint success preserves running task report','task context on canvas timeline list and details','task source rewrite cannot change recorded context','task context replay and keyboard focus','IPv4 loopback HTTP','no certificate or security exception flags','ordinary HTTP hostname context','QA-only resolver mapping','actual browser peer127.0.0.1','live session','private DevTools pipe','fragment capability removal','parallel branches','verification revision loop','browser refresh and resumed stream','recorded Goal parent hierarchy','mode expansion by keyboard',...(options.structures ? ['recorded Brainstorm and Gauntlet hierarchies'] : []),'stage expansion','keyboard activation and focus','keyboard focus during live updates','list view',...(listPagingChecked ? ['list pagination'] : []),'replay','live return','label escaping','reduced motion','mobile layout','no external page requests','no uncaught browser errors'],
+      metrics: { recordedEventsBeforeUpdate: focusFixture.sequence - 1, liveUpdateMs, goalLiveUpdateMs, largeHistoryCheck: focusFixture.sequence > 10000 },
+      screenshots: ['desktop.png','mobile.png','structure.png','task-details.png','goal-progress.png','goal-progress-mobile.png'], limits: 'Existing Chromium on this host only; no Linux/macOS or other coding-host acceptance inferred.' }, null, 2));
     passed = true;
     console.log(JSON.stringify({ status: 'passed', transport: 'native-browser-http-loopback', evidence: base, screenshots: [base + '/desktop.png', base + '/mobile.png'] }));
   } finally {
