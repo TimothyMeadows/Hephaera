@@ -64,6 +64,17 @@ jobs:
           npm ci --ignore-scripts --no-audit --no-fund --prefix tests/fixtures/threejs-quarks --cache .local/ci-npm-cache
           npm ci --ignore-scripts --no-audit --no-fund --prefix tests/fixtures/threejs-postprocessing --cache .local/ci-npm-cache
           npm ci --ignore-scripts --no-audit --no-fund --prefix tests/fixtures/web3 --cache .local/ci-npm-cache
+      - name: Prepare checksum-pinned Blender for existing native regression fixtures
+        run: |
+          mkdir -p .local/ci-tools/blender
+          curl --fail --location --retry 3 --proto '=https' --tlsv1.2 \
+            https://download.blender.org/release/Blender4.5/blender-4.5.16-linux-x64.tar.xz \
+            --output .local/ci-tools/blender.tar.xz
+          # Official Blender4.5/blender-4.5.16.sha256, pinned at implementation.
+          printf '%s\n' '23432b064977908beb1ab4b7f32f024e7331105c875c187dce002aff84b10c11  .local/ci-tools/blender.tar.xz' | sha256sum --check --strict
+          tar --extract --xz --file .local/ci-tools/blender.tar.xz --directory .local/ci-tools/blender --strip-components=1 --no-same-owner
+          .local/ci-tools/blender/blender --version
+          printf 'BLENDER_EXE=%s/.local/ci-tools/blender/blender\n' "$PWD" >> "$GITHUB_ENV"
       - name: Build the existing pinned Bubo runtime for CPU verification
         run: bash commands/build-bubo-runtime.sh Release
       - name: Run the complete canonical baseline validation
