@@ -17,14 +17,15 @@ $owner = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
 $allowed = @($owner.Value, 'S-1-5-18', 'S-1-5-32-544') | Select-Object -Unique
 $inherit = [System.Security.AccessControl.InheritanceFlags]'ContainerInherit,ObjectInherit'
 function Test-PrivateAcl($Acl) {
-    if (-not $Acl.AreAccessRulesProtected -or $Acl.Access.Count -ne $allowed.Count) { return $false }
-    foreach ($rule in $Acl.Access) {
-        $sid = $rule.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value
+    $rules = @($Acl.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier]))
+    if (-not $Acl.AreAccessRulesProtected -or $rules.Count -ne $allowed.Count) { return $false }
+    foreach ($rule in $rules) {
+        $sid = $rule.IdentityReference.Value
         if ($sid -notin $allowed -or $rule.IsInherited -or $rule.AccessControlType -ne 'Allow' -or $rule.FileSystemRights -ne 'FullControl' -or $rule.InheritanceFlags -ne $inherit -or $rule.PropagationFlags -ne 'None') { return $false }
     }
     return $true
 }
-if (-not (Test-Path -LiteralPath $target) -or -not (Test-PrivateAcl (Get-Acl -LiteralPath $target))) {
+if (-not (Test-Path -LiteralPath $target) -or -not (Test-PrivateAcl ([System.IO.Directory]::GetAccessControl($target)))) {
     $private = New-Object System.Security.AccessControl.DirectorySecurity
     $private.SetAccessRuleProtection($true, $false)
     foreach ($sid in $allowed) {
@@ -35,4 +36,4 @@ if (-not (Test-Path -LiteralPath $target) -or -not (Test-PrivateAcl (Get-Acl -Li
     if (Test-Path -LiteralPath $target) { [System.IO.Directory]::SetAccessControl($target, $private) }
     else { [void][System.IO.Directory]::CreateDirectory($target, $private) }
 }
-if (-not (Test-PrivateAcl (Get-Acl -LiteralPath $target))) { throw 'Private cache permissions could not be verified.' }
+if (-not (Test-PrivateAcl ([System.IO.Directory]::GetAccessControl($target)))) { throw 'Private cache permissions could not be verified.' }

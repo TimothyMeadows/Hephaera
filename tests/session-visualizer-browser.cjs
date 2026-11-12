@@ -30,7 +30,7 @@ async function main() {
   let socket, pageSession, pipeError, sequence = 0, browserSecurity, passed = false, listPagingChecked = false; const pending = new Map(), external = [], errors = [], relayed = new Map(), fixtures = [];
   try {
     const rejectPipe = () => { pipeError = new Error('Chromium private debugging pipe is unavailable.' + (!pageSession && startupDiagnostics ? '\n' + startupDiagnostics : '')); for (const task of pending.values()) { clearTimeout(task.timer); task.reject(pipeError); } pending.clear(); };
-    child.once('error', rejectPipe); child.stdio[3].on('error', rejectPipe); child.stdio[4].on('error', rejectPipe);
+    child.once('error', rejectPipe); child.once('exit', rejectPipe); child.stdio[3].on('error', rejectPipe); child.stdio[4].on('error', rejectPipe);
     socket = { send(value) { if (pageSession && !/^(Browser|Target)\./.test(value.method)) value.sessionId = pageSession; child.stdio[3].write(JSON.stringify(value) + '\0'); }, close() { child.stdio[3].end(); } };
     const receive = value => {
       if (value.id) { const task = pending.get(value.id); if (!task) return; clearTimeout(task.timer); pending.delete(value.id); value.error ? task.reject(new Error(value.error.message)) : task.resolve(value.result); }
@@ -68,7 +68,7 @@ async function main() {
       wire += decoder.decode(bytes, { stream: true }); if (wire.length > 16 * 1024 * 1024) { rejectPipe(); return; }
       let boundary; while ((boundary = wire.indexOf('\0')) !== -1) { const message = wire.slice(0, boundary); wire = wire.slice(boundary + 1); try { receive(JSON.parse(message)); } catch { rejectPipe(); } }
     });
-    const call = (method, params = {}) => new Promise((resolve, reject) => { if (pipeError) return reject(pipeError); const id = ++sequence; const timer = setTimeout(() => { pending.delete(id); reject(new Error('DevTools deadline: ' + method)); }, 10000); pending.set(id, { resolve, reject, timer }); socket.send({ id, method, params }); });
+    const call = (method, params = {}) => new Promise((resolve, reject) => { if (pipeError) return reject(pipeError); const id = ++sequence; const timer = setTimeout(() => { pending.delete(id); reject(new Error('DevTools deadline: ' + method + (!pageSession && startupDiagnostics ? '\n' + startupDiagnostics : ''))); }, pageSession ? 10000 : 30000); pending.set(id, { resolve, reject, timer }); socket.send({ id, method, params }); });
     let tab;
     for (let attempt = 0; attempt < 100 && !tab; attempt++) { tab = (await call('Target.getTargets')).targetInfos.find(target => target.type === 'page'); if (!tab) await delay(100); }
     assert.ok(tab, 'Chromium page did not become ready.');

@@ -244,10 +244,15 @@ test('concurrent project servers and simultaneous sessions keep capabilities and
 test('viewer credentials use private filesystem permissions and reject linked private storage', async t => {
   const { root } = prepare(t), running = await server(t, root), privateDirectory = store.safe(root, store.CACHE + '/private', 'dir'), runtimeFile = store.safe(root, require('../commands/lib/session-visualizer-server.cjs').RUNTIME, 'file');
   if (process.platform === 'win32') {
-    const script = '$ErrorActionPreference="Stop"; $allowed=@([System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value,"S-1-5-18","S-1-5-32-544"); $valid=(Get-Acl -LiteralPath $env:HEPHAERA_TEST_PRIVATE_DIRECTORY).AreAccessRulesProtected; foreach($rule in (Get-Acl -LiteralPath $env:HEPHAERA_TEST_PRIVATE_FILE).Access){if($rule.AccessControlType -eq "Allow" -and $rule.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value -notin $allowed){$valid=$false}}; [Console]::Write($valid.ToString())';
+    const script = '$ErrorActionPreference="Stop"; $allowed=@([System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value,"S-1-5-18","S-1-5-32-544"); $valid=[System.IO.Directory]::GetAccessControl($env:HEPHAERA_TEST_PRIVATE_DIRECTORY).AreAccessRulesProtected; foreach($rule in [System.IO.File]::GetAccessControl($env:HEPHAERA_TEST_PRIVATE_FILE).GetAccessRules($true,$true,[System.Security.Principal.SecurityIdentifier])){if($rule.AccessControlType -eq "Allow" -and $rule.IdentityReference.Value -notin $allowed){$valid=$false}}; [Console]::Write($valid.ToString())';
     const powershell = path.join(process.env.SystemRoot, 'System32/WindowsPowerShell/v1.0/powershell.exe');
     const observed = cp.execFileSync(powershell, ['-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from(script,'utf16le').toString('base64')], { windowsHide:true, encoding:'utf8', env:{...process.env, HEPHAERA_TEST_PRIVATE_DIRECTORY:privateDirectory, HEPHAERA_TEST_PRIVATE_FILE:runtimeFile} });
     assert.equal(observed, 'True');
+    const modules = path.join(root,'incompatible-modules'), securityModule = path.join(modules,'Microsoft.PowerShell.Security'); fs.mkdirSync(securityModule,{recursive:true});
+    fs.writeFileSync(path.join(securityModule,'Microsoft.PowerShell.Security.psd1'), "@{ModuleVersion='99.0';RootModule='incompatible.psm1'}");
+    fs.writeFileSync(path.join(securityModule,'incompatible.psm1'), "throw 'Synthetic incompatible PowerShell module; must not be loaded.'");
+    const inherited = await child(['-e',"require('./commands/lib/session-events.cjs').privateCache(process.argv[1]);",root],{PSModulePath:modules});
+    assert.equal(inherited.code,0,inherited.stderr);
   } else {
     assert.equal(fs.statSync(privateDirectory).mode & 0o077, 0); assert.equal(fs.statSync(runtimeFile).mode & 0o077, 0);
   }
