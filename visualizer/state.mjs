@@ -1,8 +1,9 @@
 export const phases = ['context', 'planning', 'work', 'verification', 'review'];
-export function emptyState() { return { cursor: 0, activities: new Map(), transitions: [], owners: new Map(), counts: Object.fromEntries(phases.map(p => [p, 0])) }; }
+export function emptyState() { return { cursor: 0, activities: new Map(), goalSnapshots: new Map(), transitions: [], owners: new Map(), counts: Object.fromEntries(phases.map(p => [p, 0])) }; }
 export function applyEvent(state, event) {
   if (!event || !Number.isInteger(event.sequence) || event.sequence <= state.cursor) return state;
   if (event.sequence !== state.cursor + 1) throw new Error('A recording gap must be resolved before displaying later events.');
+  if (event.goalProgress) state.goalSnapshots.set(event.goal, { ...event, updatedAt: event.at });
   const previous = state.activities.get(event.activityId);
   const owner = event.owner || 'Hephaera';
   if (!previous) {
@@ -47,16 +48,15 @@ export function currentWork(state, limit = 3) {
 // Whole-Goal state comes only from explicit Goal reports. Queue snapshots are
 // observations of declared checkbox state, never inferred command completion.
 export function goalProgress(state) {
-  const reports = new Map(), snapshots = new Map();
+  const reports = new Map();
   for (const activity of state.activities.values()) {
     if (activity.category === 'goal' && activity.mode === 'goal') {
       const key = activity.goal || activity.activityId;
       if (!reports.has(key) || reports.get(key).sequence < activity.sequence) reports.set(key, activity);
     }
-    if (activity.goalProgress && (!snapshots.has(activity.goal) || snapshots.get(activity.goal).sequence < activity.sequence)) snapshots.set(activity.goal, activity);
   }
   return [...reports.values()].filter(report => ['running','waiting','blocked','unknown'].includes(report.status)).map(report => {
-    const snapshot = snapshots.get(report.goal), progress = snapshot?.goalProgress;
+    const snapshot = state.goalSnapshots.get(report.goal), progress = snapshot?.goalProgress;
     return { report, snapshot, available: !!progress?.available, ...(progress?.available ? {
       completed: progress.completed, total: progress.total, remaining: progress.total - progress.completed,
       percent: progress.total ? Math.floor(progress.completed / progress.total * 100) : 0
