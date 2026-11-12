@@ -81,6 +81,9 @@ test('task snapshots reject malformed metadata and ignore fenced instructions', 
   assert.equal(store.page(root,id).total,1);
   fs.writeFileSync(path.join(dir,'TASK.md'),'\uFEFF# Add `MODEL_TO_ACTION` support\n\n## Goal\n\nKeep **rigid parts** intact.\n');
   const formatted=recorded(root,id,'Formatted task',{task:'parsed-task'});assert.equal(formatted.taskContext.title,'Add MODEL_TO_ACTION support');assert.equal(formatted.taskContext.summary,'Keep rigid parts intact.');
+  fs.writeFileSync(path.join(dir,'TASK.md'),'```md\n```js\n# Hidden code heading\n```\n# Keep C#\n\n## Goal ###\n\nPreserve technical names.\n');
+  const technical=recorded(root,id,'Technical title',{task:'parsed-task'});assert.equal(technical.taskContext.title,'Keep C#');assert.equal(technical.taskContext.summary,'Preserve technical names.');
+  fs.writeFileSync(path.join(dir,'TASK.md'),'<!--\n# Hidden comment title\n\n## Goal\n\nPrivate comment prose.\n');assert.equal(recorded(root,id,'Unclosed comment',{task:'parsed-task'}).taskContext,undefined);
 });
 test('nested observations inherit explicit task context only within the same session', async t => {
   const {root,id}=prepare(t),other=store.createSession(root),dir=store.directory(root,'.hephaera/.cache/tasks/inherited-task');fs.writeFileSync(path.join(dir,'TASK.md'),'# Keep nested work identifiable\n\n## Goal\n\nShow the parent task for nested observations.\n');
