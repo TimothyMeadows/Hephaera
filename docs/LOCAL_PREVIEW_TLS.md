@@ -2,6 +2,8 @@
 
 The documentation preview and CODE character evidence host use HTTPS on `127.0.0.1`. Each run creates a new one-day P-256 certificate for that IP. TLS 1.3 is required. A run never falls back to HTTP.
 
+The separate [session visualizer](SESSION_VISUALIZER.md) uses authenticated HTTP bound exclusively to IPv4 `127.0.0.1`. Its explicit transport policy does not change the HTTPS requirements for documentation previews or CODE evidence hosts.
+
 The shared implementation is `commands/lib/local-preview-tls.cjs`. It uses an existing OpenSSL executable outside the project. On Windows it checks Git's bundled OpenSSL first; other hosts use their installed `openssl`. `HEPHAERA_OPENSSL` can select an absolute installed executable. An invalid explicit selection fails rather than silently selecting another executable. Nothing is downloaded or installed.
 
 OpenSSL sends both the generated private key and certificate through a bounded private process pipe. Keys are never written to a file, command argument, report or trust store. The tool keeps the private PEM in memory while its server is active, then clears its owned PEM buffer. This is normal process memory ownership, not a guarantee that the operating system or cryptographic library erased every internal copy.

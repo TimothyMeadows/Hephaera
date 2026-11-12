@@ -5,8 +5,10 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const cp = require('node:child_process');
+const http = require('node:http');
 const https = require('node:https');
-const tls = require('node:tls');
+const net = require('node:net');
+const os = require('node:os');
 const { setTimeout: delay } = require('node:timers/promises');
 const store = require('../commands/lib/session-events.cjs');
 const { startServer } = require('../commands/lib/session-visualizer-server.cjs');
@@ -23,8 +25,7 @@ function recorded(root, id, label = 'Test activity', fields = {}) { return store
 function jsonRequest(service, route, options = {}) {
   return new Promise((resolve, reject) => {
     const url = new URL(service.url);
-    const request = https.request({ hostname: url.hostname, port: url.port, path: route, ca: service.certificate, agent: false,
-      checkServerIdentity: (_hostname, certificate) => tls.checkServerIdentity('127.0.0.1', certificate), ...options,
+    const request = http.request({ hostname: url.hostname, port: url.port, path: route, agent: false, ...options,
       headers: { Authorization: 'Bearer ' + service.token, ...options.headers } }, response => {
       let text = ''; response.on('data', chunk => { text += chunk; }); response.on('end', () => { let body; try { body = JSON.parse(text); } catch { body = text; } resolve({ status: response.statusCode, headers: response.headers, body }); });
     }); request.setTimeout(5000, () => request.destroy(new Error('Owned test deadline'))); request.on('error', reject); request.end();
@@ -34,6 +35,76 @@ async function server(t, root) { const value = await startServer({ root, openBro
 function child(args, env = {}, cwd = REPO) {
   return new Promise(resolve => { const proc = cp.spawn(process.execPath, args, { cwd, windowsHide: true, env: { ...process.env, ...env }, stdio: ['ignore','pipe','pipe'] }); let stdout = '', stderr = ''; proc.stdout.on('data', c => { stdout += c; }); proc.stderr.on('data', c => { stderr += c; }); proc.once('error', error => resolve({ error })); proc.once('close', (code, signal) => resolve({ code, signal, stdout, stderr })); });
 }
+
+test('HTTP listener is fixed to IPv4 loopback and refuses non-loopback connections', async t => {
+  const root=fixture(t),original=http.Server.prototype.listen;let listener;
+  http.Server.prototype.listen=function(...args){listener=this;return Reflect.apply(original,this,args);};
+  let running;try{running=await server(t,root);}finally{http.Server.prototype.listen=original;}
+  assert.match(running.url,/^http:\/\/127\.0\.0\.1:\d+$/);
+  assert.equal(listener.address().address,'127.0.0.1');assert.equal(listener.address().family,'IPv4');
+  assert.equal(running.schemaVersion,2);assert.equal(running.bindAddress,'127.0.0.1');
+  assert.equal('certificate' in running,false);assert.equal('spki' in running,false);
+  const addresses=[...new Set(Object.values(os.networkInterfaces()).flat().filter(item=>item&&!item.internal&&item.family==='IPv4').map(item=>item.address)),'::1'];
+  for(const host of addresses){
+    const refused=await new Promise(resolve=>{
+      const socket=net.connect({host,port:listener.address().port});
+      socket.setTimeout(1200,()=>{socket.destroy();resolve(true);});
+      socket.once('connect',()=>{socket.destroy();resolve(false);});socket.once('error',()=>resolve(true));
+    });
+    assert.equal(refused,true,'Visualizer port must not accept a non-loopback-interface or IPv6 connection.');
+  }
+  t.diagnostic('Actual IPv4 loopback socket verified; non-loopback/IPv6 connection probes refused: '+addresses.length);
+});
+test('bind overrides and non-loopback retained endpoints are rejected', async t => {
+  const root=fixture(t),service=require('../commands/lib/session-visualizer-server.cjs');
+  for(const key of ['host','hostname','address','bindAddress','listenAddress']){
+    const result=await startServer({root,[key]:'0.0.0.0'}).then(value=>({value}),error=>({error}));
+    if(result.value)await result.value.close();
+    assert.match(result.error?.message||'',/unsupported.*option/i);
+    assert.equal(fs.existsSync(path.join(root,store.CACHE,'server-lock')),false);
+  }
+  store.privateCache(root);
+  const template={schemaVersion:2,transport:'http-loopback',bindAddress:'127.0.0.1',root,pid:process.pid,instanceId:crypto.randomUUID(),version:'0'.repeat(64),token:'a'.repeat(64)};
+  const save=value=>store.write(root,service.RUNTIME,value,fs.existsSync(store.safe(root,service.RUNTIME,'file')));
+  for(const url of ['http://0.0.0.0:49155','http://localhost:49155','http://127.0.0.2:49155','http://[::]:49155','http://[::1]:49155','http://2130706433:49155','http://127.1:49155','http://user@127.0.0.1:49155','http://127.0.0.1:80','http://127.0.0.1:49155/path','https://127.0.0.1:49155']){
+    save({...template,url});assert.throws(()=>service.runtime(root));assert.equal(await service.probe({...template,url}),false);
+  }
+  save({...template,url:'http://127.0.0.1:49155',bindAddress:'0.0.0.0'});assert.throws(()=>service.runtime(root));
+  save({...template,url:'http://127.0.0.1:49155'});assert.equal(service.runtime(root).url,'http://127.0.0.1:49155');
+  store.write(root,store.CACHE+'/config.json',{enabled:true,host:'0.0.0.0'});assert.throws(()=>store.settings(root));
+});
+test('loopback health bypasses environment proxies and ignores bind environment variables', async t => {
+  const {root,id}=prepare(t),running=await server(t,root);let forwarded=0;
+  const proxy=http.createServer((_request,response)=>{forwarded++;response.writeHead(502);response.end();});
+  await new Promise(resolve=>proxy.listen(0,'127.0.0.1',resolve));
+  try{
+    const proxyUrl='http://127.0.0.1:'+proxy.address().port;
+    const result=await child(['commands/lib/session-visualizer.cjs','status','--root',root,'--session',id],
+      {NODE_USE_ENV_PROXY:'1',HTTP_PROXY:proxyUrl,http_proxy:proxyUrl,HTTPS_PROXY:proxyUrl,https_proxy:proxyUrl,NO_PROXY:'',no_proxy:'',HOST:'0.0.0.0',BIND_ADDRESS:'::',HEPHAERA_VISUALIZER_HOST:'0.0.0.0'});
+    assert.equal(result.code,0,result.stderr);assert.equal(JSON.parse(result.stdout).status,'running');
+    assert.match(JSON.parse(result.stdout).url,/^http:\/\/127\.0\.0\.1:/);assert.equal(forwarded,0);
+  }finally{await new Promise(resolve=>proxy.close(resolve));}
+});
+test('production browser launch uses no certificate or security exception flags', async t => {
+  const {root,id}=prepare(t),previous=process.env.HEPHAERA_VISUALIZER_BROWSER,spawn=cp.spawn;
+  let args;
+  process.env.HEPHAERA_VISUALIZER_BROWSER=process.execPath;
+  cp.spawn=(executable,values)=>{
+    assert.equal(executable,fs.realpathSync(process.execPath));args=values;
+    const {EventEmitter}=require('node:events'),child=new EventEmitter();child.kill=()=>{};
+    queueMicrotask(()=>child.emit('spawn'));return child;
+  };
+  const running=await startServer({root});
+  try{
+    const result=await start(root,{session:id});assert.equal(result.browser,'launched-unverified');assert.ok(args);
+    assert.equal(args.some(arg=>/^--(?:ignore-certificate-errors(?:-spki-list)?|allow-insecure-localhost|disable-web-security|no-sandbox|unsafely-treat-insecure-origin-as-secure)(?:=|$)/.test(arg)),false);
+    assert.equal(args.some(arg=>arg.startsWith('--user-data-dir=')&&arg.includes('private')),true);
+    assert.equal(args.some(arg=>arg.includes(running.token)),false);
+  }finally{
+    await running.close();cp.spawn=spawn;
+    if(previous===undefined)delete process.env.HEPHAERA_VISUALIZER_BROWSER;else process.env.HEPHAERA_VISUALIZER_BROWSER=previous;
+  }
+});
 test('event schema confines metadata, rejects secrets, traversal and links', t => {
   const { root, id } = prepare(t);
   for (const fields of [{ label: 'password=private' }, { label: 'Valid', argv: ['private'] }, { label: 'Valid', evidence: ['../outside'] }, { label: 'Valid', evidence: ['C:/outside'] }, { label: 'Valid', phase: 'invented' }]) assert.throws(() => store.emit(root, id, fields));
@@ -237,7 +308,7 @@ test('native admission, process failure and requested cancellation keep distinct
 test('real clone and submodule mounts start the shipped UI without source builds or setup hooks', async t => {
   const base = fixture(t), source = path.join(base, 'source'); fs.mkdirSync(source);
   const hooks = path.join(base, 'empty-hooks'); fs.mkdirSync(hooks);
-  for (const relative of ['visualizer','commands/lib/session-events.cjs','commands/lib/session-visualizer.cjs','commands/lib/session-visualizer-server.cjs','commands/lib/session-observer.sh','commands/lib/private-visualizer-cache.ps1','commands/lib/local-preview-tls.cjs','commands/lib/state-transition.cjs','commands/lib/installation-maintenance.cjs','commands/lib/memory-common.sh','commands/lib/state-transition-common.sh','commands/session-visualizer.sh','commands/resolve-hephaera-paths.sh','logo.png','.gitignore']) {
+  for (const relative of ['visualizer','commands/lib/session-events.cjs','commands/lib/session-visualizer.cjs','commands/lib/session-visualizer-server.cjs','commands/lib/session-observer.sh','commands/lib/private-visualizer-cache.ps1','commands/lib/state-transition.cjs','commands/lib/installation-maintenance.cjs','commands/lib/memory-common.sh','commands/lib/state-transition-common.sh','commands/session-visualizer.sh','commands/resolve-hephaera-paths.sh','logo.png','.gitignore']) {
     const destination = path.join(source, relative); fs.mkdirSync(path.dirname(destination), { recursive: true }); fs.cpSync(path.join(REPO, relative), destination, { recursive: true });
   }
   const git = (cwd, ...args) => cp.execFileSync('git', ['-c','core.hooksPath=' + hooks,'-c','core.fsmonitor=false','-c','commit.gpgsign=false','-c','tag.gpgsign=false',...args], { cwd, windowsHide: true, stdio: ['ignore','pipe','pipe'] }).toString();
@@ -259,18 +330,21 @@ test('real clone and submodule mounts start the shipped UI without source builds
     } finally { await child([cli,'stop','--root',host]); }
   }
 });
-test('TLS service rejects unauthorized peers, wrong origins, writes and arbitrary files', async t => {
+test('HTTP service rejects unauthorized peers, wrong origins, writes and arbitrary files', async t => {
   const { root, id } = prepare(t); recorded(root, id); const running = await server(t, root);
   assert.equal((await jsonRequest(running, '/api/sessions')).status, 200);
   assert.equal((await jsonRequest(running, '/api/sessions', { headers: { Authorization: 'Bearer wrong' } })).status, 401);
   assert.equal((await jsonRequest(running, '/api/sessions', { headers: { Host: 'evil.example' } })).status, 403);
   assert.equal((await jsonRequest(running, '/api/sessions', { headers: { Origin: 'https://evil.example' } })).status, 403);
+  assert.equal((await jsonRequest(running, '/api/sessions', { headers: { Origin: 'http://evil.example' } })).status, 403);
+  assert.equal((await jsonRequest(running, '/api/sessions', { headers: { Origin: 'null' } })).status, 403);
+  for (const host of ['localhost','0.0.0.0','[::1]','127.0.0.2','2130706433']) assert.equal((await jsonRequest(running, '/api/sessions', { headers: { Host: host + ':' + new URL(running.url).port } })).status,403);
   assert.equal((await jsonRequest(running, '/api/sessions', { method: 'POST' })).status, 405);
+  assert.equal((await jsonRequest(running, '/api/sessions', { method: 'OPTIONS' })).status, 405);
   assert.equal((await jsonRequest(running, '/.hephaera/.cache/SYSTEM_MEMORY.md')).status, 404);
   assert.equal((await jsonRequest(running, '/%2e%2e/private')).status, 400);
   const staticPage = await jsonRequest(running, '/'); assert.equal(staticPage.status, 200); assert.ok(staticPage.headers['content-security-policy'].includes("connect-src 'self'"));
-  await assert.rejects(new Promise((resolve, reject) => { https.get(running.url, response => { response.resume(); resolve(); }).on('error', reject); }), /certificate/i);
-  await assert.rejects(new Promise((resolve, reject) => { https.get(running.url, { ca: running.certificate, maxVersion: 'TLSv1.2' }, resolve).on('error', reject); }), /protocol|SSL|TLS/i);
+  assert.equal(staticPage.headers['access-control-allow-origin'],undefined);
 });
 test('concurrent project servers and simultaneous sessions keep capabilities and history separate', async t => {
   const left = prepare(t), right = prepare(t), alternate = store.createSession(left.root);
@@ -310,7 +384,7 @@ test('SSE reconnect resumes after the applied ID and receives new events within 
   const { root, id } = prepare(t); recorded(root, id, 'First'); recorded(root, id, 'Second'); const running = await server(t, root);
   const received = [], started = performance.now();
   await new Promise((resolve, reject) => {
-    const request = https.get(running.url + '/api/sessions/' + id + '/events?after=1', { ca: running.certificate, agent: false, headers: { Authorization: 'Bearer ' + running.token } }, response => {
+    const request = http.get(running.url + '/api/sessions/' + id + '/events?after=1', { agent: false, headers: { Authorization: 'Bearer ' + running.token } }, response => {
       let buffer = ''; response.on('data', chunk => {
         buffer += chunk; let boundary;
         while ((boundary = buffer.indexOf('\n\n')) !== -1) { const block = buffer.slice(0, boundary); buffer = buffer.slice(boundary + 2); if (!block.includes('event: activity')) continue; const value = JSON.parse(block.split('\n').find(l => l.startsWith('data: ')).slice(6)); received.push(value.sequence); if (value.sequence === 3) { request.destroy(); resolve(); } }
@@ -333,7 +407,7 @@ test('10,000-event history is paged and a fresh update does not replay old files
   // frames must drain, not be destroyed before a large history can catch up.
   const sequences = [];
   await new Promise((resolve, reject) => {
-    const request = https.get(running.url + '/api/sessions/' + id + '/events', { ca: running.certificate, agent: false, headers: { Authorization: 'Bearer ' + running.token } }, response => {
+    const request = http.get(running.url + '/api/sessions/' + id + '/events', { agent: false, headers: { Authorization: 'Bearer ' + running.token } }, response => {
       let buffer = '';
       response.on('data', chunk => { buffer += chunk; let index;
         while ((index = buffer.indexOf('\n\n')) >= 0) { const block = buffer.slice(0,index); buffer = buffer.slice(index+2);
@@ -425,8 +499,8 @@ test('captured shell startup returns and the background service survives its cal
     assert.equal(await require('../commands/lib/session-visualizer-server.cjs').probe(running),true);
     const before=store.page(root,response.sessionId).total;
     const stream = new Promise((resolve,reject)=>{
-      const request=https.get(running.url+'/api/sessions/'+response.sessionId+'/events?after='+before,
-        {ca:running.certificate,agent:false,headers:{Authorization:'Bearer '+running.token}},response=>{
+      const request=http.get(running.url+'/api/sessions/'+response.sessionId+'/events?after='+before,
+        {agent:false,headers:{Authorization:'Bearer '+running.token}},response=>{
           let wire='';response.on('data',bytes=>{wire+=bytes;if(wire.includes('After launcher exit')){resolve();request.destroy();}});
         });
       request.setTimeout(5000,()=>request.destroy(new Error('No fresh background event.')));request.once('error',reject);
@@ -460,11 +534,34 @@ test('server restart preserves replay and session ownership while rotating acces
   assert.equal(continued.body.ended, null);
 });
 
-test('missing explicit TLS prerequisite reports its specific limitation without fallback or installation', async t => {
+test('HTTP startup needs no OpenSSL and creates no certificate or pin metadata', async t => {
   const root = fixture(t);
   const result = await child(['commands/lib/session-visualizer.cjs','start','--root',root,'--no-open'], { HEPHAERA_OPENSSL: path.join(root, 'unavailable-openssl') });
   assert.equal(result.code,0); const status = JSON.parse(result.stdout);
-  assert.equal(status.status,'viewer-unavailable'); assert.equal(status.reason,'tls-prerequisite-unavailable');
-  assert.equal(fs.existsSync(path.join(root,store.CACHE,'server-lock')),false);
-  assert.equal(store.history(root).total,1); // Retain the attempted session; do not reset history.
+  try {
+    assert.equal(status.status,'running');assert.match(status.url,/^http:\/\/127\.0\.0\.1:/);
+    const owned=require('../commands/lib/session-visualizer-server.cjs').runtime(root);
+    assert.equal(owned.schemaVersion,2);assert.equal('certificate' in owned,false);assert.equal('spki' in owned,false);
+    assert.equal(store.history(root).total,1);
+  }finally{await child(['commands/lib/session-visualizer.cjs','stop','--root',root]);}
+});
+test('legacy HTTPS ownership can still be probed for explicit shutdown only', async t => {
+  const root=fixture(t),service=require('../commands/lib/session-visualizer-server.cjs');store.privateCache(root);
+  const old={schemaVersion:1,root,pid:process.pid,instanceId:crypto.randomUUID(),version:'0'.repeat(64),url:'https://127.0.0.1:49155',token:'b'.repeat(64),certificate:'Synthetic public legacy certificate'};
+  store.write(root,service.RUNTIME,old);assert.equal(service.runtime(root).url,old.url);
+  const original=https.get;let requests=0;
+  https.get=(url,options,callback)=>{
+    requests++;assert.equal(url,old.url+'/api/health');assert.equal(options.agent.options.ca,old.certificate);
+    assert.equal(options.headers.Authorization,'Bearer '+old.token);
+    const {EventEmitter}=require('node:events'),request=new EventEmitter();request.setTimeout=()=>request;request.destroy=()=>{};
+    queueMicrotask(()=>{const response=new EventEmitter();response.statusCode=200;callback(response);response.emit('data',JSON.stringify({instanceId:old.instanceId}));response.emit('end');});return request;
+  };
+  try{assert.equal(await service.probe(old),true);assert.equal(await service.probe({...old,url:'https://localhost:49155'}),false);assert.equal(requests,1);}
+  finally{https.get=original;}
+});
+test('changed service identity requests an explicit restart without replacing a live owner', async t => {
+  const {root,id}=prepare(t),owned=await server(t,root),service=require('../commands/lib/session-visualizer-server.cjs');
+  const previous=store.read(root,service.RUNTIME);store.write(root,service.RUNTIME,{...previous,version:'0'.repeat(64)},true);
+  try{const result=await start(root,{session:id,noOpen:true});assert.equal(result.status,'viewer-restart-required');assert.equal(result.sessionId,id);assert.equal(await service.probe(owned),true);}
+  finally{store.write(root,service.RUNTIME,previous,true);}
 });

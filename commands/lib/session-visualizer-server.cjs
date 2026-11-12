@@ -2,11 +2,12 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const http = require('node:http');
 const https = require('node:https');
 const cp = require('node:child_process');
 const { pathToFileURL } = require('node:url');
 const store = require('./session-events.cjs');
-const { createLocalTls } = require('./local-preview-tls.cjs');
+const LOOPBACK = '127.0.0.1';
 const BASE = path.resolve(__dirname, '../..');
 const versionHash = crypto.createHash('sha256').update(fs.readFileSync(__filename)).update(fs.readFileSync(require.resolve('./session-events.cjs')));
 versionHash.update(fs.readFileSync(path.join(__dirname, 'session-visualizer.cjs')));
@@ -14,19 +15,39 @@ versionHash.update(fs.readFileSync(path.join(__dirname, 'private-visualizer-cach
 for (const name of ['index.html','app.mjs','state.mjs','app.css']) versionHash.update(fs.readFileSync(path.join(BASE, 'visualizer', name)));
 const VERSION = versionHash.digest('hex');
 const RUNTIME = store.CACHE + '/private/runtime.json';
+function endpoint(value, protocol) {
+  if (typeof value !== 'string' || !/^(?:http|https):\/\/127\.0\.0\.1:\d+$/.test(value)) return false;
+  const url = new URL(value), port = Number(url.port);
+  return url.protocol === protocol && url.origin === value && Number.isInteger(port) && port >= 1024 && port <= 65535;
+}
+function current(info) { return info?.schemaVersion === 2 && info.transport === 'http-loopback' && info.bindAddress === LOOPBACK
+  && endpoint(info.url, 'http:') && !Object.hasOwn(info, 'certificate') && !Object.hasOwn(info, 'spki'); }
+function legacy(info) { return info?.schemaVersion === 1 && endpoint(info.url, 'https:') && typeof info.certificate === 'string'
+  && info.certificate.length > 0 && info.certificate.length <= 16384; }
 function runtime(root) {
   const value = store.read(root, RUNTIME, 32768);
-  if (value.schemaVersion !== 1 || value.root !== root || !Number.isInteger(value.pid) || value.pid < 1 || !store.UUID.test(value.instanceId)
-    || !/^https:\/\/127\.0\.0\.1:\d+$/.test(value.url) || !/^[a-f0-9]{64}$/.test(value.token) || typeof value.certificate !== 'string' || value.certificate.length > 16384) throw new Error('Invalid visualizer service ownership.');
+  if ((!current(value) && !legacy(value)) || value.root !== root || !Number.isInteger(value.pid) || value.pid < 1 || !store.UUID.test(value.instanceId)
+    || !/^[a-f0-9]{64}$/.test(value.token)) throw new Error('Invalid visualizer service ownership.');
   return value;
 }
 function probe(info) {
   return new Promise(resolve => {
-    const request = https.get(info.url + '/api/health', { ca: info.certificate, agent: false, headers: { Authorization: 'Bearer ' + info.token } }, response => {
-      let bytes = ''; response.on('data', chunk => { bytes += chunk; if (bytes.length > 4096) request.destroy(); });
-      response.on('end', () => { try { resolve(response.statusCode === 200 && JSON.parse(bytes).instanceId === info.instanceId); } catch { resolve(false); } });
-    });
-    request.setTimeout(1500, () => request.destroy()); request.on('error', () => resolve(false));
+    let agent, settled = false;
+    const finish = value => { if (settled) return; settled = true; agent?.destroy(); resolve(value); };
+    try {
+      const old = legacy(info);
+      if ((!current(info) && !old) || !/^[a-f0-9]{64}$/.test(info.token) || !store.UUID.test(info.instanceId)) return finish(false);
+      // Legacy TLS is read/probe/shutdown compatibility only. New viewers are
+      // HTTP on literal IPv4 loopback; never route their bearer through a proxy.
+      const client = old ? https : http;
+      agent = old ? new https.Agent({ ca: info.certificate, keepAlive: false, proxyEnv: {} }) : new http.Agent({ keepAlive: false, proxyEnv: {} });
+      const request = client.get(info.url + '/api/health', { agent, headers: { Authorization: 'Bearer ' + info.token } }, response => {
+        let bytes = ''; response.on('data', chunk => { bytes += chunk; if (bytes.length > 4096) request.destroy(); });
+        response.once('error', () => finish(false)); response.once('aborted', () => finish(false));
+        response.on('end', () => { try { finish(response.statusCode === 200 && JSON.parse(bytes).instanceId === info.instanceId); } catch { finish(false); } });
+      });
+      request.setTimeout(1500, () => request.destroy()); request.on('error', () => finish(false));
+    } catch { finish(false); }
   });
 }
 function browserExecutable(root) {
@@ -45,13 +66,17 @@ function browserExecutable(root) {
   } catch {}
   return null;
 }
-async function startServer({ root, instanceId = crypto.randomUUID(), port = 0, openBrowser = true, background = false } = {}) {
+async function startServer(options = {}) {
+  if (!options || typeof options !== 'object' || Array.isArray(options)
+    || Object.keys(options).some(key => !['root','instanceId','port','openBrowser','background'].includes(key))) throw new Error('Unsupported visualizer server option; binding is fixed to 127.0.0.1.');
+  let { root, instanceId = crypto.randomUUID(), port = 0, openBrowser = true, background = false } = options;
   root = store.rootPath(root); store.id(instanceId);
   if (!Number.isInteger(port) || port !== 0 && (port < 1024 || port > 65535)) throw new Error('Invalid visualizer port.');
+  if (typeof openBrowser !== 'boolean' || typeof background !== 'boolean') throw new Error('Invalid visualizer process options.');
   store.privateCache(root);
   const lock = store.safe(root, store.CACHE + '/server-lock', 'dir');
   fs.mkdirSync(lock, { mode: 0o700 });
-  let held, tls, server, timer, expiry, closing = false;
+  let held, server, timer, expiry, closing = false;
   const clients = new Set(), browsers = new Set(), launchFiles = new Map();
   const token = crypto.randomBytes(32).toString('hex');
   const ownerFile = store.CACHE + '/server-lock/owner.json';
@@ -66,14 +91,13 @@ async function startServer({ root, instanceId = crypto.randomUUID(), port = 0, o
       if (fs.statSync(full).size === bytes.length && fs.readFileSync(full).equals(bytes)) fs.unlinkSync(full);
     } catch {}
     if (server?.listening) await new Promise(resolve => { server.close(resolve); server.closeAllConnections(); });
-    tls?.dispose(); held?.release();
+    held?.release();
     try { const owned = runtime(root); if (owned.instanceId === instanceId) fs.unlinkSync(store.safe(root, RUNTIME, 'file')); } catch {}
     for (const relative of [store.CACHE + '/stop.json', ownerFile]) try { const value = store.read(root, relative); if (value.instanceId === instanceId) fs.unlinkSync(store.safe(root, relative, 'file')); } catch {}
     try { fs.rmdirSync(lock); } catch {}
   }
   try {
     held = require('./installation-maintenance.cjs').lease(root);
-    tls = createLocalTls({ projectRoot: root });
     const files = new Map();
     for (const [url, relative, type] of [['/','visualizer/index.html','text/html'],['/app.mjs','visualizer/app.mjs','text/javascript'],['/state.mjs','visualizer/state.mjs','text/javascript'],['/app.css','visualizer/app.css','text/css'],['/logo.png','logo.png','image/png']]) {
       const full = store.safe(BASE, relative, 'file'), stat = fs.statSync(full);
@@ -82,11 +106,12 @@ async function startServer({ root, instanceId = crypto.randomUUID(), port = 0, o
     }
     let info;
     const auth = value => typeof value === 'string' && /^Bearer [a-f0-9]{64}$/.test(value) && crypto.timingSafeEqual(Buffer.from(value), Buffer.from('Bearer ' + token));
-    server = https.createServer({ ...tls.serverOptions, maxHeaderSize: 16384 }, (request, response) => {
+    server = http.createServer({ maxHeaderSize: 16384 }, (request, response) => {
       const finish = (code, value) => { response.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' }); response.end(JSON.stringify(value)); };
       response.setHeader('Cache-Control', 'no-store'); response.setHeader('X-Content-Type-Options', 'nosniff'); response.setHeader('Referrer-Policy', 'no-referrer');
       response.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'");
-      if (!info || request.headers.host !== new URL(info.url).host || request.headers.origin && request.headers.origin !== info.url) return finish(403, { error: 'Invalid request origin.' });
+      if (!info || request.socket.localAddress !== LOOPBACK || request.socket.remoteAddress !== LOOPBACK
+        || request.headers.host !== new URL(info.url).host || request.headers.origin && request.headers.origin !== info.url) return finish(403, { error: 'Invalid request origin.' });
       if (request.method !== 'GET' || request.headers['transfer-encoding'] || request.headers['content-length'] && request.headers['content-length'] !== '0') return finish(405, { error: 'Read-only service.' });
       const target = request.url;
       if (!target || target.length > 2048 || !/^\/[A-Za-z0-9_/?=&.-]*$/.test(target) || target.includes('..') || target.includes('//')) return finish(400, { error: 'Invalid route.' });
@@ -135,10 +160,11 @@ async function startServer({ root, instanceId = crypto.randomUUID(), port = 0, o
       } catch { finish(400, { error: 'Invalid or unavailable session metadata.' }); }
     });
     server.maxConnections = 64; server.requestTimeout = 15000; server.headersTimeout = 10000;
-    server.on('tlsClientError', () => {});
-    await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', resolve); });
-    info = { schemaVersion: 1, root, pid: process.pid, execution: background ? 'background' : 'embedded', instanceId, version: VERSION, url: 'https://127.0.0.1:' + server.address().port,
-      token, certificate: tls.certificate.toString(), spki: tls.spki, createdAt: new Date().toISOString() };
+    await new Promise((resolve, reject) => { server.once('error', reject); server.listen({ port, host: LOOPBACK, exclusive: true }, resolve); });
+    const address = server.address();
+    if (!address || typeof address === 'string' || address.address !== LOOPBACK || address.family !== 'IPv4') throw new Error('Visualizer listener is not IPv4 loopback.');
+    info = { schemaVersion: 2, transport: 'http-loopback', bindAddress: address.address, root, pid: process.pid, execution: background ? 'background' : 'embedded', instanceId, version: VERSION,
+      url: 'http://' + LOOPBACK + ':' + address.port, token, createdAt: new Date().toISOString() };
     store.write(root, RUNTIME, info, fs.existsSync(store.safe(root, RUNTIME, 'file')));
     store.directory(root, store.CACHE + '/requests'); store.directory(root, store.CACHE + '/opened');
     let polling = false;
@@ -165,7 +191,7 @@ async function startServer({ root, instanceId = crypto.randomUUID(), port = 0, o
               const bytes = Buffer.from('<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=' + destination.replaceAll('&', '&amp;') + '"><title>Opening Hephaera</title>');
               const launch = store.safe(root, launchRelative, 'file');
               fs.writeFileSync(launch, bytes, { flag: 'wx', mode: 0o600 }); launchFiles.set(launchRelative, bytes);
-              const child = cp.spawn(executable, ['--user-data-dir=' + profile, '--ignore-certificate-errors-spki-list=' + tls.spki,
+              const child = cp.spawn(executable, ['--user-data-dir=' + profile,
                 '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--disable-component-update', '--disable-sync', '--no-proxy-server',
                 pathToFileURL(launch).href], { windowsHide: false, stdio: 'ignore' });
               browsers.add(child); child.once('error', () => {}); child.once('exit', () => browsers.delete(child));
@@ -178,7 +204,7 @@ async function startServer({ root, instanceId = crypto.randomUUID(), port = 0, o
       } catch { /* Observation must not change project execution. */ }
       finally { polling = false; }
     }, 200);
-    expiry = setTimeout(close, Math.min(23 * 3600000, Date.parse(tls.validUntil) - Date.now() - 60000));
+    expiry = setTimeout(close, 23 * 3600000);
     return { ...info, close };
   } catch (error) { await close(); throw error; }
 }
@@ -192,7 +218,7 @@ if (require.main === module) {
     for (const signal of ['SIGINT','SIGTERM']) process.once(signal, () => service.close());
   }).catch(error => {
     try {
-      const reason = error.code === 'EADDRINUSE' ? 'port-unavailable' : error.code === 'HEPHAERA_PRIVACY_UNAVAILABLE' ? 'private-cache-unavailable' : /OpenSSL|TLS|certificate/i.test(error.message) ? 'tls-prerequisite-unavailable' : /EEXIST|ownership|maintenance|lease/i.test(error.message) ? 'service-ownership-unavailable' : 'service-startup-unavailable';
+      const reason = error.code === 'EADDRINUSE' ? 'port-unavailable' : error.code === 'HEPHAERA_PRIVACY_UNAVAILABLE' ? 'private-cache-unavailable' : /EEXIST|ownership|maintenance|lease/i.test(error.message) ? 'service-ownership-unavailable' : 'service-startup-unavailable';
       store.write(store.rootPath(root), store.CACHE + '/failure-' + instanceId + '.json', { reason });
     } catch {}
     process.exitCode = 1;

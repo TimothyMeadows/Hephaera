@@ -20,7 +20,7 @@ Add repository-specific architecture instructions below these read directives.
 
 ## Session observation
 
-The developer companion under `visualizer/` and `commands/lib/session-*.cjs` follows `./.architecture/NODE.md` for its standalone Node/browser boundaries. Pure `visualizer/state.mjs` owns event reduction and replay; presentation uses native browser modules/SVG/CSS; the local HTTPS service owns transport, enumerated static assets and bounded metadata reads. `session-events.cjs` owns project-confined immutable event publication and best-effort observation. Session state belongs only in the host `.hephaera/.cache/visualizer/`; it is not task, approval or production authority. Bubo's fixed execution boundary and existing native ownership callbacks remain unchanged.
+The developer companion under `visualizer/` and `commands/lib/session-*.cjs` follows `./.architecture/NODE.md` for its standalone Node/browser boundaries. Pure `visualizer/state.mjs` owns event reduction and replay; presentation uses native browser modules/SVG/CSS. Its authenticated HTTP service is bound exclusively to IPv4 `127.0.0.1`, with no bind-address override, and owns enumerated static assets and bounded metadata reads. Other local preview services retain their existing HTTPS policy. `session-events.cjs` owns project-confined immutable event publication and best-effort observation. Session state belongs only in the host `.hephaera/.cache/visualizer/`; it is not task, approval or production authority. Bubo's fixed execution boundary and existing native ownership callbacks remain unchanged.
 
 ## Native asset orchestration
 
