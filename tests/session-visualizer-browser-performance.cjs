@@ -32,7 +32,7 @@ async function main() {
     assert.equal(result.code, 0, result.stderr);
     const resultInfo = JSON.parse(result.stdout.trim().split('\n').at(-1));
     const report = store.read(root, resultInfo.evidence + '/report.json');
-    assert.equal(report.transport, 'native browser HTTP on 127.0.0.1'); assert.equal(report.metrics.largeHistoryCheck, true); assert.ok(report.metrics.liveUpdateMs < 1000);
+    assert.equal(report.transport, 'native browser HTTP on my.hephaera.com bound to 127.0.0.1'); assert.equal(report.metrics.largeHistoryCheck, true); assert.ok(report.metrics.liveUpdateMs < 1000);
     const evidence = '.hephaera/.cache/tasks/session-visualizer/evidence/performance-' + runId;
     store.directory(REPO, evidence);
     for (const name of ['report.json', 'desktop.png', 'mobile.png', 'structure.png']) fs.copyFileSync(store.safe(root, resultInfo.evidence + '/' + name, 'file'), store.safe(REPO, evidence + '/' + name, 'file'), fs.constants.COPYFILE_EXCL);

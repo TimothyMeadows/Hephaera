@@ -8,6 +8,8 @@ const cp = require('node:child_process');
 const { pathToFileURL } = require('node:url');
 const store = require('./session-events.cjs');
 const LOOPBACK = '127.0.0.1';
+const VIEWER_HOST = 'my.hephaera.com';
+const BROWSER_NETWORK_ARGS = Object.freeze(['--no-proxy-server', '--host-resolver-rules=MAP my.hephaera.com 127.0.0.1,MAP * ~NOTFOUND']);
 const BASE = path.resolve(__dirname, '../..');
 const versionHash = crypto.createHash('sha256').update(fs.readFileSync(__filename)).update(fs.readFileSync(require.resolve('./session-events.cjs')));
 versionHash.update(fs.readFileSync(path.join(__dirname, 'session-visualizer.cjs')));
@@ -15,18 +17,22 @@ versionHash.update(fs.readFileSync(path.join(__dirname, 'private-visualizer-cach
 for (const name of ['index.html','app.mjs','state.mjs','app.css']) versionHash.update(fs.readFileSync(path.join(BASE, 'visualizer', name)));
 const VERSION = versionHash.digest('hex');
 const RUNTIME = store.CACHE + '/private/runtime.json';
-function endpoint(value, protocol) {
-  if (typeof value !== 'string' || !/^(?:http|https):\/\/127\.0\.0\.1:\d+$/.test(value)) return false;
+function endpoint(value, protocol, hostname = LOOPBACK) {
+  const prefix = protocol + '//' + hostname + ':';
+  if (typeof value !== 'string' || !value.startsWith(prefix) || !/^\d+$/.test(value.slice(prefix.length))) return false;
   const url = new URL(value), port = Number(url.port);
   return url.protocol === protocol && url.origin === value && Number.isInteger(port) && port >= 1024 && port <= 65535;
 }
-function current(info) { return info?.schemaVersion === 2 && info.transport === 'http-loopback' && info.bindAddress === LOOPBACK
+function current(info) { return info?.schemaVersion === 3 && info.transport === 'http-loopback' && info.bindAddress === LOOPBACK
+  && endpoint(info.url, 'http:', VIEWER_HOST) && endpoint(info.connectUrl, 'http:') && new URL(info.url).port === new URL(info.connectUrl).port
+  && !Object.hasOwn(info, 'certificate') && !Object.hasOwn(info, 'spki'); }
+function previousHttp(info) { return info?.schemaVersion === 2 && info.transport === 'http-loopback' && info.bindAddress === LOOPBACK
   && endpoint(info.url, 'http:') && !Object.hasOwn(info, 'certificate') && !Object.hasOwn(info, 'spki'); }
 function legacy(info) { return info?.schemaVersion === 1 && endpoint(info.url, 'https:') && typeof info.certificate === 'string'
   && info.certificate.length > 0 && info.certificate.length <= 16384; }
 function runtime(root) {
   const value = store.read(root, RUNTIME, 32768);
-  if ((!current(value) && !legacy(value)) || value.root !== root || !Number.isInteger(value.pid) || value.pid < 1 || !store.UUID.test(value.instanceId)
+  if ((!current(value) && !previousHttp(value) && !legacy(value)) || value.root !== root || !Number.isInteger(value.pid) || value.pid < 1 || !store.UUID.test(value.instanceId)
     || !/^[a-f0-9]{64}$/.test(value.token)) throw new Error('Invalid visualizer service ownership.');
   return value;
 }
@@ -36,12 +42,13 @@ function probe(info) {
     const finish = value => { if (settled) return; settled = true; agent?.destroy(); resolve(value); };
     try {
       const old = legacy(info);
-      if ((!current(info) && !old) || !/^[a-f0-9]{64}$/.test(info.token) || !store.UUID.test(info.instanceId)) return finish(false);
-      // Legacy TLS is read/probe/shutdown compatibility only. New viewers are
-      // HTTP on literal IPv4 loopback; never route their bearer through a proxy.
+      if ((!current(info) && !previousHttp(info) && !old) || !/^[a-f0-9]{64}$/.test(info.token) || !store.UUID.test(info.instanceId)) return finish(false);
+      // Previous transports are owned probe/shutdown compatibility only. New
+      // health calls connect to the validated literal IP, never DNS or proxies.
       const client = old ? https : http;
       agent = old ? new https.Agent({ ca: info.certificate, keepAlive: false, proxyEnv: {} }) : new http.Agent({ keepAlive: false, proxyEnv: {} });
-      const request = client.get(info.url + '/api/health', { agent, headers: { Authorization: 'Bearer ' + info.token } }, response => {
+      const request = client.get((current(info) ? info.connectUrl : info.url) + '/api/health', { agent,
+        headers: { Host: new URL(info.url).host, Authorization: 'Bearer ' + info.token } }, response => {
         let bytes = ''; response.on('data', chunk => { bytes += chunk; if (bytes.length > 4096) request.destroy(); });
         response.once('error', () => finish(false)); response.once('aborted', () => finish(false));
         response.on('end', () => { try { finish(response.statusCode === 200 && JSON.parse(bytes).instanceId === info.instanceId); } catch { finish(false); } });
@@ -163,8 +170,8 @@ async function startServer(options = {}) {
     await new Promise((resolve, reject) => { server.once('error', reject); server.listen({ port, host: LOOPBACK, exclusive: true }, resolve); });
     const address = server.address();
     if (!address || typeof address === 'string' || address.address !== LOOPBACK || address.family !== 'IPv4') throw new Error('Visualizer listener is not IPv4 loopback.');
-    info = { schemaVersion: 2, transport: 'http-loopback', bindAddress: address.address, root, pid: process.pid, execution: background ? 'background' : 'embedded', instanceId, version: VERSION,
-      url: 'http://' + LOOPBACK + ':' + address.port, token, createdAt: new Date().toISOString() };
+    info = { schemaVersion: 3, transport: 'http-loopback', bindAddress: address.address, root, pid: process.pid, execution: background ? 'background' : 'embedded', instanceId, version: VERSION,
+      url: 'http://' + VIEWER_HOST + ':' + address.port, connectUrl: 'http://' + LOOPBACK + ':' + address.port, token, createdAt: new Date().toISOString() };
     store.write(root, RUNTIME, info, fs.existsSync(store.safe(root, RUNTIME, 'file')));
     store.directory(root, store.CACHE + '/requests'); store.directory(root, store.CACHE + '/opened');
     let polling = false;
@@ -192,7 +199,7 @@ async function startServer(options = {}) {
               const launch = store.safe(root, launchRelative, 'file');
               fs.writeFileSync(launch, bytes, { flag: 'wx', mode: 0o600 }); launchFiles.set(launchRelative, bytes);
               const child = cp.spawn(executable, ['--user-data-dir=' + profile,
-                '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--disable-component-update', '--disable-sync', '--no-proxy-server',
+                '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--disable-component-update', '--disable-sync', ...BROWSER_NETWORK_ARGS,
                 pathToFileURL(launch).href], { windowsHide: false, stdio: 'ignore' });
               browsers.add(child); child.once('error', () => {}); child.once('exit', () => browsers.delete(child));
               status = await new Promise(resolve => { child.once('spawn', () => resolve('launched-unverified')); child.once('error', () => resolve('browser-unavailable')); });
@@ -208,7 +215,7 @@ async function startServer(options = {}) {
     return { ...info, close };
   } catch (error) { await close(); throw error; }
 }
-module.exports = { VERSION, RUNTIME, runtime, probe, startServer, browserExecutable };
+module.exports = { VERSION, RUNTIME, BROWSER_NETWORK_ARGS, runtime, probe, startServer, browserExecutable };
 if (require.main === module) {
   const [mode, root, instanceId, rawPort, ...extra] = process.argv.slice(2);
   if (mode !== '--background-worker' || !root || !instanceId || extra.length) {

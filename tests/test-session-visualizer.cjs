@@ -25,13 +25,22 @@ function recorded(root, id, label = 'Test activity', fields = {}) { return store
 function jsonRequest(service, route, options = {}) {
   return new Promise((resolve, reject) => {
     const url = new URL(service.url);
-    const request = http.request({ hostname: url.hostname, port: url.port, path: route, agent: false, ...options,
-      headers: { Authorization: 'Bearer ' + service.token, ...options.headers } }, response => {
+    const request = http.request({ hostname: '127.0.0.1', port: url.port, path: route, agent: false, ...options,
+      headers: { Host: url.host, Authorization: 'Bearer ' + service.token, ...options.headers } }, response => {
       let text = ''; response.on('data', chunk => { text += chunk; }); response.on('end', () => { let body; try { body = JSON.parse(text); } catch { body = text; } resolve({ status: response.statusCode, headers: response.headers, body }); });
     }); request.setTimeout(5000, () => request.destroy(new Error('Owned test deadline'))); request.on('error', reject); request.end();
   });
 }
 async function server(t, root) { const value = await startServer({ root, openBrowser: false }); t.after(value.close); return value; }
+test('the exact viewer hostname is accepted without widening Host or Origin checks', async t => {
+  const {root}=prepare(t),running=await server(t,root),port=new URL(running.url).port;
+  const Host='my.hephaera.com:'+port,Origin='http://'+Host;
+  assert.equal((await jsonRequest(running,'/api/sessions',{headers:{Host,Origin}})).status,200);
+  for(const host of ['127.0.0.1:'+port,'my.hephaera.com.:'+port,'MY.HEPHAERA.COM:'+port,'other.hephaera.com:'+port,'my.hephaera.com:1'])
+    assert.equal((await jsonRequest(running,'/api/sessions',{headers:{Host:host}})).status,403);
+  for(const origin of ['http://127.0.0.1:'+port,'https://'+Host,'http://my.hephaera.com:1','null'])
+    assert.equal((await jsonRequest(running,'/api/sessions',{headers:{Host,Origin:origin}})).status,403);
+});
 function child(args, env = {}, cwd = REPO) {
   return new Promise(resolve => { const proc = cp.spawn(process.execPath, args, { cwd, windowsHide: true, env: { ...process.env, ...env }, stdio: ['ignore','pipe','pipe'] }); let stdout = '', stderr = ''; proc.stdout.on('data', c => { stdout += c; }); proc.stderr.on('data', c => { stderr += c; }); proc.once('error', error => resolve({ error })); proc.once('close', (code, signal) => resolve({ code, signal, stdout, stderr })); });
 }
@@ -40,9 +49,10 @@ test('HTTP listener is fixed to IPv4 loopback and refuses non-loopback connectio
   const root=fixture(t),original=http.Server.prototype.listen;let listener;
   http.Server.prototype.listen=function(...args){listener=this;return Reflect.apply(original,this,args);};
   let running;try{running=await server(t,root);}finally{http.Server.prototype.listen=original;}
-  assert.match(running.url,/^http:\/\/127\.0\.0\.1:\d+$/);
+  assert.match(running.url,/^http:\/\/my\.hephaera\.com:\d+$/);
+  assert.equal(running.connectUrl,'http://127.0.0.1:'+listener.address().port);
   assert.equal(listener.address().address,'127.0.0.1');assert.equal(listener.address().family,'IPv4');
-  assert.equal(running.schemaVersion,2);assert.equal(running.bindAddress,'127.0.0.1');
+  assert.equal(running.schemaVersion,3);assert.equal(running.bindAddress,'127.0.0.1');
   assert.equal('certificate' in running,false);assert.equal('spki' in running,false);
   const addresses=[...new Set(Object.values(os.networkInterfaces()).flat().filter(item=>item&&!item.internal&&item.family==='IPv4').map(item=>item.address)),'::1'];
   for(const host of addresses){
@@ -82,8 +92,34 @@ test('loopback health bypasses environment proxies and ignores bind environment 
     const result=await child(['commands/lib/session-visualizer.cjs','status','--root',root,'--session',id],
       {NODE_USE_ENV_PROXY:'1',HTTP_PROXY:proxyUrl,http_proxy:proxyUrl,HTTPS_PROXY:proxyUrl,https_proxy:proxyUrl,NO_PROXY:'',no_proxy:'',HOST:'0.0.0.0',BIND_ADDRESS:'::',HEPHAERA_VISUALIZER_HOST:'0.0.0.0'});
     assert.equal(result.code,0,result.stderr);assert.equal(JSON.parse(result.stdout).status,'running');
-    assert.match(JSON.parse(result.stdout).url,/^http:\/\/127\.0\.0\.1:/);assert.equal(forwarded,0);
+    assert.match(JSON.parse(result.stdout).url,/^http:\/\/my\.hephaera\.com:/);assert.equal(forwarded,0);
   }finally{await new Promise(resolve=>proxy.close(resolve));}
+});
+test('domain runtime pairs reject alternate origins and health never resolves DNS', async t => {
+  const {root,id}=prepare(t),service=require('../commands/lib/session-visualizer-server.cjs'),running=await server(t,root);
+  const port=new URL(running.url).port,original=store.read(root,service.RUNTIME);
+  for(const change of [{url:'http://other.hephaera.com:'+port},{url:'http://my.hephaera.com.evil.test:'+port},
+    {url:'http://my.hephaera.com.:'+port},{url:'https://my.hephaera.com:'+port},{url:'http://127.0.0.1:'+port},
+    {connectUrl:'http://my.hephaera.com:'+port},{connectUrl:'http://192.0.2.1:'+port},{connectUrl:'http://127.0.0.2:'+port},
+    {connectUrl:'http://[::1]:'+port},{connectUrl:'http://127.0.0.1:'+(port===49155?49156:49155)},{connectUrl:undefined}]){
+    const invalid={...original,...change};store.write(root,service.RUNTIME,invalid,true);
+    assert.throws(()=>service.runtime(root));assert.equal(await service.probe(invalid),false);
+  }
+  store.write(root,service.RUNTIME,original,true);
+  const script=`const dns=require('node:dns');dns.lookup=()=>{throw Error('Unexpected DNS lookup')};dns.promises.lookup=async()=>{throw Error('Unexpected DNS lookup')};require('./commands/lib/session-visualizer.cjs').main(process.argv.slice(1)).catch(()=>{process.exitCode=1});`;
+  const result=await child(['-e',script,'status','--root',root,'--session',id]);
+  assert.equal(result.code,0,result.stderr);assert.equal(JSON.parse(result.stdout).status,'running');
+});
+test('previous literal HTTP owners remain available for safe probe and restart', async t => {
+  const root=fixture(t),service=require('../commands/lib/session-visualizer-server.cjs');store.privateCache(root);
+  const instanceId=crypto.randomUUID(),token='b'.repeat(64);let requests=0;
+  const old=http.createServer((request,response)=>{requests++;assert.equal(request.headers.host,'127.0.0.1:'+old.address().port);
+    assert.equal(request.headers.authorization,'Bearer '+token);response.end(JSON.stringify({instanceId}));});
+  await new Promise(resolve=>old.listen(0,'127.0.0.1',resolve));
+  try{const info={schemaVersion:2,transport:'http-loopback',bindAddress:'127.0.0.1',root,pid:process.pid,instanceId,version:'0'.repeat(64),token,url:'http://127.0.0.1:'+old.address().port};
+    store.write(root,service.RUNTIME,info);assert.equal(service.runtime(root).schemaVersion,2);assert.equal(await service.probe(info),true);assert.equal(requests,1);
+    const session=store.createSession(root);const result=await start(root,{session:session.id,noOpen:true});assert.equal(result.status,'viewer-restart-required');
+  }finally{await new Promise(resolve=>old.close(resolve));}
 });
 test('production browser launch uses no certificate or security exception flags', async t => {
   const {root,id}=prepare(t),previous=process.env.HEPHAERA_VISUALIZER_BROWSER,spawn=cp.spawn;
@@ -100,6 +136,8 @@ test('production browser launch uses no certificate or security exception flags'
     assert.equal(args.some(arg=>/^--(?:ignore-certificate-errors(?:-spki-list)?|allow-insecure-localhost|disable-web-security|no-sandbox|unsafely-treat-insecure-origin-as-secure)(?:=|$)/.test(arg)),false);
     assert.equal(args.some(arg=>arg.startsWith('--user-data-dir=')&&arg.includes('private')),true);
     assert.equal(args.some(arg=>arg.includes(running.token)),false);
+    assert.ok(args.includes('--host-resolver-rules=MAP my.hephaera.com 127.0.0.1,MAP * ~NOTFOUND'));
+    assert.ok(args.includes('--no-proxy-server'));
   }finally{
     await running.close();cp.spawn=spawn;
     if(previous===undefined)delete process.env.HEPHAERA_VISUALIZER_BROWSER;else process.env.HEPHAERA_VISUALIZER_BROWSER=previous;
@@ -384,7 +422,7 @@ test('SSE reconnect resumes after the applied ID and receives new events within 
   const { root, id } = prepare(t); recorded(root, id, 'First'); recorded(root, id, 'Second'); const running = await server(t, root);
   const received = [], started = performance.now();
   await new Promise((resolve, reject) => {
-    const request = http.get(running.url + '/api/sessions/' + id + '/events?after=1', { agent: false, headers: { Authorization: 'Bearer ' + running.token } }, response => {
+    const request = http.get(running.connectUrl + '/api/sessions/' + id + '/events?after=1', { agent: false, headers: { Host: new URL(running.url).host, Authorization: 'Bearer ' + running.token } }, response => {
       let buffer = ''; response.on('data', chunk => {
         buffer += chunk; let boundary;
         while ((boundary = buffer.indexOf('\n\n')) !== -1) { const block = buffer.slice(0, boundary); buffer = buffer.slice(boundary + 2); if (!block.includes('event: activity')) continue; const value = JSON.parse(block.split('\n').find(l => l.startsWith('data: ')).slice(6)); received.push(value.sequence); if (value.sequence === 3) { request.destroy(); resolve(); } }
@@ -407,7 +445,7 @@ test('10,000-event history is paged and a fresh update does not replay old files
   // frames must drain, not be destroyed before a large history can catch up.
   const sequences = [];
   await new Promise((resolve, reject) => {
-    const request = http.get(running.url + '/api/sessions/' + id + '/events', { agent: false, headers: { Authorization: 'Bearer ' + running.token } }, response => {
+    const request = http.get(running.connectUrl + '/api/sessions/' + id + '/events', { agent: false, headers: { Host: new URL(running.url).host, Authorization: 'Bearer ' + running.token } }, response => {
       let buffer = '';
       response.on('data', chunk => { buffer += chunk; let index;
         while ((index = buffer.indexOf('\n\n')) >= 0) { const block = buffer.slice(0,index); buffer = buffer.slice(index+2);
@@ -499,8 +537,8 @@ test('captured shell startup returns and the background service survives its cal
     assert.equal(await require('../commands/lib/session-visualizer-server.cjs').probe(running),true);
     const before=store.page(root,response.sessionId).total;
     const stream = new Promise((resolve,reject)=>{
-      const request=http.get(running.url+'/api/sessions/'+response.sessionId+'/events?after='+before,
-        {agent:false,headers:{Authorization:'Bearer '+running.token}},response=>{
+      const request=http.get(running.connectUrl+'/api/sessions/'+response.sessionId+'/events?after='+before,
+        {agent:false,headers:{Host:new URL(running.url).host,Authorization:'Bearer '+running.token}},response=>{
           let wire='';response.on('data',bytes=>{wire+=bytes;if(wire.includes('After launcher exit')){resolve();request.destroy();}});
         });
       request.setTimeout(5000,()=>request.destroy(new Error('No fresh background event.')));request.once('error',reject);
@@ -539,9 +577,9 @@ test('HTTP startup needs no OpenSSL and creates no certificate or pin metadata',
   const result = await child(['commands/lib/session-visualizer.cjs','start','--root',root,'--no-open'], { HEPHAERA_OPENSSL: path.join(root, 'unavailable-openssl') });
   assert.equal(result.code,0); const status = JSON.parse(result.stdout);
   try {
-    assert.equal(status.status,'running');assert.match(status.url,/^http:\/\/127\.0\.0\.1:/);
+    assert.equal(status.status,'running');assert.match(status.url,/^http:\/\/my\.hephaera\.com:/);
     const owned=require('../commands/lib/session-visualizer-server.cjs').runtime(root);
-    assert.equal(owned.schemaVersion,2);assert.equal('certificate' in owned,false);assert.equal('spki' in owned,false);
+    assert.equal(owned.schemaVersion,3);assert.equal('certificate' in owned,false);assert.equal('spki' in owned,false);
     assert.equal(store.history(root).total,1);
   }finally{await child(['commands/lib/session-visualizer.cjs','stop','--root',root]);}
 });
