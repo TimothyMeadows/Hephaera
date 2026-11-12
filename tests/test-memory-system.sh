@@ -227,6 +227,17 @@ printf '%s\n' "$*" >> "$HEPHAERA_TEST_PATH_CONVERSION_LOG"
 exec "$HEPHAERA_TEST_REAL_CYGPATH" "$@"
 EOF
   chmod +x "$fake_gh_dir/cygpath"
+else
+  # A Linux runner has no native Windows path converter. This fake Windows
+  # gh.exe only records argv, so simulate the converter in this owned fixture.
+  cat > "$fake_gh_dir/wslpath" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+[[ "$1" == '-w' && "$2" == /* ]] || exit 1
+printf '%s\n' "$*" >> "$HEPHAERA_TEST_PATH_CONVERSION_LOG"
+printf '%s\n' 'C:\hephaera-fixture\qa-comment.md'
+EOF
+  chmod +x "$fake_gh_dir/wslpath"
 fi
 printf '# QA\n\nPASS\n' > "$fake_qa_summary"
 PATH="$fake_gh_dir:$PATH" run_for "$project" bash commands/comment-pr-qa-results.sh --help >/dev/null
@@ -235,6 +246,7 @@ if [[ -n "$host_cygpath" ]]; then
   grep -Eq '^-w /' "$fake_path_conversion_log" || fail 'Git Bash gh.exe body path did not pass through cygpath'
   grep -Eq '^(/|[A-Za-z]:\\|\\\\)' "$fake_gh_log" || fail 'Git Bash gh.exe did not receive an absolute body-file path'
 else
+  grep -Eq '^-w /' "$fake_path_conversion_log" || fail 'fake Windows gh.exe body path did not pass through the fixture converter'
   grep -Eq '^([A-Za-z]:\\|\\\\)' "$fake_gh_log" || fail 'Windows gh.exe did not receive a translated body-file path'
 fi
 grep -Fq 'COMMENT_URL=https://github.com/example/project/pull/73#issuecomment-7301' <<< "$qa_comment_output" || fail 'PR QA helper did not return the durable GitHub comment URL'

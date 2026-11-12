@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
+if [[ -n "${HEPHAERA_SESSION_ID:-}" && "${HEPHAERA_VISUALIZER_WRAPPED:-}" != '1' ]]; then
+  hephaera_observer="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/lib/session-observer.sh"
+  if [[ -r "$hephaera_observer" ]] && source "$hephaera_observer" 2>/dev/null; then
+    hephaera_visualizer_entrypoint work "Voice lifecycle" "${BASH_SOURCE[0]}" "$@"
+  fi
+fi
 command_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 node_bin="$(command -v node 2>/dev/null || command -v node.exe 2>/dev/null || true)"
 [[ -n "$node_bin" ]] || { echo 'Node.js is required for media production commands; nothing was installed.' >&2; exit 1; }

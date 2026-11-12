@@ -18,6 +18,10 @@ Read `./.architecture/DOTNET.md` instructions
 Add repository-specific architecture instructions below these read directives.
 
 
+## Session observation
+
+The developer companion under `visualizer/` and `commands/lib/session-*.cjs` follows `./.architecture/NODE.md` for its standalone Node/browser boundaries. Pure `visualizer/state.mjs` owns event reduction and replay; presentation uses native browser modules/SVG/CSS; the local HTTPS service owns transport, enumerated static assets and bounded metadata reads. `session-events.cjs` owns project-confined immutable event publication and best-effort observation. Session state belongs only in the host `.hephaera/.cache/visualizer/`; it is not task, approval or production authority. Bubo's fixed execution boundary and existing native ownership callbacks remain unchanged.
+
 ## Native asset orchestration
 
 The standalone .NET 10 execution runtime is the exact Git submodule at `runtime/bubo`, pinned by its parent gitlink and `runtime/bubo.lock.json`. Read Bubo's own `ARCHITECTURE.md` for its inward domain/application/infrastructure layering. Bubo owns execution algorithms, fixed audited scripts, resources and native process ownership. Native subprocesses are bounded, cancellable and logged; cooperative file guards are not an OS sandbox.

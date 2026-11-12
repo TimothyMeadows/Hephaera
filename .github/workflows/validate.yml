@@ -45,10 +45,11 @@ jobs:
         run: npm ci --ignore-scripts --no-audit --no-fund --prefix tests/fixtures/web3 --cache .local/ci-npm-cache
       - name: Web3 policy, signatures and disposable local EVM examples
         shell: bash
-        run: node --test tests/test-web3-policy.cjs tests/test-web3-contracts.mjs tests/test-web3-wallets.mjs tests/test-web3-ownership.mjs tests/test-web3-trading.mjs tests/test-web3-integration.mjs
+        run: node --test --test-concurrency=1 --test-reporter=tap tests/test-web3-policy.cjs tests/test-web3-contracts.mjs tests/test-web3-wallets.mjs tests/test-web3-ownership.mjs tests/test-web3-trading.mjs tests/test-web3-integration.mjs
       - name: Host policy, clone/submodule installations and admission
         shell: bash
         run: |
+          set -x
           node --test tests/test-code-model-security.cjs tests/test-bubo-host-security.cjs tests/test-bubo-runtime-files.cjs tests/test-local-preview-tls.cjs
           node tests/test-code-character-evidence-security.cjs
           node tests/test-floor-plan-selection.cjs

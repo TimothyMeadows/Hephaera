@@ -1,0 +1,85 @@
+name: Session visualizer
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  metadata-and-service:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24.15.0'
+      - name: Check private cache prerequisite on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          node -e "const fs=require('node:fs'),p=require('node:path'),cp=require('node:child_process');fs.mkdirSync('.local',{recursive:true});cp.execFileSync(p.join(process.env.SystemRoot,'System32/WindowsPowerShell/v1.0/powershell.exe'),['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',p.resolve('commands/lib/private-visualizer-cache.ps1'),'-Directory',p.resolve('.local/visualizer-ci-private-probe')],{stdio:'inherit'});"
+      - name: Select the existing Chrome installation on Linux
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          chrome=$(command -v google-chrome)
+          test -x "$chrome"
+          printf 'HEPHAERA_VISUALIZER_BROWSER=%s\n' "$chrome" >> "$GITHUB_ENV"
+      - name: Event, replay, local HTTPS, concurrency and lifecycle tests
+        run: node --test tests/test-session-visualizer.cjs
+      - name: Native browser lifecycle, hierarchy and 10000-event rendering
+        run: node tests/session-visualizer-browser-performance.cjs
+      - name: Retain synthetic browser reports and screenshots
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: session-visualizer-${{ matrix.os }}
+          include-hidden-files: true
+          if-no-files-found: warn
+          path: |
+            .hephaera/.cache/tasks/session-visualizer/evidence/performance-*/report.json
+            .hephaera/.cache/tasks/session-visualizer/evidence/performance-*/*.png
+  complete-baseline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24.15.0'
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.x
+      - name: Restore existing pinned verification tools without package scripts
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund --prefix tests/fixtures/threejs-quarks --cache .local/ci-npm-cache
+          npm ci --ignore-scripts --no-audit --no-fund --prefix tests/fixtures/threejs-postprocessing --cache .local/ci-npm-cache
+          npm ci --ignore-scripts --no-audit --no-fund --prefix tests/fixtures/web3 --cache .local/ci-npm-cache
+      - name: Prepare checksum-pinned Blender for existing native regression fixtures
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends libegl1 libegl-mesa0
+          mkdir -p .local/ci-tools/blender
+          curl --fail --location --retry 3 --proto '=https' --tlsv1.2 \
+            https://download.blender.org/release/Blender4.5/blender-4.5.16-linux-x64.tar.xz \
+            --output .local/ci-tools/blender.tar.xz
+          # Official Blender4.5/blender-4.5.16.sha256, pinned at implementation.
+          printf '%s\n' '23432b064977908beb1ab4b7f32f024e7331105c875c187dce002aff84b10c11  .local/ci-tools/blender.tar.xz' | sha256sum --check --strict
+          tar --extract --xz --file .local/ci-tools/blender.tar.xz --directory .local/ci-tools/blender --strip-components=1 --no-same-owner
+          .local/ci-tools/blender/blender --version
+          printf 'BLENDER_EXE=%s/.local/ci-tools/blender/blender\n' "$PWD" >> "$GITHUB_ENV"
+      - name: Build the existing pinned Bubo runtime for CPU verification
+        run: bash commands/build-bubo-runtime.sh Release
+      - name: Run the complete canonical baseline validation
+        run: bash commands/validate-hephaera.sh
+        env:
+          HEPHAERA_TEST_GAUNTLET_TRACE: '1'

@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
+if [[ -n "${HEPHAERA_SESSION_ID:-}" && "${HEPHAERA_VISUALIZER_WRAPPED:-}" != '1' ]]; then
+  hephaera_observer="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/lib/session-observer.sh"
+  if [[ -r "$hephaera_observer" ]] && source "$hephaera_observer" 2>/dev/null; then
+    hephaera_visualizer_entrypoint work "VFX workflow" "${BASH_SOURCE[0]}" "$@"
+  fi
+fi
 
 command_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 command -v node >/dev/null 2>&1 || { echo 'Node.js is required for the VFX asset workflow.' >&2; exit 1; }

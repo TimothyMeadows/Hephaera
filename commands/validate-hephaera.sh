@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
+if [[ -n "${HEPHAERA_SESSION_ID:-}" && "${HEPHAERA_VISUALIZER_WRAPPED:-}" != '1' ]]; then
+  hephaera_observer="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/lib/session-observer.sh"
+  if [[ -r "$hephaera_observer" ]] && source "$hephaera_observer" 2>/dev/null; then
+    hephaera_visualizer_entrypoint verification "Hephaera validation" "${BASH_SOURCE[0]}" "$@"
+  fi
+fi
 
 exclude_gauntlet=0
 while [[ $# -gt 0 ]]; do
@@ -13,11 +19,12 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-./tests/test-hephaera-layout.sh
+node --test ./tests/test-session-visualizer.cjs
+bash ./tests/test-hephaera-layout.sh
 bash ./tests/test-state-transition.sh
 node ./tests/test-state-transition.cjs
-./tests/test-cache-workflows.sh
-./tests/test-runtime-cache-layout.sh
+bash ./tests/test-cache-workflows.sh
+bash ./tests/test-runtime-cache-layout.sh
 node ./tests/test-bubo-installation.cjs
 node ./tests/test-bubo-host-context.cjs
 node ./tests/test-action-vfx-host-admission.cjs
@@ -36,12 +43,12 @@ node ./tests/test-voice-pipeline-cli.cjs
 node ./tests/test-media-pipeline-generation-guards.cjs
 node ./tests/test-media-pipeline-integration.cjs
 node ./tests/test-media-pipeline-promotion.cjs
-./tests/test-generative-media.sh
+bash ./tests/test-generative-media.sh
 node ./tests/test-bubo-installation.cjs --real-runtime
 bash ./commands/test-bubo-runtime.sh host
 bash ./commands/test-bubo-runtime.sh media
-./commands/validate-engines.sh
-./tests/test-engine-selection.sh
+bash ./commands/validate-engines.sh
+bash ./tests/test-engine-selection.sh
 node ./tests/test-maui-engine-selection.cjs
 node ./tests/test-threejs-quarks-selection.cjs
 node ./tests/test-threejs-particles.cjs
@@ -56,28 +63,28 @@ node ./tests/test-threejs-postprocessing-runtime.mjs
 node ./tests/test-web-game-packaging.cjs
 node ./tests/test-web-game-package-transactions.cjs
 node --test ./tests/test-web3-policy.cjs ./tests/test-web3-contracts.mjs ./tests/test-web3-wallets.mjs ./tests/test-web3-ownership.mjs ./tests/test-web3-trading.mjs ./tests/test-web3-integration.mjs
-./tests/test-unreal-capabilities.sh
-./tests/test-unity-capabilities.sh
-./tests/test-unity-service-contracts.sh
-./tests/test-native-engine-fixtures.sh
-./tests/test-gameplay-profiles.sh
-./commands/validate-roles.sh
-./commands/validate-skills.sh
-./commands/validate-commands.sh
-./commands/validate-styles.sh
-./commands/validate-role-skill-map.sh
-./commands/validate-role-language-alignment.sh
-./commands/validate-cloud-preferences.sh
-./commands/validate-art-pipelines.sh
-./commands/validate-media-templates.sh
-./commands/validate-readme.sh
-./tests/test-memory-system.sh
-./tests/test-windows-bash-bootstrap.sh
-./tests/test-brainstorm-flow.sh
-./tests/test-task-execution.sh
-./tests/test-selected-capability-import.sh
+bash ./tests/test-unreal-capabilities.sh
+bash ./tests/test-unity-capabilities.sh
+bash ./tests/test-unity-service-contracts.sh
+bash ./tests/test-native-engine-fixtures.sh
+bash ./tests/test-gameplay-profiles.sh
+bash ./commands/validate-roles.sh
+bash ./commands/validate-skills.sh
+bash ./commands/validate-commands.sh
+bash ./commands/validate-styles.sh
+bash ./commands/validate-role-skill-map.sh
+bash ./commands/validate-role-language-alignment.sh
+bash ./commands/validate-cloud-preferences.sh
+bash ./commands/validate-art-pipelines.sh
+bash ./commands/validate-media-templates.sh
+bash ./commands/validate-readme.sh
+bash ./tests/test-memory-system.sh
+bash ./tests/test-windows-bash-bootstrap.sh
+bash ./tests/test-brainstorm-flow.sh
+bash ./tests/test-task-execution.sh
+bash ./tests/test-selected-capability-import.sh
 bash ./tests/test-game-template-catalog.sh
-./tests/test-art-pipelines.sh
+bash ./tests/test-art-pipelines.sh
 bash ./tests/test-proof-to-model.sh
 python_bin=''
 for candidate in python python3 python.exe; do
@@ -96,14 +103,14 @@ bash ./tests/test-model-to-animation.sh
 bash ./tests/test-model-to-action.sh
 "$python_bin" tests/test-model-action-blender.py
 "$python_bin" tests/test-model-action-native-integration.py
-./tests/test-code-character-contract.sh
-./tests/test-code-character-skills.sh
-./tests/test-code-character-evidence.sh
-./tests/test-code-character-integration.sh
-./tests/test-blender-art-capabilities.sh
-./tests/test-external-asset-library.sh
+bash ./tests/test-code-character-contract.sh
+bash ./tests/test-code-character-skills.sh
+bash ./tests/test-code-character-evidence.sh
+bash ./tests/test-code-character-integration.sh
+bash ./tests/test-blender-art-capabilities.sh
+bash ./tests/test-external-asset-library.sh
 if [[ $exclude_gauntlet -eq 0 ]]; then
-  ./tests/test-gauntlet-flow.sh
+  bash ./tests/test-gauntlet-flow.sh
 else
   echo 'Excluded tests/test-gauntlet-flow.sh (--exclude-gauntlet).'
 fi

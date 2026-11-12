@@ -30,8 +30,8 @@ while IFS= read -r name; do
 done < <(sed -nE 's/^\| ([A-Z][A-Z0-9_]+) \|.*/\1/p' .architecture/LANGUAGE_SUPPORT.md)
 
 echo '[2/4] generating retained mixed and inline architecture contracts'
-project_command bash commands/generate-architecture.sh DOTNET THREEJS COLYSEUS SPA >/dev/null
-for name in DOTNET THREEJS COLYSEUS SPA; do
+project_command bash commands/generate-architecture.sh DOTNET THREEJS COLYSEUS SPA SOLIDITY >/dev/null
+for name in DOTNET THREEJS COLYSEUS SPA SOLIDITY; do
   grep -Fq "/.architecture/$name.md" "$project/ARCHITECTURE.md" || fail "missing architecture directive $name"
 done
 project_command bash commands/generate-architecture.sh --inline DOTNET NODE >/dev/null
@@ -46,7 +46,7 @@ project_command bash commands/validate-style-contract.sh >/dev/null
 grep -Fq '<!-- BEGIN ART PIPELINE: CODE -->' "$project/STYLE.md" || fail 'inline style omitted CODE'
 
 echo '[4/4] rejecting retired selections without overwriting existing contracts'
-for pair in 'architecture AZURE' 'architecture AZURE_DEVOPS' 'architecture DATABRICKS' 'architecture EMBEDDED_FIRMWARE' 'architecture SOLIDITY' 'architecture REACT' 'architecture NEXTJS' 'architecture ANGULAR' 'architecture VUE' 'style WEB_ATMOSPHERIC' 'style WEB_DARK_GLASS' 'style WEB_EDITORIAL' 'style WEB_LIGHT_PAPER' 'style WEB_SKEUOMORPHIC' 'style WEB_TECHNICAL_GRID'; do
+for pair in 'architecture AZURE' 'architecture AZURE_DEVOPS' 'architecture DATABRICKS' 'architecture EMBEDDED_FIRMWARE' 'architecture REACT' 'architecture NEXTJS' 'architecture ANGULAR' 'architecture VUE' 'style WEB_ATMOSPHERIC' 'style WEB_DARK_GLASS' 'style WEB_EDITORIAL' 'style WEB_LIGHT_PAPER' 'style WEB_SKEUOMORPHIC' 'style WEB_TECHNICAL_GRID'; do
   read -r kind name <<< "$pair"
   if [[ "$kind" == architecture ]]; then target="$project/ARCHITECTURE.md"; valid=DOTNET; else target="$project/STYLE.md"; valid=PIXEL_ART; fi
   before="$(sha256sum "$target")"
