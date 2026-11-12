@@ -31,7 +31,7 @@ jobs:
           chrome=$(command -v google-chrome)
           test -x "$chrome"
           printf 'HEPHAERA_VISUALIZER_BROWSER=%s\n' "$chrome" >> "$GITHUB_ENV"
-      - name: Event, replay, local HTTPS, concurrency and lifecycle tests
+      - name: Event, replay, IPv4 loopback HTTP, concurrency and lifecycle tests
         run: node --test tests/test-session-visualizer.cjs
       - name: Native browser lifecycle, hierarchy and 10000-event rendering
         run: node tests/session-visualizer-browser-performance.cjs

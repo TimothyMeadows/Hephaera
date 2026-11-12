@@ -21,7 +21,8 @@ const HELP = `Usage: session-visualizer.sh <start|status|emit|run|end|stop|histo
   history [--offset N] [--limit N]
   stop                       Stops this project's owned service; preserves history.
   Settings: .hephaera/.cache/visualizer/config.json: {"enabled":true,"openBrowser":true}
-  Node24 and existing OpenSSL are required. Browser launch uses an existing Chromium.
+  Node24 is required. HTTP binding is fixed to 127.0.0.1; there is no public-listen option.
+  Browser launch uses an existing Chromium without certificate exception flags.
   Metadata only. Installation, native execution and publication are never authorized here.
 `;
 function parse(values) {
@@ -75,7 +76,8 @@ async function start(root, options) {
         return { status: 'viewer-unavailable', sessionId: session.id, reason, note: 'Nothing was installed; retained state and command behavior are unchanged.' };
       }
     }
-    if (running.version !== service.VERSION) throw new Error('Visualizer code changed; stop the existing viewer before restarting.');
+    if (running.version !== service.VERSION || running.schemaVersion !== 2) return { status: 'viewer-restart-required', sessionId: session.id,
+      reason: 'viewer-source-updated', nextStep: 'Stop the existing viewer, then start again with this session UUID. History is retained; continue task work meanwhile.' };
     let browser = options.noOpen ? 'not-requested' : 'pending';
     if (!options.noOpen) {
       const marker = store.CACHE + '/opened/' + running.instanceId + '-' + session.id + '.json';

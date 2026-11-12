@@ -5,7 +5,6 @@ const path = require('node:path');
 const cp = require('node:child_process');
 const crypto = require('node:crypto');
 const assert = require('node:assert/strict');
-const https = require('node:https');
 const { pathToFileURL } = require('node:url');
 const { setTimeout: delay } = require('node:timers/promises');
 const store = require('../commands/lib/session-events.cjs');
@@ -13,21 +12,21 @@ const service = require('../commands/lib/session-visualizer-server.cjs');
 async function main() {
   const args = process.argv.slice(2), options = {};
   for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--verified-relay') { options.relay = true; continue; }
     if (args[i] === '--structure-fixtures') { options.structures = true; continue; }
-    if (!['--root','--session'].includes(args[i]) || !args[i + 1]) throw new Error('Use --root PROJECT --session UUID [--verified-relay].'); options[args[i].slice(2)] = args[++i];
+    if (!['--root','--session'].includes(args[i]) || !args[i + 1]) throw new Error('Use --root PROJECT --session UUID [--structure-fixtures].'); options[args[i].slice(2)] = args[++i];
   }
   const root = store.rootPath(options.root); store.session(root, options.session);
   const running = service.runtime(root); assert.ok(await service.probe(running), 'Start the local viewer first.');
+  assert.match(running.url,/^http:\/\/127\.0\.0\.1:\d+$/);
   const executable = service.browserExecutable(root); assert.ok(executable, 'An existing Chromium browser is required; nothing was installed.');
   const base = '.hephaera/.cache/tasks/session-visualizer/evidence/browser-' + crypto.randomUUID();
   store.privateCache(root);
   const profile = store.directory(root, store.CACHE + '/private/qa-browser/' + crypto.randomUUID()), output = store.directory(root, base);
   const bootstrap = store.safe(root, store.CACHE + '/private/qa-open-' + crypto.randomUUID() + '.html', 'file');
-  const child = cp.spawn(executable, ['--headless=new','--remote-debugging-pipe','--user-data-dir=' + profile,'--ignore-certificate-errors-spki-list=' + running.spki,
+  const child = cp.spawn(executable, ['--headless=new','--remote-debugging-pipe','--user-data-dir=' + profile,
     '--enable-automation','--no-first-run','--no-default-browser-check','--disable-background-networking','--disable-component-update','--disable-sync','--no-proxy-server','about:blank'], { windowsHide: true, stdio: ['ignore','ignore','pipe','pipe','pipe'] });
   let startupDiagnostics = ''; child.stderr.on('data', bytes => { startupDiagnostics = (startupDiagnostics + bytes).slice(-8192); });
-  let socket, pageSession, pipeError, sequence = 0, browserSecurity, passed = false, listPagingChecked = false; const pending = new Map(), external = [], errors = [], relayed = new Map(), fixtures = [];
+  let socket, pageSession, pipeError, sequence = 0, passed = false, listPagingChecked = false; const pending = new Map(), external = [], errors = [], fixtures = [];
   try {
     const rejectPipe = () => { pipeError = new Error('Chromium private debugging pipe is unavailable.' + (!pageSession && startupDiagnostics ? '\n' + startupDiagnostics : '')); for (const task of pending.values()) { clearTimeout(task.timer); task.reject(pipeError); } pending.clear(); };
     child.once('error', rejectPipe); child.once('exit', rejectPipe); child.stdio[3].on('error', rejectPipe); child.stdio[4].on('error', rejectPipe);
@@ -36,32 +35,6 @@ async function main() {
       if (value.id) { const task = pending.get(value.id); if (!task) return; clearTimeout(task.timer); pending.delete(value.id); value.error ? task.reject(new Error(value.error.message)) : task.resolve(value.result); }
       else if (value.method === 'Network.requestWillBeSent') { const url = value.params.request.url; if (/^https?:/.test(url) && new URL(url).origin !== running.url) external.push(new URL(url).origin); }
       else if (value.method === 'Runtime.exceptionThrown') errors.push(value.params.exceptionDetails.text);
-      else if (value.method === 'Security.visibleSecurityStateChanged') {
-        const certs = value.params.visibleSecurityState.certificateSecurityState?.certificate || [];
-        browserSecurity = { state: value.params.visibleSecurityState.securityState, certificates: certs.map(bytes => { const cert = new crypto.X509Certificate(Buffer.from(bytes, 'base64')); return { issuer: cert.issuer, subject: cert.subject, pinMatches: crypto.createHash('sha256').update(cert.publicKey.export({type:'spki',format:'der'})).digest('base64') === running.spki, matchesStoredCertificate: cert.fingerprint256 === new crypto.X509Certificate(running.certificate).fingerprint256 }; }) };
-      }
-      else if (options.relay && value.method === 'Fetch.requestPaused') {
-        const request = value.params.request, url = new URL(request.url);
-        if (url.origin !== running.url) { call('Fetch.failRequest', { requestId: value.params.requestId, errorReason: 'BlockedByClient' }).catch(() => {}); return; }
-        // Test-only relay: the real service certificate is validated by Node.
-        // No browser certificate error is ignored and production has no relay.
-        const relay = https.get(request.url, { ca: running.certificate, agent: false, headers: request.headers }, response => {
-          const chunks = []; let bytes = 0;
-          response.on('data', chunk => { bytes += chunk.length; if (bytes > 4 * 1024 * 1024) relay.destroy(); else chunks.push(chunk); });
-          response.on('end', () => call('Fetch.fulfillRequest', { requestId: value.params.requestId, responseCode: response.statusCode,
-            responseHeaders: Object.entries(response.headers).filter(([name]) => !['connection','transfer-encoding','content-length'].includes(name)).map(([name, v]) => ({ name, value: String(v) })), body: Buffer.concat(chunks).toString('base64') }).catch(() => {}));
-        }); relay.on('error', () => call('Fetch.failRequest', { requestId: value.params.requestId, errorReason: 'ConnectionFailed' }).catch(() => {}));
-      }
-      else if (options.relay && value.method === 'Runtime.bindingCalled' && value.params.name === 'hephaeraVerifiedRelay') {
-        const request = JSON.parse(value.params.payload);
-        if (request.close) { relayed.get(request.close)?.destroy(); relayed.delete(request.close); return; }
-        const url = new URL(request.url, running.url);
-        if (url.origin !== running.url || !/^\/api\/sessions\/[a-f0-9-]+\/events$/.test(url.pathname)) return;
-        const relay = https.get(url, { ca: running.certificate, agent: false, headers: request.headers }, response => {
-          if (response.statusCode !== 200) { relay.destroy(); return; }
-          response.on('data', bytes => call('Runtime.evaluate', { expression: `window.hephaeraRelayChunk(${request.id},${JSON.stringify(bytes.toString('base64'))})` }).catch(() => relay.destroy()));
-        }); relay.on('error', () => {}); relayed.set(request.id, relay);
-      }
     };
     const decoder = new TextDecoder(); let wire = '';
     child.stdio[4].on('data', bytes => {
@@ -75,17 +48,12 @@ async function main() {
     pageSession = (await call('Target.attachToTarget', { targetId: tab.targetId, flatten: true })).sessionId;
     const launch = await call('Browser.getBrowserCommandLine');
     assert.ok(launch.arguments.includes('--remote-debugging-pipe')); assert.equal(launch.arguments.some(argument => argument.startsWith('--remote-debugging-port')), false);
+    const insecureFlags=/^--(?:ignore-certificate-errors(?:-spki-list)?|allow-insecure-localhost|disable-web-security|unsafely-treat-insecure-origin-as-secure|no-sandbox)(?:=|$)/;
+    assert.equal(launch.arguments.some(argument=>insecureFlags.test(argument)),false);
     const evaluate = async expression => { const value = await call('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }); if (value.exceptionDetails) throw new Error('Browser evaluation failed.'); return value.result.value; };
     const waitFor = async (expression, attempts = 100) => { for (let attempt = 0; attempt < attempts; attempt++) { if (await evaluate(expression)) return; await delay(100); }
       const observation = await evaluate(`({connection:document.getElementById('connection')?.textContent,notice:document.getElementById('notice')?.textContent,ready:document.readyState,protocol:location.protocol})`);
-      const launched = await call('Browser.getBrowserCommandLine');
-      observation.pinArgumentMatches = launched.arguments.includes('--ignore-certificate-errors-spki-list=' + running.spki);
-      const cert = new crypto.X509Certificate(running.certificate);
-      observation.pinMatchesStoredCertificate = crypto.createHash('sha256').update(cert.publicKey.export({type:'spki',format:'der'})).digest('base64') === running.spki;
-      try { const chain = await call('Network.getCertificate', { origin: running.url });
-        observation.browserChainPinsMatch = chain.tableNames.map(bytes => crypto.createHash('sha256').update(new crypto.X509Certificate(Buffer.from(bytes, 'base64')).publicKey.export({type:'spki',format:'der'})).digest('base64') === running.spki);
-      } catch { observation.browserCertificateUnavailable = true; }
-      observation.browserSecurity = browserSecurity;
+      observation.securityOverrideFlags = launch.arguments.some(argument=>insecureFlags.test(argument));
       fs.writeFileSync(path.join(output, 'failure.json'), JSON.stringify({ observation, errors, external }, null, 2));
       const failed = await call('Page.captureScreenshot', { format: 'png' }); fs.writeFileSync(path.join(output, 'failure.png'), Buffer.from(failed.data, 'base64'));
       console.error(JSON.stringify({ observation, errors, evidence: base })); throw new Error('Browser condition was not satisfied: ' + expression); };
@@ -93,22 +61,14 @@ async function main() {
       const point = await evaluate(`(()=>{const node=document.querySelector(${JSON.stringify(selector)});node.scrollIntoView({block:'center',inline:'nearest'});const r=node.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2}})()`);
       await call('Input.dispatchMouseEvent', { type: 'mousePressed', ...point, button: 'left', clickCount: 1 }); await call('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point, button: 'left', clickCount: 1 });
     };
-    await call('Page.enable'); await call('Runtime.enable'); await call('Network.enable'); await call('Security.enable');
-    if (options.relay) {
-      await call('Runtime.addBinding', { name: 'hephaeraVerifiedRelay' });
-      await call('Page.addScriptToEvaluateOnNewDocument', { source: `(()=>{const original=fetch.bind(window),streams=new Map();let next=0;
-        window.hephaeraRelayChunk=(id,data)=>streams.get(id)?.enqueue(Uint8Array.from(atob(data),c=>c.charCodeAt(0)));
-        window.fetch=(input,options={})=>{const url=new URL(input,location.href);if(!url.pathname.endsWith('/events'))return original(input,options);
-          const id=++next;const body=new ReadableStream({start(controller){streams.set(id,controller);hephaeraVerifiedRelay(JSON.stringify({id,url:url.href,headers:options.headers}));},cancel(){streams.delete(id);hephaeraVerifiedRelay(JSON.stringify({close:id}));}});
-          options.signal?.addEventListener('abort',()=>{streams.get(id)?.error(new DOMException('Aborted','AbortError'));streams.delete(id);hephaeraVerifiedRelay(JSON.stringify({close:id}));},{once:true});
-          return Promise.resolve(new Response(body,{headers:{'Content-Type':'text/event-stream'}}));};})()` });
-      await call('Fetch.enable', { patterns: [{ urlPattern: running.url + '/*', requestStage: 'Request' }] });
-    }
+    await call('Page.enable'); await call('Runtime.enable'); await call('Network.enable');
     await call('Emulation.setDeviceMetricsOverride', { width: 1600, height: 1100, deviceScaleFactor: 1, mobile: false });
     const destination = running.url + '/#session=' + options.session + '&token=' + running.token;
     fs.writeFileSync(bootstrap,'<!doctype html><meta http-equiv="refresh" content="0;url=' + destination.replaceAll('&','&amp;') + '">',{flag:'wx',mode:0o600});
     await call('Page.navigate', { url: pathToFileURL(bootstrap).href });
     await waitFor(`document.getElementById('connection')?.textContent.includes('Live')`, 600);
+    assert.equal(await evaluate(`location.protocol==='http:'&&location.hostname==='127.0.0.1'`),true);
+    assert.equal(await evaluate('isSecureContext'),true);
     // An open SSE connection can still be catching up retained history. Start
     // interaction and fresh-update timing only after the initial backlog loads.
     const initialTotal = store.page(root, options.session, 0, 1).total;
@@ -191,16 +151,15 @@ async function main() {
     assert.equal(await evaluate(`document.documentElement.scrollWidth<=innerWidth`), true);
     const mobile = await call('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false }); fs.writeFileSync(path.join(output, 'mobile.png'), Buffer.from(mobile.data, 'base64'));
     assert.deepEqual(external, []); assert.deepEqual(errors, []);
-    fs.writeFileSync(path.join(output, 'report.json'), JSON.stringify({ status: 'passed', platform: process.platform, transport: options.relay ? 'test-only Node certificate-verified HTTPS relay; native browser TLS unavailable' : 'native browser HTTPS',
-      checks: ['live session','private DevTools pipe','fragment capability removal','parallel branches','verification revision loop','browser refresh and resumed stream','recorded Goal parent hierarchy','mode expansion by keyboard',...(options.structures ? ['recorded Brainstorm and Gauntlet hierarchies'] : []),'stage expansion','keyboard activation and focus','keyboard focus during live updates','list view',...(listPagingChecked ? ['list pagination'] : []),'replay','live return','label escaping','reduced motion','mobile layout','no external page requests','no uncaught browser errors'],
+    fs.writeFileSync(path.join(output, 'report.json'), JSON.stringify({ status: 'passed', platform: process.platform, transport: 'native browser HTTP on 127.0.0.1',
+      checks: ['IPv4 loopback HTTP','no certificate or security exception flags','browser trustworthy loopback context','live session','private DevTools pipe','fragment capability removal','parallel branches','verification revision loop','browser refresh and resumed stream','recorded Goal parent hierarchy','mode expansion by keyboard',...(options.structures ? ['recorded Brainstorm and Gauntlet hierarchies'] : []),'stage expansion','keyboard activation and focus','keyboard focus during live updates','list view',...(listPagingChecked ? ['list pagination'] : []),'replay','live return','label escaping','reduced motion','mobile layout','no external page requests','no uncaught browser errors'],
       metrics: { recordedEventsBeforeUpdate: focusFixture.sequence - 1, liveUpdateMs, largeHistoryCheck: focusFixture.sequence > 10000 },
       screenshots: ['desktop.png','mobile.png','structure.png'], limits: 'Existing Chromium on this host only; no Linux/macOS or other coding-host acceptance inferred.' }, null, 2));
     passed = true;
-    console.log(JSON.stringify({ status: 'passed', transport: options.relay ? 'verified-test-relay' : 'native-browser', evidence: base, screenshots: [base + '/desktop.png', base + '/mobile.png'] }));
+    console.log(JSON.stringify({ status: 'passed', transport: 'native-browser-http-loopback', evidence: base, screenshots: [base + '/desktop.png', base + '/mobile.png'] }));
   } finally {
     for (const fixture of fixtures) try { store.emit(root, options.session, { ...fixture, action: 'finished', status: passed ? 'succeeded' : 'failed' }); } catch {}
     socket?.close(); for (const task of pending.values()) clearTimeout(task.timer);
-    for (const relay of relayed.values()) relay.destroy();
     // Only the process handle spawned above is retired, never a discovered PID.
     child.kill();
     if (fs.existsSync(bootstrap)) fs.unlinkSync(bootstrap);

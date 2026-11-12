@@ -46,7 +46,7 @@ You should send a message to the user that you are a Hephaera session and ready 
 
 ### Session visualization
 
-The optional session visualizer observes activity; it grants no execution, production, review, or publication authority. Read `./docs/SESSION_VISUALIZER.md` for commands, local HTTPS prerequisites, coverage and recovery.
+The optional session visualizer observes activity; it grants no execution, production, review, or publication authority. Read `./docs/SESSION_VISUALIZER.md` for commands, authenticated loopback HTTP, coverage and recovery. Its listener is fixed to IPv4 `127.0.0.1`; never add a public, LAN, wildcard or IPv6 binding or a bind-address configuration option. This visualizer transport does not change the HTTPS policy for other local previews.
 
 - Pass the retained `HEPHAERA_SESSION_ID` explicitly in each shell execution environment, or use `./commands/session-visualizer.sh run --session UUID --label "Short safe label" -- EXECUTABLE ...`. The wrapper supplies the session and parent activity to children. Never write a global current-session pointer or infer session ownership from changed files.
 - A session UUID returned by `start` is not automatically exported into future tool calls. Each tool execution can use a fresh shell: prefix subsequent shell work with `run --session UUID -- ...`, or set `HEPHAERA_SESSION_ID=UUID` within that same invocation for shared commands. Do this from the first command after startup and after every continuation/reload; reports from a previous tool call do not enable later observation. Launching a web server alone cannot observe subsequent host-tool work.
