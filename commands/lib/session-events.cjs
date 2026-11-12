@@ -264,8 +264,13 @@ function begin(root, fields, explicitSession) {
   let finished = false;
   return { activityId, sessionId, finish(status = 'succeeded', exitCode) { if (finished) return; finished = true; record({ action: 'finished', status, durationMs: performance.now() - started, ...(exitCode !== undefined ? { exitCode } : {}) }); } };
 }
-async function observe(root, fields, action) {
+async function observe(root, fields, action, outcome) {
   const span = begin(root, fields);
-  return context.run(span, async () => { try { const value = await action(); span.finish(); return value; } catch (error) { span.finish(error.name === 'AbortError' ? 'cancelled' : 'failed'); throw error; } });
+  const finish = fallback => {
+    let result;
+    try { result = outcome?.(fallback); } catch { warn(); }
+    span.finish(result?.status || fallback, result?.exitCode);
+  };
+  return context.run(span, async () => { try { const value = await action(); finish('succeeded'); return value; } catch (error) { finish(error.name === 'AbortError' ? 'cancelled' : 'failed'); throw error; } });
 }
 module.exports = { CACHE, MAX_EVENTS, MAX_BYTES, UUID, PHASES, STATUSES, CATEGORIES, SOURCES, native, rootPath, safe, directory, privateCache, read, write, label, id, settings, createSession, session, emit, page, history, end, remove, begin, observe };

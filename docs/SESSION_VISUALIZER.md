@@ -34,7 +34,7 @@ On Git Bash/MSYS, the bridge keeps path arguments and environment values intact 
 
 ## Conversational reports and coverage
 
-Shared task/delivery, subagent, test, media and packaging entrypoints emit command observations when an explicit session ID is supplied. The common Bubo host transport observes native execution without changing native DTOs, approval ledgers, ownership hooks or inference timing claims. Other shell work can use `run`. No observer starts the viewer implicitly.
+Shared task/delivery, subagent, test, media and packaging entrypoints emit command observations when an explicit session ID is supplied. The common Bubo host transport observes native execution without changing native DTOs, approval ledgers, ownership hooks or inference timing claims. Admission blocks, process failures, requested cancellation and unknown launch ownership retain distinct metadata outcomes; available exit codes come from the retired child. Other shell work can use `run`. No observer starts the viewer implicitly.
 
 The agent reports significant conversational phases and host tools that the shared commands cannot observe:
 

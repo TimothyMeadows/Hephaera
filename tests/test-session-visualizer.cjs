@@ -212,6 +212,18 @@ test('native observation preserves ownership callbacks and actual child results'
     assert.equal(observations.some(event => event.label.includes(script)), false, 'Native command arguments must not become telemetry labels.');
   } finally { if (previous === undefined) delete process.env.HEPHAERA_SESSION_ID; else process.env.HEPHAERA_SESSION_ID = previous; }
 });
+
+test('native admission, process failure and requested cancellation keep distinct outcomes', async t => {
+  const { root, id } = prepare(t), script = path.join(root,'native-outcome.cjs'), failed = path.join(root,'native-failed.cjs');
+  fs.writeFileSync(script,'setInterval(()=>{},1000);');
+  fs.writeFileSync(failed,'process.exitCode=7;');
+  const source = `const adapter=require('./commands/lib/bubo-host-adapter.cjs');const [root,script,failed]=process.argv.slice(1),errors=[];const prepared=timeout=>({root,stateRoot:'.hephaera/.cache/tasks/native-outcome',context:{budgets:{timeoutSeconds:timeout,maxLogBytes:1048576}}});(async()=>{try{await adapter.execute(script,'run',new Map(),prepared(0),{executable:process.execPath},false);}catch(error){errors.push(error.message)}try{await adapter.execute(failed,'run',new Map(),prepared(5),{executable:process.execPath},false);}catch(error){errors.push(error.message)}try{await adapter.execute(script,'run',new Map(),prepared(5),{executable:process.execPath},false,{spawned(){process.emit('SIGTERM')}});}catch(error){errors.push(error.message)}console.log(JSON.stringify(errors));})().catch(()=>{process.exitCode=1});`;
+  const result = await child(['-e',source,root,script,failed],{HEPHAERA_SESSION_ID:id});
+  assert.equal(result.code,0,result.stderr);
+  const errors = JSON.parse(result.stdout); assert.equal(errors.length,3); assert.equal(errors[1],'Bubo did not return one valid machine-readable result.'); assert.equal(errors[2],errors[1]);
+  const finished=store.page(root,id).events.filter(event=>event.action==='finished');
+  assert.deepEqual(finished.map(event=>event.status),['blocked','failed','cancelled']); assert.equal(finished[1].exitCode,7);
+});
 test('real clone and submodule mounts start the shipped UI without source builds or setup hooks', async t => {
   const base = fixture(t), source = path.join(base, 'source'); fs.mkdirSync(source);
   const hooks = path.join(base, 'empty-hooks'); fs.mkdirSync(hooks);

@@ -234,11 +234,13 @@ async function execute(workflow, operation, options, prepared, info, emit = true
   // (engineering fixtures can use an executable path as the workflow value).
   const observedWorkflow = ['proof-to-model', 'floor-plan-to-model', 'schematic-to-model', 'model-to-animation', 'model-to-action', 'media', 'vfx', 'blender-inspection'].includes(workflow) ? workflow : 'execution';
   const observedOperation = ['doctor', 'inspect', 'setup', 'generate', 'validate', 'preview', 'build', 'export', 'review', 'record', 'status', 'reconstruct', 'finish', 'rig', 'animate', 'motion', 'build-parts', 'assemble', 'prove-motion', 'inspect-effects', 'prepare-effects', 'compile-effects'].includes(operation) ? operation : 'execute';
+  const observation = {};
   return observer.observe(prepared.root,
     { phase: ['review', 'validate', 'doctor', 'inspect'].includes(observedOperation) ? 'verification' : 'work', category: 'command', label: 'Native ' + observedWorkflow + ' ' + observedOperation, operation: observedOperation },
-    () => executeCore(workflow, operation, options, prepared, info, emit, lifecycle));
+    () => executeCore(workflow, operation, options, prepared, info, emit, lifecycle, observation),
+    status => ({ status: status === 'succeeded' ? status : observation.unknown ? 'unknown' : observation.cancelled ? 'cancelled' : observation.launchAttempted ? 'failed' : 'blocked', exitCode: observation.exitCode }));
 }
-async function executeCore(workflow, operation, options, prepared, info, emit = true, lifecycle) {
+async function executeCore(workflow, operation, options, prepared, info, emit = true, lifecycle, observation) {
   // Every compiled caller (including media/VFX preparation) shares this final
   // launch boundary. Reject malformed delays before creating state or a child;
   // Node otherwise coerces invalid timer delays into a one-millisecond timer.
@@ -251,9 +253,9 @@ async function executeCore(workflow, operation, options, prepared, info, emit = 
   if (lifecycle !== undefined && (!lifecycle || typeof lifecycle !== 'object' || Array.isArray(lifecycle)
       || Object.keys(lifecycle).some(key => !['beforeLaunch', 'spawned', 'closed'].includes(key) || typeof lifecycle[key] !== 'function')))
     fail('Native lifecycle hooks require a fixed compiled caller.');
-  return require('./installation-maintenance.cjs').run(prepared.root, () => executeOwned(workflow, operation, options, prepared, info, emit, lifecycle));
+  return require('./installation-maintenance.cjs').run(prepared.root, () => executeOwned(workflow, operation, options, prepared, info, emit, lifecycle, observation));
 }
-async function executeOwned(workflow, operation, options, prepared, info, emit = true, lifecycle) {
+async function executeOwned(workflow, operation, options, prepared, info, emit = true, lifecycle, observation) {
   const readOnlyInspection=workflow==='blender-inspection'&&operation==='inspect'&&prepared.context?.policy?.purpose==='read-only-blender-inspection';
   if(!readOnlyInspection)transition.assertProductionAllowed(prepared.root,workflow+' '+operation);
   const folder = runtime.projectPath(prepared.root, prepared.stateRoot + '/bubo-host/' + crypto.randomUUID());
@@ -281,6 +283,7 @@ async function executeOwned(workflow, operation, options, prepared, info, emit =
   // infer child retirement from the parent's death.
   notify('beforeLaunch', {});
   let child;
+  if (observation) observation.launchAttempted = true;
   try { child = cp.spawn(info.executable, args, { cwd: prepared.root, windowsHide: true, stdio: ['ignore', 'pipe', 'inherit'] }); }
   catch (error) { notify('closed', { pid: null, status: null, signal: null, error: String(error.message), spawned: false, launchState: 'spawn-failed' }); throw error; }
   let spawnError, sawSpawn = false;
@@ -298,9 +301,10 @@ async function executeOwned(workflow, operation, options, prepared, info, emit =
   // SIGINT reaches Bubo's managed cancellation handler on Linux, allowing it
   // to retire the native setsid group. Windows closes the owned native job.
   const cancel = () => child.kill(process.platform === 'win32' ? 'SIGTERM' : 'SIGINT');
+  const onSignal = () => { if (observation) observation.cancelled = true; cancel(); };
   const onData = chunk => { text += chunk; if (Buffer.byteLength(text) > 8 * 1024 * 1024) { overflow = true; cancel(); } };
   child.stdout.setEncoding('utf8'); child.stdout.on('data', onData);
-  process.once('SIGINT', cancel); process.once('SIGTERM', cancel);
+  process.once('SIGINT', onSignal); process.once('SIGTERM', onSignal);
   const deadlineController = new AbortController();
   let status, closed, deadline;
   try {
@@ -320,15 +324,17 @@ async function executeOwned(workflow, operation, options, prepared, info, emit =
     }
     status = closed.status;
     const launchState = pidKnown() ? 'started' : spawnError && !sawSpawn ? 'spawn-failed' : 'unknown';
+    if (observation) observation.unknown = launchState === 'unknown';
     notify('closed', { pid: child.pid ?? null, status, signal: closed.signal, error: spawnError ? String(spawnError.message) : null, spawned: pidKnown() || sawSpawn, launchState });
     if (spawnError) throw spawnError;
     if (!pidKnown()) fail('Native child PID was not observed; preserve unknown ownership and retained launch intent.');
   }
   finally {
+    if (observation && closed) observation.exitCode = closed.status;
     deadlineController.abort();
     try { await deadline?.catch(error => { if (error.name !== 'AbortError') throw error; }); }
     finally {
-      process.removeListener('SIGINT', cancel); process.removeListener('SIGTERM', cancel);
+      process.removeListener('SIGINT', onSignal); process.removeListener('SIGTERM', onSignal);
       child.stdout.removeListener('data', onData);
       child.removeListener('spawn', onSpawn); child.removeListener('error', onError); child.removeListener('close', onClose);
     }
