@@ -55,6 +55,7 @@ Each game project installs Hephaera in `.hephaera/`. Durable project memory, tas
   - [npm Setup](#npm-setup)
   - [NuGet Setup](#nuget-setup)
   - [Start the First Session](#start-the-first-session)
+  - [Session Visualizer](#session-visualizer)
   - [Managed Updates and Recovery](#managed-updates-and-recovery)
   - [Existing installation state](#existing-installation-state)
   - [Native Runtime Prerequisites](#native-runtime-prerequisites)
@@ -500,6 +501,32 @@ Read ./.hephaera/AGENTS.md and this project's saved context. Explain which choic
 
 Setup does not choose or generate engine, architecture, style or media contracts. The first session resolves those decisions when relevant. Manual users run the explicit scaffold shown in the fallback below; a partial package failure instead follows its verified repair/recovery instructions.
 
+## Session Visualizer
+
+With an updated Hephaera baseline, the root agent starts the optional local visualizer after loading system memory and opens it in a separate Chromium window. This requires an execution-capable agent session; installation and read-only planning do not launch it. Existing projects must [update their installed baseline](#managed-updates-and-recovery) to receive this behavior.
+
+Continue working with the agent normally:
+
+- **Follow live work:** The canvas shows Context, Planning, Work, Verification and Review, including parallel activity and revision loops.
+- **Inspect activities:** Expand stages to see recorded tasks, agents, roles, skills and commands. Select an activity for its owner, timing, result, blockers and project-relative evidence references.
+- **Replay a session:** Select retained sessions from the sidebar or scrub the timeline to revisit earlier activity. Choose **Go live** to return to current work.
+- **Keep related work together:** Each root conversation has its own session UUID. Subagents inherit that identity and report into the same session without opening additional viewers.
+
+Shared commands record activity when supplied with the session identity; the agent reports planning and host-tool activity outside those boundaries. The display distinguishes **command-observed**, **agent-reported** and **untracked** activity. Unreported host actions and model internals remain untracked.
+
+Only activity metadata and evidence references are retained under the project's `.hephaera/.cache/visualizer/`. No transcripts, raw command arguments or output, environment values, credentials or hidden reasoning are recorded. The viewer is passive: execution and approvals stay in the existing agent workflows, and viewer failure never blocks the underlying work.
+
+Finishing a task, closing the browser or a quiet period does not end the session. History remains until explicitly deleted. To reopen the same session from an installed project's root, use its retained UUID:
+
+```bash
+bash .hephaera/commands/session-visualizer.sh start --host codex --session UUID
+bash .hephaera/commands/session-visualizer.sh status --session UUID
+```
+
+Use `claude`, `cursor` or `other` for the corresponding host. Startup opens authenticated loopback HTTPS in an isolated browser profile; reuse the command to reopen access. Existing Node.js24+, OpenSSL and Chromium are required, and startup installs nothing. Set `enabled` to `false` in `.hephaera/.cache/visualizer/config.json` to disable the viewer, or set `openBrowser` to `false` to keep it running without opening a window. Stopping the service preserves history; stop it before managed baseline updates.
+
+Native headless browser checks have passed on Windows, Linux and macOS, and interactive Windows startup has been exercised. Interactive Linux/macOS desktop startup and actual Claude/Cursor host sessions remain unverified. See the [visualizer usage and recovery guide](docs/SESSION_VISUALIZER.md) for settings, recording commands, lifecycle controls and coverage limits.
+
 ## Managed Updates and Recovery
 
 Invoke `restore --project PATH` through the exact locked release. For an update, acquire the selected target package version, inspect `update --project PATH --dry-run`, then explicitly run its update. Updating launcher tooling alone does not update an installed project. Switching npm/NuGet channels does not create a second baseline.
@@ -611,7 +638,7 @@ Roles, skills, and commands deepen control, but baseline Hephaera behavior works
 
 ## Session Startup and Context Resolution
 
-Hephaera also starts an optional local [session visualizer](docs/SESSION_VISUALIZER.md) after system-memory loading. Its charcoal-and-gold workflow canvas shows recorded commands, agent-reported phases, parallel activity, verification and review, with local history and replay. It distinguishes observed work from tracking gaps. Existing Node24/OpenSSL/Chromium prerequisites are required; viewer failure never blocks the work. Installation does not launch it, and persistent settings can disable it.
+The optional [session visualizer](#session-visualizer) starts after system-memory loading in execution-capable root sessions. Its availability never blocks the work.
 
 At session start, Hephaera follows a memory-first sequence:
 
