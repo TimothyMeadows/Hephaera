@@ -18,13 +18,13 @@ async function main() {
   const root = store.rootPath(options.root); store.session(root, options.session);
   const running = service.runtime(root); assert.ok(await service.probe(running), 'Start the local viewer first.');
   assert.match(running.url,/^http:\/\/my\.hephaera\.com:\d+$/);
-  const executable = service.browserExecutable(root); assert.ok(executable, 'An existing Chromium browser is required; nothing was installed.');
+  const executable = service.qaBrowserExecutable(root); assert.ok(executable, 'An existing Chromium browser is required; nothing was installed.');
   const base = '.hephaera/.cache/tasks/session-visualizer/evidence/browser-' + crypto.randomUUID();
   store.privateCache(root);
   const profile = store.directory(root, store.CACHE + '/private/qa-browser/' + crypto.randomUUID()), output = store.directory(root, base);
   const bootstrap = store.safe(root, store.CACHE + '/private/qa-open-' + crypto.randomUUID() + '.html', 'file');
   const child = cp.spawn(executable, ['--headless=new','--remote-debugging-pipe','--user-data-dir=' + profile,
-    '--enable-automation','--no-first-run','--no-default-browser-check','--disable-background-networking','--disable-component-update','--disable-sync',...service.BROWSER_NETWORK_ARGS,'about:blank'], { windowsHide: true, stdio: ['ignore','ignore','pipe','pipe','pipe'] });
+    '--enable-automation','--no-first-run','--no-default-browser-check','--disable-background-networking','--disable-component-update','--disable-sync',...service.QA_BROWSER_NETWORK_ARGS,'about:blank'], { windowsHide: true, stdio: ['ignore','ignore','pipe','pipe','pipe'] });
   let startupDiagnostics = ''; child.stderr.on('data', bytes => { startupDiagnostics = (startupDiagnostics + bytes).slice(-8192); });
   let socket, pageSession, pipeError, sequence = 0, passed = false, listPagingChecked = false; const pending = new Map(), external = [], errors = [], fixtures = [], peers = new Set();
   try {
@@ -183,7 +183,7 @@ async function main() {
     const mobile = await call('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false }); fs.writeFileSync(path.join(output, 'mobile.png'), Buffer.from(mobile.data, 'base64'));
     assert.deepEqual(external, []); assert.deepEqual(errors, []);
     fs.writeFileSync(path.join(output, 'report.json'), JSON.stringify({ status: 'passed', platform: process.platform, transport: 'native browser HTTP on my.hephaera.com bound to 127.0.0.1',
-      checks: ['task title and purpose at a glance','checkpoint success preserves running task report','task context on canvas timeline list and details','task source rewrite cannot change recorded context','task context replay and keyboard focus','IPv4 loopback HTTP','no certificate or security exception flags','ordinary HTTP hostname context','offline browser resolver mapping','actual browser peer127.0.0.1','live session','private DevTools pipe','fragment capability removal','parallel branches','verification revision loop','browser refresh and resumed stream','recorded Goal parent hierarchy','mode expansion by keyboard',...(options.structures ? ['recorded Brainstorm and Gauntlet hierarchies'] : []),'stage expansion','keyboard activation and focus','keyboard focus during live updates','list view',...(listPagingChecked ? ['list pagination'] : []),'replay','live return','label escaping','reduced motion','mobile layout','no external page requests','no uncaught browser errors'],
+      checks: ['task title and purpose at a glance','checkpoint success preserves running task report','task context on canvas timeline list and details','task source rewrite cannot change recorded context','task context replay and keyboard focus','IPv4 loopback HTTP','no certificate or security exception flags','ordinary HTTP hostname context','QA-only resolver mapping','actual browser peer127.0.0.1','live session','private DevTools pipe','fragment capability removal','parallel branches','verification revision loop','browser refresh and resumed stream','recorded Goal parent hierarchy','mode expansion by keyboard',...(options.structures ? ['recorded Brainstorm and Gauntlet hierarchies'] : []),'stage expansion','keyboard activation and focus','keyboard focus during live updates','list view',...(listPagingChecked ? ['list pagination'] : []),'replay','live return','label escaping','reduced motion','mobile layout','no external page requests','no uncaught browser errors'],
       metrics: { recordedEventsBeforeUpdate: focusFixture.sequence - 1, liveUpdateMs, largeHistoryCheck: focusFixture.sequence > 10000 },
       screenshots: ['desktop.png','mobile.png','structure.png','task-details.png'], limits: 'Existing Chromium on this host only; no Linux/macOS or other coding-host acceptance inferred.' }, null, 2));
     passed = true;

@@ -22,8 +22,8 @@ const HELP = `Usage: session-visualizer.sh <start|status|emit|run|end|stop|histo
   stop                       Stops this project's owned service; preserves history.
   Settings: .hephaera/.cache/visualizer/config.json: {"enabled":true,"openBrowser":true}
   Node24 is required. my.hephaera.com uses HTTP; binding is fixed to 127.0.0.1.
-  The isolated Chromium resolves that exact name locally, without system/DNS changes.
-  Browser launch uses an existing Chromium without certificate exception flags.
+  Opens the registered default HTTP browser in its normal profile, without flags.
+  Normal browser DNS, proxy and policy settings apply; startup changes none of them.
   Metadata only. Installation, native execution and publication are never authorized here.
 `;
 function parse(values) {
@@ -42,6 +42,13 @@ function parse(values) {
   return { operation, options, command };
 }
 async function info(root) { try { const service = viewer(), value = service.runtime(root); return await service.probe(value) ? value : null; } catch { return null; } }
+function browserResult(root, running, sessionId) {
+  try {
+    const value = store.read(root, store.CACHE + '/opened/' + running.instanceId + '-' + sessionId + '.json');
+    if (!['disabled','browser-unavailable','opened-default-unverified'].includes(value.status)) return {};
+    return { browser: value.status, ...(typeof value.reason === 'string' && /^[a-z-]{1,80}$/.test(value.reason) ? { browserReason: value.reason } : {}) };
+  } catch { return {}; }
+}
 async function start(root, options) {
   if (!store.settings(root).enabled) return { status: 'disabled' };
   const existing = options.session && fs.existsSync(store.safe(root, store.CACHE + '/sessions/' + store.id(options.session) + '/session.json', 'file'));
@@ -79,14 +86,14 @@ async function start(root, options) {
     }
     if (running.version !== service.VERSION || running.schemaVersion !== 3) return { status: 'viewer-restart-required', sessionId: session.id,
       reason: 'viewer-source-updated', nextStep: 'Stop the existing viewer, then start again with this session UUID. History is retained; continue task work meanwhile.' };
-    let browser = options.noOpen ? 'not-requested' : 'pending';
+    let browserState = { browser: options.noOpen ? 'not-requested' : 'pending' };
     if (!options.noOpen) {
       const marker = store.CACHE + '/opened/' + running.instanceId + '-' + session.id + '.json';
       const request = store.CACHE + '/requests/' + crypto.randomUUID() + '.json';
       store.write(root, request, { instanceId: running.instanceId, sessionId: session.id });
-      for (let attempt = 0; attempt < 30; attempt++) { if (fs.existsSync(store.safe(root, marker, 'file'))) { browser = store.read(root, marker).status; break; } await delay(100); }
+      for (let attempt = 0; attempt < 30; attempt++) { if (fs.existsSync(store.safe(root, marker, 'file'))) { browserState = browserResult(root, running, session.id); break; } await delay(100); }
     }
-    return { status: 'running', execution: running.execution || 'unknown', pid: running.pid, sessionId: session.id, url: running.url, browser,
+    return { status: 'running', execution: running.execution || 'unknown', pid: running.pid, sessionId: session.id, url: running.url, ...browserState,
       nextStep: 'Continue the task now. Pass this sessionId to run/emit for later activity; do not wait on the server.' };
   } finally { fs.rmdirSync(lock); }
 }
@@ -158,6 +165,7 @@ async function main(values) {
     const recording = options.session ? store.page(root, options.session, 0, 1) : null;
     const latest = recording?.total ? store.page(root, options.session, recording.total - 1, 1).events[0] : null;
     result = { status: running ? 'running' : 'not-running', execution: running ? running.execution || 'unknown' : null, pid: running?.pid, url: running?.url,
+      ...(running && options.session ? browserResult(root, running, options.session) : {}),
       ...(recording ? { recording, activity: { total: recording.total, lastRecordedAt: latest?.at || null, lastRecordedSequence: latest?.sequence || null,
         coverage: 'New activity requires explicit session context on commands or agent reports; server liveness alone does not record work.' } } : {}) };
   }
