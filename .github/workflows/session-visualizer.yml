@@ -66,6 +66,8 @@ jobs:
           npm ci --ignore-scripts --no-audit --no-fund --prefix tests/fixtures/web3 --cache .local/ci-npm-cache
       - name: Prepare checksum-pinned Blender for existing native regression fixtures
         run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends libegl1 libegl-mesa0
           mkdir -p .local/ci-tools/blender
           curl --fail --location --retry 3 --proto '=https' --tlsv1.2 \
             https://download.blender.org/release/Blender4.5/blender-4.5.16-linux-x64.tar.xz \
