@@ -1,4 +1,4 @@
-import { emptyState, applyEvent, replay, phases, modeGroups, activityText, currentWork } from './state.mjs';
+import { emptyState, applyEvent, replay, phases, modeGroups, activityText, currentWork, goalProgress } from './state.mjs';
 const $ = id => document.getElementById(id);
 const fragment = new URLSearchParams(location.hash.slice(1));
 let sessionId = fragment.get('session'), token = fragment.get('token') || sessionStorage.getItem('hephaera-viewer-token');
@@ -88,6 +88,24 @@ function workOverview() {
     button.append(element('span', 'work-purpose', group.summary || (group.recordedContext ? 'No purpose in this recorded task snapshot.' : 'Task details were not recorded with this activity.')));
     button.append(element('span', 'work-operation', activityText(group.latest).operation + ' · ' + group.latest.status), element('small', 'muted', time(group.latest.updatedAt) + ' · ' + group.latest.source));
     button.addEventListener('click', () => { selected = group.latest.activityId; render(); $('details').scrollIntoView({ block: 'nearest' }); }); root.append(button);
+  }
+}
+function goalOverview() {
+  const groups = goalProgress(state), root = $('goal-progress'); root.replaceChildren(); $('goal-progress-panel').hidden = !groups.length;
+  for (const group of groups) {
+    const card = element('article', 'goal-progress-card'); card.dataset.goalActivity = group.report.activityId;
+    const heading = element('button', 'goal-progress-title', group.report.label); heading.dataset.focusKey = 'goal-' + group.report.activityId;
+    heading.addEventListener('click', () => { selected = group.report.activityId; render(); $('details').scrollIntoView({block:'nearest'}); });
+    card.append(heading, element('span', 'goal-progress-status', group.report.status));
+    if (group.available) {
+      const text = group.completed + ' of ' + group.total + ' tasks completed';
+      const counts = element('div', 'goal-progress-counts'); counts.append(element('strong', '', text), element('span', '', group.total ? group.percent + '%' : 'No tasks queued'));
+      const progress = element('progress'); progress.max = group.total || 1; progress.value = group.completed;
+      progress.setAttribute('aria-label', group.report.label); progress.setAttribute('aria-valuetext', text + '; ' + group.remaining + ' remaining');
+      card.append(counts, progress, element('p', 'goal-progress-remaining', group.remaining + ' remaining / ' + group.total + ' total'));
+      card.append(element('small', 'muted', 'Queue snapshot ' + time(group.snapshot.updatedAt) + (following ? '' : ' · replay')));
+    } else card.append(element('p', 'goal-progress-unavailable', 'Progress unavailable'), element('small', 'muted', group.report.goal ? 'The linked Goal task queue could not be read.' : 'This Goal has no recorded queue link.'));
+    root.append(card);
   }
 }
 function titleLines(value, width = 31) {
@@ -242,7 +260,7 @@ function render() {
   $('replay-position').textContent = (following ? events.length : state.cursor) + ' / ' + events.length + ' events';
   if (metadata?.capped) notice('Recording reached its session capacity. Work continues; the remaining activity is untracked.');
   else if (connected) notice('');
-  updateMode(); workOverview(); canvas(); details(); timeline(); listView(); structures();
+  updateMode(); goalOverview(); workOverview(); canvas(); details(); timeline(); listView(); structures();
   if (focusKey) document.querySelector('[data-focus-key="' + CSS.escape(focusKey) + '"]')?.focus({ preventScroll: true });
 }
 $('scrubber').addEventListener('input', () => { following = false; state = replay(events, Number($('scrubber').value)); scheduleRender(); });

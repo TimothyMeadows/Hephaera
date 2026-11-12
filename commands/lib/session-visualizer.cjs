@@ -14,6 +14,7 @@ const HELP = `Usage: session-visualizer.sh <start|status|emit|run|end|stop|histo
        [--activity UUID] [--parent UUID] [--action started|updated|finished]
        [--status running|waiting|blocked|succeeded|failed|cancelled|unknown]
        [--owner TEXT] [--role TEXT] [--skill TEXT] [--task TEXT] [--mode brainstorm|task|goal|gauntlet]
+       [--goal GOAL_ID]         Snapshot the explicitly linked Goal task queue.
        [--operation TEXT] [--blocker TEXT] [--evidence PROJECT_RELATIVE_PATH ...]
   run --session UUID [--phase PHASE] [--label TEXT] [--task TASK_ID] [--operation TEXT] -- EXECUTABLE [ARG ...]
   end|delete --session UUID   Explicit ending; deletion accepts ended sessions only.
@@ -28,7 +29,7 @@ const HELP = `Usage: session-visualizer.sh <start|status|emit|run|end|stop|histo
 `;
 function parse(values) {
   const [operation, ...args] = values, options = {}, command = [];
-  const allowed = ['root','session','host','label','port','phase','category','activity','parent','action','status','owner','role','skill','task','mode','operation','blocker','evidence','offset','limit'];
+  const allowed = ['root','session','host','label','port','phase','category','activity','parent','action','status','owner','role','skill','task','mode','goal','operation','blocker','evidence','offset','limit'];
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--') { command.push(...args.slice(i + 1)); break; }
     if (args[i] === '--no-open') { options.noOpen = true; continue; }
@@ -37,7 +38,7 @@ function parse(values) {
     const value = args[++i]; if (key === 'evidence') (options.evidence ||= []).push(value); else options[key] = value;
   }
   if (!['start','status','emit','run','end','stop','history','delete'].includes(operation)) throw new Error('Unknown visualizer operation.');
-  const perOperation = { start: ['session','host','label','port','noOpen'], status: ['session'], emit: ['session','label','phase','category','activity','parent','action','status','owner','role','skill','task','mode','operation','blocker','evidence'], run: ['session','label','phase','task','operation'], end: ['session'], stop: [], history: ['offset','limit'], delete: ['session'] };
+  const perOperation = { start: ['session','host','label','port','noOpen'], status: ['session'], emit: ['session','label','phase','category','activity','parent','action','status','owner','role','skill','task','mode','goal','operation','blocker','evidence'], run: ['session','label','phase','task','operation'], end: ['session'], stop: [], history: ['offset','limit'], delete: ['session'] };
   if (Object.keys(options).some(k => k !== 'root' && !perOperation[operation].includes(k)) || operation !== 'run' && command.length) throw new Error('Option is not supported by this operation.');
   return { operation, options, command };
 }
@@ -145,7 +146,7 @@ async function main(values) {
   let result;
   if (operation === 'start') result = await start(root, options);
   else if (operation === 'emit') {
-    const mapping = { label:'label',phase:'phase',category:'category',activity:'activityId',parent:'parentId',action:'action',status:'status',owner:'owner',role:'role',skill:'skill',task:'task',mode:'mode',operation:'operation',blocker:'blocker',evidence:'evidence' };
+    const mapping = { label:'label',phase:'phase',category:'category',activity:'activityId',parent:'parentId',action:'action',status:'status',owner:'owner',role:'role',skill:'skill',task:'task',mode:'mode',goal:'goal',operation:'operation',blocker:'blocker',evidence:'evidence' };
     const fields = {}; for (const [key, target] of Object.entries(mapping)) if (options[key] !== undefined) fields[target] = options[key];
     result = store.emit(root, options.session, fields);
     result = { recorded: result.recorded, reason: result.reason, activityId: result.event?.activityId, sequence: result.event?.sequence };

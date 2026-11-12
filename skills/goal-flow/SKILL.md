@@ -29,6 +29,7 @@ Do not activate or create goal flow while repository-root `BRAINSTORM.md` is act
 - When every goal task has completed post-PR QA, generate `GOAL_REPORT.md` with ordered PR links, branch dependencies, QA evidence, and merge-conflict risk notes for human approval.
 - Stop automatic advancement if local validation fails, PR creation fails, post-PR QA fails, or a task requires a human decision not covered by the goal plan.
 - The project-manager role owns goal decomposition, task ordering, and any parallel sub-agent lane decisions within a goal task.
+- When the session visualizer is enabled, report the active Goal with `session-visualizer.sh emit --session UUID --category goal --mode goal --goal GOAL_ID --label "Safe Goal title" --action started`. Retain the activity UUID, keep the canonical GOAL.md Task Queue checkboxes current, and finish that same Goal activity explicitly when Goal mode ends. The viewer shows completed/remaining/total counts from bounded queue snapshots; a live connection observes subsequent linked queue changes. Reports do not activate Goal mode, prove task QA or authorize execution/merge. Never infer progress from completed commands or a project-wide current Goal.
 - Use `./commands/pr-readiness-check.sh --goal` to create a durable readiness report that records the goal-flow exception.
 
 ## Commands

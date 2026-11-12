@@ -821,3 +821,15 @@ td button {
   overflow-wrap:anywhere;
   max-width:100%;
 }
+.goal-progress-panel { margin-bottom:24px; background:var(--panel); border:1px solid var(--slate); border-radius:12px; }
+#goal-progress { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr)); gap:16px; padding:20px; }
+.goal-progress-card { min-width:0; padding:18px; border:1px solid var(--slate); border-radius:8px; }
+.goal-progress-title { display:block; padding:0; border:0; background:transparent; text-align:left; font-size:1rem; font-weight:600; overflow-wrap:anywhere; }
+.goal-progress-status { display:block; color:var(--muted); font-size:12px; margin:6px 0 16px; }
+.goal-progress-counts { display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; font-size:14px; }
+.goal-progress-counts>span,.goal-progress-remaining { color:var(--gold); }
+.goal-progress-card progress { display:block; width:100%; height:12px; margin:12px 0; border:0; border-radius:8px; overflow:hidden; background:var(--slate); accent-color:var(--gold); }
+.goal-progress-card progress::-webkit-progress-bar { background:var(--slate); border-radius:8px; }
+.goal-progress-card progress::-webkit-progress-value { background:var(--gold); border-radius:8px; }
+.goal-progress-card progress::-moz-progress-bar { background:var(--gold); border-radius:8px; }
+.goal-progress-remaining,.goal-progress-unavailable { margin:0 0 10px; font-size:14px; }

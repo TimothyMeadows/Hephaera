@@ -44,6 +44,26 @@ export function currentWork(state, limit = 3) {
   }).sort((a,b) => Number(active.has(b.current.status)) - Number(active.has(a.current.status)) || b.latest.sequence - a.latest.sequence).slice(0, limit);
 }
 
+// Whole-Goal state comes only from explicit Goal reports. Queue snapshots are
+// observations of declared checkbox state, never inferred command completion.
+export function goalProgress(state) {
+  const reports = new Map(), snapshots = new Map();
+  for (const activity of state.activities.values()) {
+    if (activity.category === 'goal' && activity.mode === 'goal') {
+      const key = activity.goal || activity.activityId;
+      if (!reports.has(key) || reports.get(key).sequence < activity.sequence) reports.set(key, activity);
+    }
+    if (activity.goalProgress && (!snapshots.has(activity.goal) || snapshots.get(activity.goal).sequence < activity.sequence)) snapshots.set(activity.goal, activity);
+  }
+  return [...reports.values()].filter(report => ['running','waiting','blocked','unknown'].includes(report.status)).map(report => {
+    const snapshot = snapshots.get(report.goal), progress = snapshot?.goalProgress;
+    return { report, snapshot, available: !!progress?.available, ...(progress?.available ? {
+      completed: progress.completed, total: progress.total, remaining: progress.total - progress.completed,
+      percent: progress.total ? Math.floor(progress.completed / progress.total * 100) : 0
+    } : {}) };
+  });
+}
+
 // A mode belongs to an explicit report or its recorded parent, never to an
 // inferred project-wide current workflow. Memoization bounds long ancestry.
 export function modeGroups(state, limit = 25) {

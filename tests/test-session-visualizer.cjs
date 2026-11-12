@@ -22,6 +22,93 @@ function fixture(t) {
 }
 function prepare(t) { const root = fixture(t), session = store.createSession(root, { host: 'codex', title: 'Test session' }); return { root, id: session.id }; }
 function recorded(root, id, label = 'Test activity', fields = {}) { return store.emit(root, id, { label, ...fields }).event; }
+
+test('Goal progress counts only the explicit canonical Task Queue and replays immutable snapshots', async t => {
+  const {root,id}=prepare(t),directory=store.directory(root,'.hephaera/.cache/goals/movement-goal'),file=path.join(directory,'GOAL.md');
+  const markdown='# Private goal description\n\n## Outcome\n\nDo not publish private prose.\n\n## Task Queue\n1. [x] First task\n2. [ ] Second task\n  - [x] Nested substep\n<!--\n3. [x] Hidden item\n-->\n```md\n3. [x] Fenced item\n```\n3. [X] Third task\n\n## Final Checklist\n- [ ] Not a goal task\n';
+  fs.writeFileSync(file,markdown);
+  const first=recorded(root,id,'Movement goal',{category:'goal',mode:'goal',goal:'movement-goal'});
+  assert.equal(first.schemaVersion,3);assert.equal(first.goalProgress.total,3);assert.equal(first.goalProgress.completed,2);
+  assert.equal(first.goalProgress.sha256,crypto.createHash('sha256').update(markdown).digest('hex'));
+  assert.equal(JSON.stringify(first).includes('private prose'),false);assert.equal(JSON.stringify(first).includes('First task'),false);
+  fs.writeFileSync(file,'# Goal\n\n## Task Queue\n1. [x] First\n2. [x] Second\n3. [x] Third\n4. [ ] New scope\n');
+  const next=recorded(root,id,'Queue snapshot',{category:'artifact',parentId:first.activityId,goal:'movement-goal'});
+  fs.unlinkSync(file);const reducer=await import('../visualizer/state.mjs'),events=store.page(root,id).events;
+  assert.equal(reducer.goalProgress(reducer.replay(events,1))[0].remaining,1);
+  const current=reducer.goalProgress(reducer.replay(events))[0];assert.equal(current.total,4);assert.equal(current.completed,3);assert.equal(current.remaining,1);
+  assert.notEqual(first.goalProgress.sha256,next.goalProgress.sha256);assert.equal(current.report.status,'running');
+});
+
+test('Goal queue parsing rejects ambiguous sources and unsafe paths while empty queues stay explicit', t => {
+  const {root,id}=prepare(t),dir=store.directory(root,'.hephaera/.cache/goals/queue-test'),file=path.join(dir,'GOAL.md');
+  for(const text of ['# Goal\n## Other\n- [x] Not a queue\n','# Goal\n## Task Queue\n- [~] Invalid\n','# Goal\n## Task Queue\n1. [ ] TODO task name (`.hephaera/.cache/tasks/<task-name>/TASK.md`)\n',
+    '# Goal\n## Task Queue\n- [x] Duplicate\n- [ ] Duplicate\n','# Goal\n## Task Queue\n- [ ] First\n## Task Queue\n- [x] Second\n','x'.repeat(131073)]) {
+    fs.writeFileSync(file,text);assert.equal(recorded(root,id,'Goal progress',{goal:'queue-test'}).goalProgress.available,false);
+  }
+  fs.writeFileSync(file,'# Empty goal\n## Task Queue\n\n## Notes\n');
+  assert.deepEqual([store.goalProgress(root,'queue-test').total,store.goalProgress(root,'queue-test').completed],[0,0]);
+  const alias=path.join(dir,'alias.md');fs.linkSync(file,alias);assert.equal(store.goalProgress(root,'queue-test').available,false);fs.unlinkSync(alias);
+  for(const goal of ['../outside','other/goal','C:/private','Invalid ID'])assert.throws(()=>recorded(root,id,'Unsafe Goal',{goal}));
+  assert.equal(recorded(root,id,'Missing queue',{goal:'missing-goal'}).goalProgress.available,false);
+});
+
+test('Goal metadata validates counts and coexists with task and legacy event versions', t => {
+  const {root,id}=prepare(t),goal='safe-goal',dir=store.directory(root,'.hephaera/.cache/goals/'+goal);
+  fs.writeFileSync(path.join(dir,'GOAL.md'),'# Goal\n## Task Queue\n- [ ] Task\n');
+  const taskDir=store.directory(root,'.hephaera/.cache/tasks/linked-task');fs.writeFileSync(path.join(taskDir,'TASK.md'),'# Linked task\n\n## Goal\n\nSafe task purpose.\n');
+  const event=recorded(root,id,'Goal-linked task',{goal,task:'linked-task'});assert.equal(event.schemaVersion,3);assert.equal(event.taskContext.title,'Linked task');
+  for(const changes of [{completed:-1},{completed:2},{total:2001},{goalId:'other-goal'},{reference:'../private'},{sha256:'bad'},{rawGoal:'private prose'},{available:false}])
+    assert.throws(()=>recorded(root,id,'Invalid progress',{goal,goalProgress:{...event.goalProgress,...changes}}));
+  assert.throws(()=>recorded(root,id,'Invalid progress',{goal,goalProgress:null}));
+  assert.equal(recorded(root,id,'Legacy metadata').schemaVersion,1);
+  assert.equal(recorded(root,id,'Task-only metadata',{task:'linked-task'}).schemaVersion,2);
+});
+
+test('Goal progress stays unknown without a queue link and excludes terminal or unrelated modes', async t => {
+  const {root,id}=prepare(t),reducer=await import('../visualizer/state.mjs');
+  const goal=recorded(root,id,'Unlinked Goal',{category:'goal',mode:'goal'});
+  recorded(root,id,'Successful checkpoint',{parentId:goal.activityId,category:'command',status:'succeeded'});
+  recorded(root,id,'Unrelated task',{category:'task',mode:'task'});
+  const groups=reducer.goalProgress(reducer.replay(store.page(root,id).events));assert.equal(groups.length,1);assert.equal(groups[0].available,false);assert.equal(groups[0].total,undefined);
+  recorded(root,id,'Goal finished',{activityId:goal.activityId,category:'goal',mode:'goal',status:'succeeded',action:'finished'});
+  assert.equal(reducer.goalProgress(reducer.replay(store.page(root,id).events)).length,0);
+});
+
+test('live Goal monitoring scopes snapshots to linked sessions, reconnects, and never completes the Goal', async t => {
+  const {root,id}=prepare(t),other=store.createSession(root),dir=store.directory(root,'.hephaera/.cache/goals/live-goal'),file=path.join(dir,'GOAL.md');
+  const queue=(completed,total)=>'# Goal\n## Task Queue\n'+Array.from({length:total},(_,i)=>'- ['+(i<completed?'x':' ')+'] Task '+i).join('\n')+'\n';
+  fs.writeFileSync(file,queue(0,3));const goal=recorded(root,id,'Live goal',{category:'goal',mode:'goal',goal:'live-goal'});
+  const requests=[];let service=await startServer({root,openBrowser:false});
+  const connect=(after=0)=>new Promise((resolve,reject)=>{const request=http.get(service.connectUrl+'/api/sessions/'+id+'/events?after='+after,{agent:false,headers:{Host:new URL(service.url).host,Authorization:'Bearer '+service.token}},response=>{response.once('data',resolve);response.on('data',()=>{});});requests.push(request);request.on('error',reject);});
+  const wait=async predicate=>{for(let i=0;i<60;i++){if(predicate())return;await delay(50);}assert.fail('Goal queue snapshot did not arrive');};
+  try {
+    await connect();await connect();fs.writeFileSync(file,queue(1,3));
+    await wait(()=>store.page(root,id).events.some(e=>e.category==='artifact'&&e.goalProgress?.completed===1));
+    const snapshots=store.page(root,id).events.filter(e=>e.category==='artifact');assert.equal(snapshots.length,1);assert.equal(snapshots[0].parentId,goal.activityId);assert.equal(snapshots[0].source,'command-observed');
+    assert.equal(store.page(root,other.id).total,0);
+    for(const request of requests)request.destroy();requests.length=0;await service.close();service=await startServer({root,openBrowser:false});
+    await connect(store.page(root,id).total);fs.writeFileSync(file,queue(2,4));await wait(()=>store.page(root,id).events.some(e=>e.goalProgress?.total===4));
+    const updated=store.page(root,id).events.filter(e=>e.category==='artifact');assert.equal(updated.at(-1).activityId,snapshots[0].activityId);
+    fs.unlinkSync(file);await wait(()=>store.page(root,id).events.at(-1).goalProgress?.available===false);
+    const reducer=await import('../visualizer/state.mjs');assert.equal(reducer.goalProgress(reducer.replay(store.page(root,id).events))[0].available,false);
+    recorded(root,id,'Goal cancelled',{activityId:goal.activityId,category:'goal',mode:'goal',status:'cancelled',action:'finished'});
+    await delay(300);const before=store.page(root,id).total;fs.writeFileSync(file,queue(4,4));await delay(800);assert.equal(store.page(root,id).total,before);
+  } finally {for(const request of requests)request.destroy();await service.close();}
+});
+
+test('public emit links the exact Goal without serving its source content', t => {
+  const {root,id}=prepare(t),dir=store.directory(root,'.hephaera/.cache/goals/public-goal');fs.writeFileSync(path.join(dir,'GOAL.md'),'# Private source\n\n## Task Queue\n- [x] First\n- [ ] Second\n');
+  const result=cp.spawnSync(process.execPath,[path.join(REPO,'commands/lib/session-visualizer.cjs'),'emit','--root',root,'--session',id,'--category','goal','--mode','goal','--goal','public-goal','--label','Public Goal','--action','started'],{encoding:'utf8'});
+  assert.equal(result.status,0,result.stderr);const event=store.page(root,id).events[0];assert.equal(event.goalProgress.completed,1);assert.equal(event.goalProgress.total,2);assert.equal(result.stdout.includes('Private source'),false);
+});
+
+test('completed Goal history does not exhaust the active queue monitoring bound', t => {
+  const {root,id}=prepare(t),helper=require('../commands/lib/session-goal-progress.cjs'),seen=[];
+  const monitor=helper.createMonitor(root,{goalProgress:()=>({available:true,completed:1,total:2}),emit:(project,session,fields)=>{seen.push(fields);return {recorded:true,event:{sequence:100}};}});
+  for(let i=0;i<16;i++)monitor.observe(id,{goal:'old-goal-'+i,category:'goal',mode:'goal',activityId:crypto.randomUUID(),sequence:i+1,status:'succeeded'});
+  monitor.observe(id,{goal:'current-goal',category:'goal',mode:'goal',activityId:crypto.randomUUID(),sequence:17,status:'running',phase:'work'});
+  monitor.poll(id);assert.equal(seen.length,1);assert.equal(seen[0].goal,'current-goal');
+});
 test('task names and purpose are captured at observation time without rewriting replay', async t => {
   const {root,id}=prepare(t),dir=store.directory(root,'.hephaera/.cache/tasks/movement-controls'),file=path.join(dir,'TASK.md');
   const original='# Improve movement controls\n\n## Goal\n\nMake keyboard movement responsive and predictable.\n\n## Private notes\n\nDo not copy this unrelated section.\n';

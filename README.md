@@ -533,6 +533,8 @@ The viewer supports HTTP only, without machine configuration or an online certif
 
 Task-linked activity shows the task's actual title and a short purpose from its task record, alongside the specific operation and status. A current/recent-work panel makes running and completed tasks visible at a glance; canvas cards, timeline, list and details use the same recorded context. Pass `--task TASK_ID` on `run`/`emit` when known; supported shared task commands carry it automatically. Descriptions are captured when the event is recorded, so later task edits do not change replay. Earlier events without recorded context keep their original detail level. See [task context and privacy](docs/SESSION_VISUALIZER.md#task-names-purpose-and-operation-details).
 
+Active Goals show a progress bar with completed, remaining and total tasks from their canonical Task Queue, including tasks that have not started. Report the Goal with `emit --category goal --mode goal --goal GOAL_ID`; live viewers record queue changes and replay uses those snapshots. Unlinked or unavailable queues show progress unavailable, and successful commands/checkpoints do not finish a Goal. See [Goal progress](docs/SESSION_VISUALIZER.md#goal-task-progress).
+
 Native headless browser checks have passed on Windows, Linux and macOS, and interactive Windows startup has been exercised. Interactive Linux/macOS desktop startup and actual Claude/Cursor host sessions remain unverified. See the [visualizer usage and recovery guide](docs/SESSION_VISUALIZER.md) for settings, recording commands, lifecycle controls and coverage limits.
 
 ## Managed Updates and Recovery

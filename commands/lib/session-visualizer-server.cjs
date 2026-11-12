@@ -14,6 +14,7 @@ const versionHash = crypto.createHash('sha256').update(fs.readFileSync(__filenam
 versionHash.update(fs.readFileSync(path.join(__dirname, 'session-visualizer.cjs')));
 versionHash.update(fs.readFileSync(path.join(__dirname, 'private-visualizer-cache.ps1')));
 try { versionHash.update(fs.readFileSync(path.join(__dirname, 'session-task-context.cjs'))); } catch { versionHash.update('task-context-unavailable'); }
+try { versionHash.update(fs.readFileSync(path.join(__dirname, 'session-goal-progress.cjs'))); } catch { versionHash.update('goal-progress-unavailable'); }
 for (const name of ['session-default-browser.cjs','session-default-browser-windows.ps1','session-default-browser-macos.js']) {
   try { versionHash.update(fs.readFileSync(path.join(__dirname, name))); } catch { versionHash.update(name + '-unavailable'); }
 }
@@ -84,6 +85,8 @@ async function startServer(options = {}) {
   if (!Number.isInteger(port) || port !== 0 && (port < 1024 || port > 65535)) throw new Error('Invalid visualizer port.');
   if (typeof openBrowser !== 'boolean' || typeof background !== 'boolean') throw new Error('Invalid visualizer process options.');
   store.privateCache(root);
+  let goalMonitor;
+  try { goalMonitor = require('./session-goal-progress.cjs').createMonitor(root, store); } catch { /* Progress is optional. */ }
   const lock = store.safe(root, store.CACHE + '/server-lock', 'dir');
   fs.mkdirSync(lock, { mode: 0o700 });
   let held, server, timer, expiry, closing = false;
@@ -136,10 +139,15 @@ async function startServer(options = {}) {
         if (!match) return finish(404, { error: 'Unknown route.' });
         store.id(match[1]);
         let cursor = Number(url.searchParams.get('after') || request.headers['last-event-id'] || 0);
-        if (match[2] === 'snapshot') return finish(200, store.page(root, match[1], cursor, Number(url.searchParams.get('limit') || 200)));
+        if (match[2] === 'snapshot') {
+          const snapshot = store.page(root, match[1], cursor, Number(url.searchParams.get('limit') || 200));
+          for (const event of snapshot.events) goalMonitor?.observe(match[1], event);
+          return finish(200, snapshot);
+        }
         const initial = store.page(root, match[1], cursor, 1);
         if (cursor > initial.total) return finish(400, { error: 'Cursor exceeds recorded events.' });
         if (clients.size >= 16) return finish(429, { error: 'Viewer connection limit reached.' });
+        goalMonitor?.restore(match[1], cursor);
         response.writeHead(200, { 'Content-Type': 'text/event-stream', Connection: 'keep-alive' });
         response.write(': connected\n\n'); clients.add(response);
         let busy = false, blocked = false, slowDeadline, lastMeta = '', heartbeat = Date.now();
@@ -157,7 +165,8 @@ async function startServer(options = {}) {
           if (busy || blocked || response.destroyed) return; busy = true;
           try {
             const snapshot = store.page(root, match[1], cursor, 200);
-            for (const event of snapshot.events) { if (!send('activity', event, event.sequence)) return; cursor = event.sequence; if (blocked) return; }
+            for (const event of snapshot.events) { goalMonitor?.observe(match[1], event); if (!send('activity', event, event.sequence)) return; cursor = event.sequence; if (blocked) return; }
+            if (cursor === snapshot.total && !blocked) goalMonitor?.poll(match[1]);
             const { events: ignored, ...metadata } = snapshot;
             const meta = JSON.stringify(metadata);
             if (meta !== lastMeta) { send('metadata', metadata); lastMeta = meta; }
