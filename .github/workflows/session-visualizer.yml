@@ -33,6 +33,8 @@ jobs:
           printf 'HEPHAERA_VISUALIZER_BROWSER=%s\n' "$chrome" >> "$GITHUB_ENV"
       - name: Event, replay, IPv4 loopback HTTP, concurrency and lifecycle tests
         run: node --test tests/test-session-visualizer.cjs
+      - name: Read-only native default HTTP browser registration diagnostic
+        run: node tests/session-default-browser-native.cjs
       - name: Native browser lifecycle, hierarchy and 10000-event rendering
         run: node tests/session-visualizer-browser-performance.cjs
       - name: Retain synthetic browser reports and screenshots

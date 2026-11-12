@@ -4,17 +4,19 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const http = require('node:http');
 const https = require('node:https');
-const cp = require('node:child_process');
-const { pathToFileURL } = require('node:url');
 const store = require('./session-events.cjs');
 const LOOPBACK = '127.0.0.1';
 const VIEWER_HOST = 'my.hephaera.com';
-const BROWSER_NETWORK_ARGS = Object.freeze(['--no-proxy-server', '--host-resolver-rules=MAP my.hephaera.com 127.0.0.1,MAP * ~NOTFOUND']);
+// Controlled browser QA only; production uses the user's registered browser.
+const QA_BROWSER_NETWORK_ARGS = Object.freeze(['--no-proxy-server', '--host-resolver-rules=MAP my.hephaera.com 127.0.0.1,MAP * ~NOTFOUND']);
 const BASE = path.resolve(__dirname, '../..');
 const versionHash = crypto.createHash('sha256').update(fs.readFileSync(__filename)).update(fs.readFileSync(require.resolve('./session-events.cjs')));
 versionHash.update(fs.readFileSync(path.join(__dirname, 'session-visualizer.cjs')));
 versionHash.update(fs.readFileSync(path.join(__dirname, 'private-visualizer-cache.ps1')));
 try { versionHash.update(fs.readFileSync(path.join(__dirname, 'session-task-context.cjs'))); } catch { versionHash.update('task-context-unavailable'); }
+for (const name of ['session-default-browser.cjs','session-default-browser-windows.ps1','session-default-browser-macos.js']) {
+  try { versionHash.update(fs.readFileSync(path.join(__dirname, name))); } catch { versionHash.update(name + '-unavailable'); }
+}
 for (const name of ['index.html','app.mjs','state.mjs','app.css']) versionHash.update(fs.readFileSync(path.join(BASE, 'visualizer', name)));
 const VERSION = versionHash.digest('hex');
 const RUNTIME = store.CACHE + '/private/runtime.json';
@@ -58,7 +60,7 @@ function probe(info) {
     } catch { finish(false); }
   });
 }
-function browserExecutable(root) {
+function qaBrowserExecutable(root) {
   const explicit = process.env.HEPHAERA_VISUALIZER_BROWSER;
   const candidates = explicit ? [explicit] : [];
   if (!explicit && process.platform === 'win32') for (const base of [process.env.ProgramFiles, process.env['ProgramFiles(x86)'], process.env.LOCALAPPDATA].filter(Boolean)) {
@@ -85,15 +87,15 @@ async function startServer(options = {}) {
   const lock = store.safe(root, store.CACHE + '/server-lock', 'dir');
   fs.mkdirSync(lock, { mode: 0o700 });
   let held, server, timer, expiry, closing = false;
-  const clients = new Set(), browsers = new Set(), launchFiles = new Map();
+  const clients = new Set(), launchFiles = new Map(), browserOpening = new AbortController();
   const token = crypto.randomBytes(32).toString('hex');
   const ownerFile = store.CACHE + '/server-lock/owner.json';
   store.write(root, ownerFile, { instanceId, pid: process.pid });
   async function close() {
     if (closing) return; closing = true;
+    browserOpening.abort();
     clearInterval(timer); clearTimeout(expiry);
     for (const response of clients) response.destroy();
-    for (const child of browsers) { try { child.kill(); } catch {} }
     for (const [relative, bytes] of launchFiles) try {
       const full = store.safe(root, relative, 'file');
       if (fs.statSync(full).size === bytes.length && fs.readFileSync(full).equals(bytes)) fs.unlinkSync(full);
@@ -188,24 +190,19 @@ async function startServer(options = {}) {
           store.session(root, request.sessionId);
           const marker = store.CACHE + '/opened/' + instanceId + '-' + request.sessionId + '.json';
           if (!fs.existsSync(store.safe(root, marker, 'file'))) {
-            let status = 'disabled';
-            const executable = openBrowser && store.settings(root).openBrowser ? browserExecutable(root) : null;
-            if (openBrowser && store.settings(root).openBrowser) status = executable ? 'launching' : 'browser-unavailable';
-            if (executable) {
-              const profile = store.directory(root, store.CACHE + '/private/browser/' + instanceId);
-              store.directory(root, store.CACHE + '/private/launch');
-              const launchRelative = store.CACHE + '/private/launch/' + instanceId + '-' + request.sessionId + '.html';
-              const destination = info.url + '/#session=' + request.sessionId + '&token=' + token;
-              const bytes = Buffer.from('<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=' + destination.replaceAll('&', '&amp;') + '"><title>Opening Hephaera</title>');
-              const launch = store.safe(root, launchRelative, 'file');
-              fs.writeFileSync(launch, bytes, { flag: 'wx', mode: 0o600 }); launchFiles.set(launchRelative, bytes);
-              const child = cp.spawn(executable, ['--user-data-dir=' + profile,
-                '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--disable-component-update', '--disable-sync', ...BROWSER_NETWORK_ARGS,
-                pathToFileURL(launch).href], { windowsHide: false, stdio: 'ignore' });
-              browsers.add(child); child.once('error', () => {}); child.once('exit', () => browsers.delete(child));
-              status = await new Promise(resolve => { child.once('spawn', () => resolve('launched-unverified')); child.once('error', () => resolve('browser-unavailable')); });
+            let outcome = { status: 'disabled' };
+            if (openBrowser && store.settings(root).openBrowser) {
+              try {
+                store.directory(root, store.CACHE + '/private/launch');
+                const launchRelative = store.CACHE + '/private/launch/' + instanceId + '-' + request.sessionId + '.html';
+                const destination = info.url + '/#session=' + request.sessionId + '&token=' + token;
+                const bytes = Buffer.from('<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=' + destination.replaceAll('&', '&amp;') + '"><title>Opening Hephaera</title>');
+                const launch = store.safe(root, launchRelative, 'file');
+                fs.writeFileSync(launch, bytes, { flag: 'wx', mode: 0o600 }); launchFiles.set(launchRelative, bytes);
+                outcome = await require('./session-default-browser.cjs').open(root, launchRelative, { signal: browserOpening.signal });
+              } catch { outcome = { status: 'browser-unavailable', reason: 'private-browser-handoff-unavailable' }; }
             }
-            store.write(root, marker, { status });
+            if (!closing) store.write(root, marker, outcome);
           }
           fs.unlinkSync(store.safe(root, relative, 'file'));
         }
@@ -216,7 +213,7 @@ async function startServer(options = {}) {
     return { ...info, close };
   } catch (error) { await close(); throw error; }
 }
-module.exports = { VERSION, RUNTIME, BROWSER_NETWORK_ARGS, runtime, probe, startServer, browserExecutable };
+module.exports = { VERSION, RUNTIME, QA_BROWSER_NETWORK_ARGS, runtime, probe, startServer, qaBrowserExecutable };
 if (require.main === module) {
   const [mode, root, instanceId, rawPort, ...extra] = process.argv.slice(2);
   if (mode !== '--background-worker' || !root || !instanceId || extra.length) {

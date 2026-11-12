@@ -202,27 +202,105 @@ test('previous literal HTTP owners remain available for safe probe and restart',
     const session=store.createSession(root);const result=await start(root,{session:session.id,noOpen:true});assert.equal(result.status,'viewer-restart-required');
   }finally{await new Promise(resolve=>old.close(resolve));}
 });
-test('production browser launch uses no certificate or security exception flags', async t => {
-  const {root,id}=prepare(t),previous=process.env.HEPHAERA_VISUALIZER_BROWSER,spawn=cp.spawn;
-  let args;
-  process.env.HEPHAERA_VISUALIZER_BROWSER=process.execPath;
-  cp.spawn=(executable,values)=>{
+test('production opens the default browser without flags or owning its lifetime', async t => {
+  const {root,id}=prepare(t),helper=require('../commands/lib/session-default-browser.cjs'),open=helper.open,spawn=cp.spawn;
+  let args,kills=0,unrefs=0;
+  helper.open=(project,relative,options)=>open(project,relative,{...options,
+    lookup:async()=>[{address:'127.0.0.1',family:4}],
+    resolve:async()=>({command:fs.realpathSync(process.execPath),args:[],kind:'browser'})});
+  cp.spawn=(executable,values,options)=>{
     assert.equal(executable,fs.realpathSync(process.execPath));args=values;
-    const {EventEmitter}=require('node:events'),child=new EventEmitter();child.kill=()=>{};
+    assert.equal(options.detached,true);assert.equal(options.shell,false);assert.equal(options.stdio,'ignore');
+    const {EventEmitter}=require('node:events'),child=new EventEmitter();child.kill=()=>kills++;child.unref=()=>unrefs++;
     queueMicrotask(()=>child.emit('spawn'));return child;
   };
   const running=await startServer({root});
   try{
-    const result=await start(root,{session:id});assert.equal(result.browser,'launched-unverified');assert.ok(args);
-    assert.equal(args.some(arg=>/^--(?:ignore-certificate-errors(?:-spki-list)?|allow-insecure-localhost|disable-web-security|no-sandbox|unsafely-treat-insecure-origin-as-secure)(?:=|$)/.test(arg)),false);
-    assert.equal(args.some(arg=>arg.startsWith('--user-data-dir=')&&arg.includes('private')),true);
+    const result=await start(root,{session:id});assert.equal(result.browser,'opened-default-unverified');assert.ok(args);
+    assert.equal(args.length,1);assert.ok(args[0].startsWith('file:'));assert.ok(args[0].endsWith('.html'));
     assert.equal(args.some(arg=>arg.includes(running.token)),false);
-    assert.ok(args.includes('--host-resolver-rules=MAP my.hephaera.com 127.0.0.1,MAP * ~NOTFOUND'));
-    assert.ok(args.includes('--no-proxy-server'));
+    const contents=fs.readFileSync(require('node:url').fileURLToPath(args[0]),'utf8');
+    assert.ok(contents.includes(running.url));assert.ok(contents.includes(running.token));
+    assert.equal(fs.existsSync(store.safe(root,store.CACHE+'/private/browser','dir')),false);
+    await start(root,{session:id});assert.equal(unrefs,1,'Repeated startup does not open extra tabs');
+    assert.equal(store.emit(root,id,{label:'Work continues after browser opening'}).recorded,true);
   }finally{
-    await running.close();cp.spawn=spawn;
-    if(previous===undefined)delete process.env.HEPHAERA_VISUALIZER_BROWSER;else process.env.HEPHAERA_VISUALIZER_BROWSER=previous;
+    await running.close();cp.spawn=spawn;helper.open=open;
   }
+  assert.equal(kills,0);assert.equal(unrefs,1);assert.equal(store.session(root,id).endedAt,undefined);
+});
+
+test('default browser DNS guard rejects unsafe or unavailable answers before any browser query', async t => {
+  const {root}=prepare(t),helper=require('../commands/lib/session-default-browser.cjs');
+  store.privateCache(root);store.directory(root,store.CACHE+'/private/launch');
+  const relative=store.CACHE+'/private/launch/test.html';fs.writeFileSync(store.safe(root,relative,'file'),'<title>Test handoff</title>');
+  let queries=0,launches=0;
+  const options={resolve:async()=>{queries++;return {};},start:async()=>{launches++;}};
+  for(const addresses of [[],[{address:'192.0.2.1'}],[{address:'127.0.0.2'}],[{address:'127.0.0.1'},{address:'192.0.2.1'}],[{address:'::1'}]]) {
+    assert.equal((await helper.open(root,relative,{...options,lookup:async()=>addresses})).status,'browser-unavailable');
+  }
+  assert.equal((await helper.open(root,relative,{...options,lookup:async()=>{throw Error('DNS private diagnostic');}})).reason,'hostname-unavailable');
+  assert.equal(queries,0);assert.equal(launches,0);
+  assert.equal((await helper.open(root,relative,{...options,lookup:async()=>[{address:'127.0.0.1'},{address:'::1'}]})).status,'opened-default-unverified');
+  assert.equal(queries,1);assert.equal(launches,1);
+  for(const unsafe of ['../outside.html',store.CACHE+'/private/launch/../test.html',store.CACHE+'/session.html']) {
+    assert.equal((await helper.open(root,unsafe,options)).status,'browser-unavailable');
+  }
+  const alias=store.safe(root,store.CACHE+'/private/launch/alias.html','file');fs.linkSync(store.safe(root,relative,'file'),alias);
+  assert.equal((await helper.open(root,relative,options)).status,'browser-unavailable');assert.equal(queries,1);fs.unlinkSync(alias);
+});
+
+test('default browser lookup is bounded and cannot launch after timeout or service cancellation', async t => {
+  const {root}=prepare(t),helper=require('../commands/lib/session-default-browser.cjs');
+  store.privateCache(root);store.directory(root,store.CACHE+'/private/launch');
+  const relative=store.CACHE+'/private/launch/test.html';fs.writeFileSync(store.safe(root,relative,'file'),'Test');
+  let launches=0;
+  const options={lookup:async()=>[{address:'127.0.0.1'}],resolve:async()=>{await delay(50);return {};},start:async()=>launches++,timeoutMs:10};
+  assert.equal((await helper.open(root,relative,options)).reason,'default-browser-timeout');await delay(60);assert.equal(launches,0);
+  const controller=new AbortController();controller.abort();
+  assert.equal((await helper.open(root,relative,{...options,signal:controller.signal})).status,'browser-unavailable');assert.equal(launches,0);
+});
+
+test('default HTTP browser providers use structured OS registrations, not the HTML editor', async t => {
+  const {root}=prepare(t),helper=require('../commands/lib/session-default-browser.cjs');
+  const find=(project,name)=>'/usr/bin/'+name;
+  const plan=await helper.resolveBrowser(root,{platform:'linux',find,run:async(exe,args)=>{
+    assert.deepEqual(args,['query','default','x-scheme-handler/http']);return 'org.example.Browser.desktop';
+  }});
+  assert.deepEqual(plan.args,['org.example.Browser.desktop']);assert.equal(plan.command,'/usr/bin/gtk-launch');
+  await assert.rejects(helper.resolveBrowser(root,{platform:'linux',find,run:async()=>';do-not-execute.desktop'}));
+  await assert.rejects(helper.resolveBrowser(root,{platform:'linux',find:(_,name)=>['xdg-mime','xdg-open'].includes(name)?'/usr/bin/'+name:null,
+    run:async(exe,args)=>args[2]==='text/html'?'editor.desktop':'browser.desktop'}));
+  await assert.rejects(helper.resolveBrowser(root,{platform:'win32',run:async()=>JSON.stringify({executable:process.execPath+' --profile anything'})}));
+  await assert.rejects(helper.resolveBrowser(root,{platform:'unsupported'}));
+});
+
+test('OS browser launchers are detached without a cancellation kill handle', async t => {
+  const {root}=prepare(t),helper=require('../commands/lib/session-default-browser.cjs'),original=cp.spawn;
+  store.privateCache(root);store.directory(root,store.CACHE+'/private/launch');
+  const relative=store.CACHE+'/private/launch/utility.html';fs.writeFileSync(store.safe(root,relative,'file'),'Test');
+  const controller=new AbortController();let unrefs=0,kills=0;
+  cp.spawn=(command,args,options)=>{
+    assert.equal(command,process.execPath);assert.deepEqual(args,['-a','Registered browser',require('node:url').pathToFileURL(store.safe(root,relative,'file')).href]);
+    assert.equal(options.detached,true);assert.equal(options.signal,undefined);assert.equal(options.shell,false);
+    const child=new(require('node:events').EventEmitter)();child.unref=()=>unrefs++;child.kill=()=>kills++;
+    queueMicrotask(()=>child.emit('spawn'));return child;
+  };
+  try {
+    const result=await helper.open(root,relative,{signal:controller.signal,lookup:async()=>[{address:'127.0.0.1'}],resolve:async()=>({command:process.execPath,args:['-a','Registered browser'],kind:'utility'})});
+    assert.equal(result.status,'opened-default-unverified');controller.abort();assert.equal(unrefs,1);assert.equal(kills,0);
+  } finally { cp.spawn=original; }
+});
+
+test('default browser failure reports a reason while recording and command outcomes continue', async t => {
+  const {root,id}=prepare(t),helper=require('../commands/lib/session-default-browser.cjs'),open=helper.open;
+  helper.open=async()=>({status:'browser-unavailable',reason:'default-browser-unavailable'});
+  const running=await startServer({root});
+  try {
+    const result=await start(root,{session:id});assert.equal(result.status,'running');assert.equal(result.browserReason,'default-browser-unavailable');
+    const command=cp.spawnSync(process.execPath,[path.join(REPO,'commands/lib/session-visualizer.cjs'),'run','--root',root,'--session',id,'--',process.execPath,'-e','process.exit(23)'],{encoding:'utf8'});
+    assert.equal(command.status,23);assert.equal(store.page(root,id).events.at(-1).status,'failed');
+  } finally { await running.close();helper.open=open; }
 });
 test('event schema confines metadata, rejects secrets, traversal and links', t => {
   const { root, id } = prepare(t);
