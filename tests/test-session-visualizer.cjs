@@ -259,6 +259,8 @@ test('default browser lookup is bounded and cannot launch after timeout or servi
   assert.equal((await helper.open(root,relative,options)).reason,'default-browser-timeout');await delay(60);assert.equal(launches,0);
   const controller=new AbortController();controller.abort();
   assert.equal((await helper.open(root,relative,{...options,signal:controller.signal})).status,'browser-unavailable');assert.equal(launches,0);
+  assert.equal((await helper.open(root,relative,{...options,signal:controller.signal,lookup:async()=>{throw Error('Cancelled lookup');}})).status,'browser-unavailable');
+  await delay(10);assert.equal(launches,0);
 });
 
 test('default HTTP browser providers use structured OS registrations, not the HTML editor', async t => {

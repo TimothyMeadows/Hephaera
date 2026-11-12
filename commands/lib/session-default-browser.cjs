@@ -23,9 +23,9 @@ function query(executable, args, signal) {
 function abortable(promise, signal) {
   return new Promise((resolve,reject) => {
     const cancel=()=>reject(failure('default-browser-timeout'));
-    if(signal.aborted)return cancel();
-    signal.addEventListener('abort',cancel,{once:true});
     Promise.resolve(promise).then(value=>{signal.removeEventListener('abort',cancel);resolve(value);},error=>{signal.removeEventListener('abort',cancel);reject(error);});
+    if(signal.aborted)cancel();
+    else signal.addEventListener('abort',cancel,{once:true});
   });
 }
 async function resolveBrowser(root, { platform=process.platform, run=query, find=tool, signal } = {}) {
