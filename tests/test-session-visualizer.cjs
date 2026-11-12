@@ -345,6 +345,13 @@ test('live reduction and replay agree, ignore duplicate IDs and reject recording
   const events = store.page(root, id).events, live = reducer.emptyState(); for (const event of events) reducer.applyEvent(live, event);
   assert.deepEqual(live, reducer.replay(events)); reducer.applyEvent(live, events[0]); assert.equal(live.cursor, 3);
   assert.throws(() => reducer.applyEvent(reducer.emptyState(), events[2])); assert.equal(reducer.replay(events, 1).activities.get(first.activityId).status, 'running');
+  const waiting = recorded(root,id,'Waiting fixture',{status:'waiting',blocker:'Awaiting verification'});
+  recorded(root,id,'Waiting fixture',{activityId:waiting.activityId,status:'waiting'});
+  recorded(root,id,'Waiting fixture',{activityId:waiting.activityId,action:'finished',status:'succeeded'});
+  const resumed = store.page(root,id).events;
+  assert.equal(reducer.replay(resumed,5).activities.get(waiting.activityId).blocker,'Awaiting verification');
+  for(const event of resumed.slice(3)) reducer.applyEvent(live,event);
+  assert.deepEqual(live,reducer.replay(resumed)); assert.equal(live.activities.get(waiting.activityId).blocker,undefined);
 });
 test('mode structures follow explicit parent reports without activating project workflows', async t => {
   const { root, id } = prepare(t), reducer = await import('../visualizer/state.mjs');

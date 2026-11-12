@@ -11,7 +11,7 @@ export function applyEvent(state, event) {
     else if (last && last !== event.activityId) state.transitions.push({ from: last, to: event.activityId, kind: 'progression' });
     state.counts[event.phase] = (state.counts[event.phase] || 0) + 1;
   }
-  state.activities.set(event.activityId, { ...previous, ...event, startedAt: previous?.startedAt || (event.action === 'started' ? event.at : null), updatedAt: event.at,
+  state.activities.set(event.activityId, { ...previous, ...event, blocker: event.blocker ?? (['waiting','blocked'].includes(event.status) ? previous?.blocker : undefined), startedAt: previous?.startedAt || (event.action === 'started' ? event.at : null), updatedAt: event.at,
     history: [...(previous?.history || []).slice(-19), { at: event.at, status: event.status, sequence: event.sequence }] });
   state.owners.set(owner, event.activityId); state.cursor = event.sequence;
   return state;
