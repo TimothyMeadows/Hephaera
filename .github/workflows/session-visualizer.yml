@@ -47,7 +47,7 @@ jobs:
             .hephaera/.cache/tasks/session-visualizer/evidence/performance-*/*.png
   complete-baseline:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -81,3 +81,5 @@ jobs:
         run: bash commands/build-bubo-runtime.sh Release
       - name: Run the complete canonical baseline validation
         run: bash commands/validate-hephaera.sh
+        env:
+          HEPHAERA_TEST_GAUNTLET_TRACE: '1'

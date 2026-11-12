@@ -3,6 +3,11 @@
 set -Eeuo pipefail
 export LC_ALL=C
 export LANG=C
+if [[ "${HEPHAERA_TEST_GAUNTLET_TRACE:-0}" == 1 ]]; then
+  # A dedicated diagnostic descriptor survives expected-failure redirection.
+  # Only source locations/executable names are logged, never fixture arguments.
+  exec 9>&2
+fi
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
@@ -1383,6 +1388,9 @@ run_for() {
   local project="$1"
   local setup_result command_result argument
   shift
+  if [[ "${HEPHAERA_TEST_GAUNTLET_TRACE:-0}" == 1 ]]; then
+    printf 'GAUNTLET_FIXTURE_CALL lines=%s executable=%s\n' "${BASH_LINENO[*]}" "${1##*/}" >&9
+  fi
   set +e
   ( set -Eeuo pipefail; prepare_observation_for_command "$project" "$@" )
   setup_result=$?
