@@ -128,6 +128,11 @@ test('run preserves argv, help arguments, streams and exit code without retainin
   assert.equal(result.code, 7); assert.equal(result.stdout, '--help|password=private-value'); assert.equal(result.stderr, 'private-tool-output');
   const events = store.page(root, id).events; assert.equal(events.length, 2); assert.equal(events[1].exitCode, 7); assert.equal(events[1].status, 'failed');
   assert.ok(!JSON.stringify(events).includes('private-value')); assert.ok(!JSON.stringify(events).includes('private-tool-output'));
+  if(process.platform==='win32') {
+    const unsigned = await child(['commands/lib/session-visualizer.cjs','run','--root',root,'--session',id,'--',process.execPath,'-e','process.exitCode=3221225477;']);
+    assert.equal(unsigned.code,3221225477);
+    const terminal = store.page(root,id).events.at(-1); assert.equal(terminal.status,'failed'); assert.equal(terminal.exitCode,3221225477);
+  }
   store.write(root, store.CACHE + '/sessions/' + id + '/budget.json', { malformed: true }, true);
   const broken = await child(['commands/lib/session-visualizer.cjs','run','--root',root,'--session',id,'--','node','-e',`process.stdout.write('still ran');process.exitCode=9;`]);
   assert.equal(broken.code, 9); assert.equal(broken.stdout, 'still ran');

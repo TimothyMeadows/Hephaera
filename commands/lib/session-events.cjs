@@ -159,7 +159,7 @@ function validateEvent(root, event) {
   for (const key of ['label','owner','role','skill','task','operation','blocker']) if (event[key] !== undefined) label(event[key]);
   if (event.mode !== undefined && !['brainstorm','task','goal','gauntlet'].includes(event.mode)) fail('Invalid work mode.');
   if (event.durationMs !== undefined && (!Number.isFinite(event.durationMs) || event.durationMs < 0 || event.durationMs > 31536000000)) fail('Invalid duration.');
-  if (event.exitCode !== undefined && event.exitCode !== null && (!Number.isInteger(event.exitCode) || Math.abs(event.exitCode) > 2147483648)) fail('Invalid exit code.');
+  if (event.exitCode !== undefined && event.exitCode !== null && (!Number.isInteger(event.exitCode) || event.exitCode < -2147483648 || event.exitCode > 4294967295)) fail('Invalid exit code.');
   if (!Array.isArray(event.evidence) || event.evidence.length > 8) fail('Invalid evidence references.');
   for (const ref of event.evidence) { const full = safe(root, ref); if (fs.existsSync(full) && fs.lstatSync(full).isFile() && fs.lstatSync(full).nlink !== 1) fail('Linked evidence reference.'); }
   return event;
