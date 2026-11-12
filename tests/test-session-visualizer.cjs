@@ -147,7 +147,8 @@ test('missing or broken optional telemetry does not break shared commands or pub
     if (failure === 'broken-module') fs.writeFileSync(path.join(lib,'session-visualizer.cjs'),'throw new Error("Synthetic recorder loading failure");');
     const env = {...process.env, HEPHAERA_SESSION_ID:crypto.randomUUID(), HEPHAERA_VISUALIZER_WRAPPED:'', HEPHAERA_PROJECT_ROOT:root};
     const tracked = cp.spawnSync(bash,[path.join(commands,'create-goal-file.sh'),'fixture-goal','Fixture Goal','--dry-run'],{cwd:REPO,env,windowsHide:true,encoding:'utf8'});
-    assert.equal(tracked.status,0,tracked.stderr); assert.ok(tracked.stdout.includes('# Fixture Goal'));
+    const failureTrace = tracked.status !== 0 ? cp.spawnSync(bash,['-x',path.join(commands,'create-goal-file.sh'),'fixture-goal','Fixture Goal','--dry-run'],{cwd:REPO,env,windowsHide:true,encoding:'utf8'}).stderr.slice(-12000) : '';
+    assert.equal(tracked.status,0,tracked.stderr || failureTrace); assert.ok(tracked.stdout.includes('# Fixture Goal'));
     const executed = cp.spawnSync(bash,[path.join(commands,'session-visualizer.sh'),'run','--session',env.HEPHAERA_SESSION_ID,'--','bash','-c','printf "original operation"; exit 8'],{cwd:REPO,env,windowsHide:true,encoding:'utf8'});
     assert.equal(executed.status,8,executed.stderr); assert.equal(executed.stdout,'original operation');
     assert.equal(fs.existsSync(path.join(root,'.hephaera/.cache/goals')),false);

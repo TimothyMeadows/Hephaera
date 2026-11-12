@@ -19,6 +19,20 @@ jobs:
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '24.15.0'
+      - name: Check private cache prerequisite on Windows
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          $target = Join-Path $PWD '.local/visualizer-ci-private-probe'
+          New-Item -ItemType Directory -Path (Split-Path $target) -Force | Out-Null
+          & ./commands/lib/private-visualizer-cache.ps1 -Directory $target
+      - name: Select the existing Chrome installation on Linux
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          chrome=$(command -v google-chrome)
+          test -x "$chrome"
+          printf 'HEPHAERA_VISUALIZER_BROWSER=%s\n' "$chrome" >> "$GITHUB_ENV"
       - name: Event, replay, local HTTPS, concurrency and lifecycle tests
         run: node --test tests/test-session-visualizer.cjs
       - name: Native browser lifecycle, hierarchy and 10000-event rendering

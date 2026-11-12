@@ -25,10 +25,11 @@ async function main() {
   const profile = store.directory(root, store.CACHE + '/private/qa-browser/' + crypto.randomUUID()), output = store.directory(root, base);
   const bootstrap = store.safe(root, store.CACHE + '/private/qa-open-' + crypto.randomUUID() + '.html', 'file');
   const child = cp.spawn(executable, ['--headless=new','--remote-debugging-pipe','--user-data-dir=' + profile,'--ignore-certificate-errors-spki-list=' + running.spki,
-    '--enable-automation','--no-first-run','--no-default-browser-check','--disable-background-networking','--disable-component-update','--disable-sync','--no-proxy-server','about:blank'], { windowsHide: true, stdio: ['ignore','ignore','ignore','pipe','pipe'] });
+    '--enable-automation','--no-first-run','--no-default-browser-check','--disable-background-networking','--disable-component-update','--disable-sync','--no-proxy-server','about:blank'], { windowsHide: true, stdio: ['ignore','ignore','pipe','pipe','pipe'] });
+  let startupDiagnostics = ''; child.stderr.on('data', bytes => { startupDiagnostics = (startupDiagnostics + bytes).slice(-8192); });
   let socket, pageSession, pipeError, sequence = 0, browserSecurity, passed = false, listPagingChecked = false; const pending = new Map(), external = [], errors = [], relayed = new Map(), fixtures = [];
   try {
-    const rejectPipe = () => { pipeError = new Error('Chromium private debugging pipe is unavailable.'); for (const task of pending.values()) { clearTimeout(task.timer); task.reject(pipeError); } pending.clear(); };
+    const rejectPipe = () => { pipeError = new Error('Chromium private debugging pipe is unavailable.' + (!pageSession && startupDiagnostics ? '\n' + startupDiagnostics : '')); for (const task of pending.values()) { clearTimeout(task.timer); task.reject(pipeError); } pending.clear(); };
     child.once('error', rejectPipe); child.stdio[3].on('error', rejectPipe); child.stdio[4].on('error', rejectPipe);
     socket = { send(value) { if (pageSession && !/^(Browser|Target)\./.test(value.method)) value.sessionId = pageSession; child.stdio[3].write(JSON.stringify(value) + '\0'); }, close() { child.stdio[3].end(); } };
     const receive = value => {
