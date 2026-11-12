@@ -66,12 +66,12 @@ function read(root, relative, max = 16384) {
   const fd = fs.openSync(full, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0) | (fs.constants.O_NONBLOCK || 0));
   try {
     const before = fs.fstatSync(fd);
-    if (!before.isFile() || before.size > max) fail('Visualizer metadata exceeds its bound.');
+    if (!before.isFile() || before.nlink !== 1 || before.size > max) fail('Visualizer metadata must be one bounded, unlinked file.');
     const bytes = Buffer.alloc(before.size);
     let offset = 0;
     while (offset < bytes.length) { const count = fs.readSync(fd, bytes, offset, bytes.length - offset, offset); if (!count) fail('Visualizer metadata changed.'); offset += count; }
     const after = fs.fstatSync(fd), named = fs.lstatSync(full);
-    if (named.isSymbolicLink() || [after, named].some(s => s.ino !== before.ino || s.size !== before.size || s.mtimeMs !== before.mtimeMs)) fail('Visualizer metadata changed.');
+    if (named.isSymbolicLink() || [after, named].some(s => s.nlink !== 1 || s.dev !== before.dev || s.ino !== before.ino || s.size !== before.size || s.mtimeMs !== before.mtimeMs)) fail('Visualizer metadata changed.');
     const text = bytes.toString('utf8');
     if (!Buffer.from(text).equals(bytes)) fail('Visualizer metadata must be UTF-8.');
     return JSON.parse(text);
@@ -79,6 +79,7 @@ function read(root, relative, max = 16384) {
 }
 function write(root, relative, value, replace = false) {
   const full = safe(root, relative, 'file'), tempRelative = relative + '.' + crypto.randomUUID() + '.tmp';
+  if (fs.existsSync(full) && fs.lstatSync(full).nlink !== 1) fail('Linked visualizer metadata cannot be replaced.');
   const temp = safe(root, tempRelative, 'file');
   fs.writeFileSync(temp, JSON.stringify(value) + '\n', { flag: 'wx', mode: 0o600 });
   try {
@@ -86,6 +87,18 @@ function write(root, relative, value, replace = false) {
     if (replace) fs.renameSync(temp, full);
     else fs.linkSync(temp, full); // Publish complete bytes without replacing a retained event.
   } finally { if (fs.existsSync(temp)) fs.unlinkSync(temp); }
+}
+function recoverPublication(root, relative) {
+  const full = safe(root, relative, 'file'), retained = fs.lstatSync(full);
+  if (retained.nlink === 1) return;
+  const folder = relative.slice(0,relative.lastIndexOf('/')), prefix = path.basename(relative) + '.';
+  const temporary = fs.readdirSync(safe(root,folder,'dir')).filter(name => name.startsWith(prefix) && name.endsWith('.tmp') && UUID.test(name.slice(prefix.length,-4))).map(name => safe(root,folder+'/'+name,'file')).filter(file => {
+    const stat = fs.lstatSync(file); return stat.dev === retained.dev && stat.ino === retained.ino && stat.size === retained.size;
+  });
+  // A crash between link publication and unlinking its one known temporary
+  // name is recoverable. Any extra/foreign link remains an explicit blocker.
+  if (retained.nlink !== 2 || temporary.length !== 1) fail('Unknown linked event storage; inspect before recovery.');
+  fs.unlinkSync(temporary[0]);
 }
 function label(value, maximum = 160) {
   if (typeof value !== 'string' || !value.trim() || value.length > maximum || /[\x00-\x1f\x7f]/.test(value)
@@ -142,7 +155,7 @@ function validateEvent(root, event) {
   if (event.durationMs !== undefined && (!Number.isFinite(event.durationMs) || event.durationMs < 0 || event.durationMs > 31536000000)) fail('Invalid duration.');
   if (event.exitCode !== undefined && event.exitCode !== null && (!Number.isInteger(event.exitCode) || Math.abs(event.exitCode) > 2147483648)) fail('Invalid exit code.');
   if (!Array.isArray(event.evidence) || event.evidence.length > 8) fail('Invalid evidence references.');
-  for (const ref of event.evidence) safe(root, ref);
+  for (const ref of event.evidence) { const full = safe(root, ref); if (fs.existsSync(full) && fs.lstatSync(full).isFile() && fs.lstatSync(full).nlink !== 1) fail('Linked evidence reference.'); }
   return event;
 }
 function budget(root, base) {
@@ -163,6 +176,7 @@ function emit(root, sessionId, fields) {
     while (state.count < MAX_EVENTS) {
       const orphan = base + '/events/' + String(state.count + 1).padStart(6, '0') + '.json';
       if (!fs.existsSync(safe(root, orphan, 'file'))) break;
+      recoverPublication(root, orphan);
       const retained = validateEvent(root, read(root, orphan));
       if (retained.sequence !== state.count + 1 || retained.sessionId !== sessionId) fail('Unreconciled event ownership.');
       const bytes = fs.statSync(safe(root, orphan, 'file')).size;
@@ -234,6 +248,7 @@ function remove(root, sessionId) {
       files.push(safe(root, base + '/events/' + child, 'file'));
     } else fail('Unexpected retained session content; inspect before deleting.');
   }
+  if (files.some(file => fs.lstatSync(file).nlink !== 1)) fail('Linked retained metadata; inspect before deleting.');
   for (const file of files) fs.unlinkSync(file);
   fs.rmdirSync(safe(root, base + '/events', 'dir')); fs.rmdirSync(folder);
 }

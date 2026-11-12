@@ -83,7 +83,7 @@ Ending is explicit and immutable. Finishing a task or an assistant response does
 
 Recording is capped at100,000events or64MiB per session, without automatic deletion. Capacity is displayed as degraded tracking; underlying work continues. Session deletion refuses active sessions, locks, links or unexpected files. A stale writer/launcher lock remains an inspection blocker; never remove it while its owner may be running. Restart can retire a dead server only when its recorded PID is absent and its exact lock ownership agrees. Unknown/live ownership is not killed or discarded.
 
-A published event whose budget update was interrupted is reconciled using those exact retained bytes. An incomplete temporary file is never presented as an event. Invalid or missing retained metadata reports unavailability rather than inventing history. The current state-transition fence is preserved; viewing metadata grants no native-production or issue/publication authorization.
+A published event whose budget update was interrupted is reconciled using those exact retained bytes. The recorder can retire its one exact temporary hard link if publication was interrupted before unlinking it; foreign or additional links block recovery. Other hard-linked metadata and evidence references are rejected. An incomplete temporary file is never presented as an event. Invalid or missing retained metadata reports unavailability rather than inventing history. The current state-transition fence is preserved; viewing metadata grants no native-production or issue/publication authorization.
 
 ## Interfaces and verification
 

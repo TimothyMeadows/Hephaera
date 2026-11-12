@@ -57,6 +57,28 @@ test('session identity, explicit ending, opt-out and narrow deletion preserve ot
   store.write(root, store.CACHE + '/config.json', { enabled: false, openBrowser: false });
   assert.equal(store.emit(root, second.id, { label: 'Disabled' }).reason, 'disabled');
 });
+
+test('hard-linked metadata is rejected while an interrupted owned publication recovers', t => {
+  const { root, id } = prepare(t), other = fixture(t), base = store.CACHE + '/sessions/' + id;
+  const foreign = path.join(other,'linked.json');
+  fs.linkSync(path.join(root,base,'session.json'),foreign);
+  assert.throws(() => store.session(root,id)); fs.unlinkSync(foreign);
+  const first = recorded(root,id), relative = base + '/events/000001.json', published = path.join(root,relative);
+  const retained = fs.readFileSync(published), temp = published + '.' + crypto.randomUUID() + '.tmp';
+  fs.linkSync(published,temp); store.write(root,base+'/budget.json',{count:0,bytes:0,capped:false},true);
+  assert.equal(recorded(root,id).sequence,2); assert.equal(fs.existsSync(temp),false);
+  assert.deepEqual(fs.readFileSync(published),retained);
+  const reconciled = store.read(root,base+'/budget.json');
+  fs.linkSync(published,foreign); assert.throws(() => store.page(root,id));
+  store.write(root,base+'/budget.json',{count:0,bytes:0,capped:false},true);
+  assert.throws(() => recorded(root,id)); assert.equal(fs.existsSync(foreign),true); assert.deepEqual(fs.readFileSync(published),retained);
+  fs.unlinkSync(foreign); store.write(root,base+'/budget.json',reconciled,true);
+  assert.equal(store.page(root,id).events[0].id,first.id);
+  fs.writeFileSync(path.join(root,'artifact.json'),'{}'); fs.linkSync(path.join(root,'artifact.json'),foreign);
+  assert.throws(() => recorded(root,id,'Linked evidence',{evidence:['artifact.json']})); fs.unlinkSync(foreign);
+  store.end(root,id); fs.linkSync(path.join(root,base,'budget.json'),foreign);
+  assert.throws(() => store.remove(root,id)); assert.equal(fs.existsSync(published),true); fs.unlinkSync(foreign);
+});
 test('parallel processes publish complete ordered events without cross-session attribution', async t => {
   const { root, id } = prepare(t), other = store.createSession(root);
   const source = `const s=require('./commands/lib/session-events.cjs');for(let i=0;i<4;i++)s.emit(process.argv[1],process.argv[2],{label:'Concurrent producer'});`;
