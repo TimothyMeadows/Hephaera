@@ -76,7 +76,7 @@ async function main() {
     const launch = await call('Browser.getBrowserCommandLine');
     assert.ok(launch.arguments.includes('--remote-debugging-pipe')); assert.equal(launch.arguments.some(argument => argument.startsWith('--remote-debugging-port')), false);
     const evaluate = async expression => { const value = await call('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }); if (value.exceptionDetails) throw new Error('Browser evaluation failed.'); return value.result.value; };
-    const waitFor = async expression => { for (let attempt = 0; attempt < 100; attempt++) { if (await evaluate(expression)) return; await delay(100); }
+    const waitFor = async (expression, attempts = 100) => { for (let attempt = 0; attempt < attempts; attempt++) { if (await evaluate(expression)) return; await delay(100); }
       const observation = await evaluate(`({connection:document.getElementById('connection')?.textContent,notice:document.getElementById('notice')?.textContent,ready:document.readyState,protocol:location.protocol})`);
       const launched = await call('Browser.getBrowserCommandLine');
       observation.pinArgumentMatches = launched.arguments.includes('--ignore-certificate-errors-spki-list=' + running.spki);
@@ -109,6 +109,10 @@ async function main() {
     fs.writeFileSync(bootstrap,'<!doctype html><meta http-equiv="refresh" content="0;url=' + destination.replaceAll('&','&amp;') + '">',{flag:'wx',mode:0o600});
     await call('Page.navigate', { url: pathToFileURL(bootstrap).href });
     await waitFor(`document.getElementById('connection')?.textContent.includes('Live')`);
+    // An open SSE connection can still be catching up retained history. Start
+    // interaction and fresh-update timing only after the initial backlog loads.
+    const initialTotal = store.page(root, options.session, 0, 1).total;
+    await waitFor(`Number(document.getElementById('scrubber').max)>=${initialTotal}`, 600);
     assert.equal(await evaluate(`location.hash.includes('token=')`), false);
     assert.ok(await evaluate(`Number(document.getElementById('activity-count').textContent)>0`));
     // Explicitly labelled QA reports exercise branching and a verification ->
