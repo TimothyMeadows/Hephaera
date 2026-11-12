@@ -505,6 +505,8 @@ Setup does not choose or generate engine, architecture, style or media contracts
 
 With an updated Hephaera baseline, the root agent starts the optional local visualizer after loading system memory and opens it in a separate Chromium window. This requires an execution-capable agent session; installation and read-only planning do not launch it. Existing projects must [update their installed baseline](#managed-updates-and-recovery) to receive this behavior.
 
+Startup returns after launching the server in the background, so the agent immediately continues the task. It must not run the internal server module in the foreground or wait for the viewer process to exit.
+
 Continue working with the agent normally:
 
 - **Follow live work:** The canvas shows Context, Planning, Work, Verification and Review, including parallel activity and revision loops.
@@ -513,6 +515,8 @@ Continue working with the agent normally:
 - **Keep related work together:** Each root conversation has its own session UUID. Subagents inherit that identity and report into the same session without opening additional viewers.
 
 Shared commands record activity when supplied with the session identity; the agent reports planning and host-tool activity outside those boundaries. The display distinguishes **command-observed**, **agent-reported** and **untracked** activity. Unreported host actions and model internals remain untracked.
+
+The agent must carry the UUID into every later tool call; a fresh shell does not inherit an earlier call's exported variables. It can wrap shell work with `session-visualizer.sh run --session UUID -- ...`. If the viewer seems frozen, `status --session UUID` distinguishes a live server from the time and count of its last recorded activity. A running server without new reports does not produce activity on its own.
 
 Only activity metadata and evidence references are retained under the project's `.hephaera/.cache/visualizer/`. No transcripts, raw command arguments or output, environment values, credentials or hidden reasoning are recorded. The viewer is passive: execution and approvals stay in the existing agent workflows, and viewer failure never blocks the underlying work.
 

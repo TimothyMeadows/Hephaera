@@ -20,11 +20,17 @@ bash .hephaera/commands/session-visualizer.sh start --host codex --label "Moveme
 
 Use `claude`, `cursor` or `other` for other hosts. The result reports a session UUID, the loopback HTTPS URL and browser launch status. `launched-unverified` means the browser process started, not that TLS navigation or rendering passed. Retain the UUID in the conversation across turns and compaction. Reload with `start --session UUID` to reuse it. A different root conversation creates a different session; subagents inherit the parent's UUID and do not start another viewer. One project server can display several sessions.
 
+`start` is a bounded launcher, not a foreground web-server command. It starts the worker detached with no inherited terminal streams, returns `execution: "background"` and its PID, and tells the agent to continue its task immediately. Do not launch the internal `session-visualizer-server.cjs` module directly, wait for the service to exit, or poll its terminal throughout the task. Direct foreground worker invocation is rejected. The normal launcher survives its caller exiting; explicit `stop` still controls the owned service. Cancellation that explicitly kills the service itself remains outside this guarantee.
+
 Set `HEPHAERA_SESSION_ID` explicitly in each shell execution environment. It is a correlation ID, not permission or a global project current-session setting. The command wrapper supplies it and its parent activity to children:
 
 ```bash
 bash .hephaera/commands/session-visualizer.sh run --session UUID --label "Focused tests" --phase verification -- node --test tests/movement.test.mjs
 ```
+
+Tool calls often start fresh shells. Starting the visualizer or exporting a variable in one tool call does not supply the identity to the next call. Use `run --session UUID -- ...` for subsequent shell work, including after reload/compaction, or set the identity in the same invocation as each shared command. Keep the UUID in the task's continuation notes and supply it to delegated work. Host-tool actions outside those command boundaries still need concise `emit` reports.
+
+If the canvas stops changing, inspect `status --session UUID` once. `status` reports service execution/PID separately from `activity.total`, `activity.lastRecordedSequence` and `activity.lastRecordedAt`. A healthy server with an unchanged last recorded activity is waiting for observations; it does not establish that the agent is idle or finished. Continue the real task with explicit session context rather than repeatedly restarting or waiting on the server.
 
 The wrapper preserves child arguments, standard streams and exit status. It forwards SIGINT/SIGTERM and records observed cancellation; native Windows console/process signal behavior still depends on the host. Native execution keeps Bubo's existing cancellation ownership.
 
