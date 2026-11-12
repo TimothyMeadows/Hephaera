@@ -47,7 +47,9 @@ function createMonitor(root, store) {
         if (event.category !== 'goal') return;
         const existing = [...state.goals.values()].find(goal => goal.report?.activityId === event.activityId);
         if (!existing || event.category !== 'goal') return;
+        const hasSnapshot = Object.hasOwn(event, 'goalProgress');
         event = { ...existing.report, ...event, goal: existing.report.goal };
+        if (!hasSnapshot) delete event.goalProgress;
       }
       let goal = state.goals.get(event.goal);
       if (!goal) {

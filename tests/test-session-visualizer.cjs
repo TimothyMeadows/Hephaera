@@ -33,10 +33,12 @@ test('Goal progress counts only the explicit canonical Task Queue and replays im
   assert.equal(JSON.stringify(first).includes('private prose'),false);assert.equal(JSON.stringify(first).includes('First task'),false);
   fs.writeFileSync(file,'# Goal\n\n## Task Queue\n1. [x] First\n2. [x] Second\n3. [x] Third\n4. [ ] New scope\n');
   const next=recorded(root,id,'Queue snapshot',{category:'artifact',parentId:first.activityId,goal:'movement-goal'});
+  recorded(root,id,'Goal waiting',{activityId:first.activityId,category:'goal',mode:'goal',status:'waiting'});
   fs.unlinkSync(file);const reducer=await import('../visualizer/state.mjs'),events=store.page(root,id).events;
   assert.equal(reducer.goalProgress(reducer.replay(events,1))[0].remaining,1);
   const current=reducer.goalProgress(reducer.replay(events))[0];assert.equal(current.total,4);assert.equal(current.completed,3);assert.equal(current.remaining,1);
-  assert.notEqual(first.goalProgress.sha256,next.goalProgress.sha256);assert.equal(current.report.status,'running');
+  assert.equal(current.snapshot.sequence,next.sequence);assert.equal(current.snapshot.updatedAt,next.at);
+  assert.notEqual(first.goalProgress.sha256,next.goalProgress.sha256);assert.equal(current.report.status,'waiting');
 });
 
 test('Goal queue parsing rejects ambiguous sources and unsafe paths while empty queues stay explicit', t => {
@@ -85,6 +87,8 @@ test('live Goal monitoring scopes snapshots to linked sessions, reconnects, and 
     await connect();await connect();fs.writeFileSync(file,queue(1,3));
     await wait(()=>store.page(root,id).events.some(e=>e.category==='artifact'&&e.goalProgress?.completed===1));
     const snapshots=store.page(root,id).events.filter(e=>e.category==='artifact');assert.equal(snapshots.length,1);assert.equal(snapshots[0].parentId,goal.activityId);assert.equal(snapshots[0].source,'command-observed');
+    recorded(root,id,'Goal waiting',{activityId:goal.activityId,category:'goal',mode:'goal',status:'waiting'});
+    const beforeStatus=store.page(root,id).total;await delay(700);assert.equal(store.page(root,id).total,beforeStatus,'A status-only report must not republish an unchanged queue');
     assert.equal(store.page(root,other.id).total,0);
     for(const request of requests)request.destroy();requests.length=0;await service.close();service=await startServer({root,openBrowser:false});
     await connect(store.page(root,id).total);fs.writeFileSync(file,queue(2,4));await wait(()=>store.page(root,id).events.some(e=>e.goalProgress?.total===4));
