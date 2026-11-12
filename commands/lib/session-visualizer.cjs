@@ -62,9 +62,10 @@ async function start(root, options) {
         fs.unlinkSync(store.safe(root, store.CACHE + '/server-lock/owner.json', 'file')); fs.rmdirSync(store.safe(root, store.CACHE + '/server-lock', 'dir')); fs.unlinkSync(runtimeFile);
       }
       const instanceId = crypto.randomUUID();
-      const child = cp.spawn(process.execPath, [require.resolve('./session-visualizer-server.cjs'), root, instanceId, options.port || '0'], { detached: true, windowsHide: true, stdio: 'ignore' });
+      const child = cp.spawn(process.execPath, [require.resolve('./session-visualizer-server.cjs'), '--background-worker', root, instanceId, options.port || '0'], { detached: true, windowsHide: true, stdio: 'ignore' });
       let spawnError; child.once('error', error => { spawnError = error; }); child.unref();
-      for (let attempt = 0; attempt < 100 && !running; attempt++) {
+      const readyDeadline = performance.now() + 10000;
+      while (!running && performance.now() < readyDeadline) {
         if (spawnError || fs.existsSync(store.safe(root, store.CACHE + '/failure-' + instanceId + '.json', 'file'))) break;
         await delay(100); running = await info(root);
       }
@@ -82,7 +83,8 @@ async function start(root, options) {
       store.write(root, request, { instanceId: running.instanceId, sessionId: session.id });
       for (let attempt = 0; attempt < 30; attempt++) { if (fs.existsSync(store.safe(root, marker, 'file'))) { browser = store.read(root, marker).status; break; } await delay(100); }
     }
-    return { status: 'running', sessionId: session.id, url: running.url, browser };
+    return { status: 'running', execution: running.execution || 'unknown', pid: running.pid, sessionId: session.id, url: running.url, browser,
+      nextStep: 'Continue the task now. Pass this sessionId to run/emit for later activity; do not wait on the server.' };
   } finally { fs.rmdirSync(lock); }
 }
 async function run(root, options, command) {
@@ -149,7 +151,11 @@ async function main(values) {
     }
   } else {
     const running = await info(root);
-    result = { status: running ? 'running' : 'not-running', url: running?.url, ...(options.session ? { recording: store.page(root, options.session, 0, 1) } : {}) };
+    const recording = options.session ? store.page(root, options.session, 0, 1) : null;
+    const latest = recording?.total ? store.page(root, options.session, recording.total - 1, 1).events[0] : null;
+    result = { status: running ? 'running' : 'not-running', execution: running ? running.execution || 'unknown' : null, pid: running?.pid, url: running?.url,
+      ...(recording ? { recording, activity: { total: recording.total, lastRecordedAt: latest?.at || null, lastRecordedSequence: latest?.sequence || null,
+        coverage: 'New activity requires explicit session context on commands or agent reports; server liveness alone does not record work.' } } : {}) };
   }
   console.log(JSON.stringify(result));
 }

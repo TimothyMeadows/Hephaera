@@ -392,6 +392,59 @@ test('startup is idempotent, honors persistent disable and survives occupied por
   const reused = await start(other, { session: id, noOpen: true }); assert.equal(reused.url, running.url); assert.equal(reused.sessionId, id);
   const occupiedRoot = fixture(t); await assert.rejects(startServer({ root: occupiedRoot, port: Number(new URL(running.url).port), openBrowser: false }), /EADDRINUSE/);
 });
+test('the internal worker refuses accidental foreground startup', t => {
+  const root = fixture(t);
+  const result = cp.spawnSync(process.execPath, [path.join(REPO,'commands/lib/session-visualizer-server.cjs'),root,crypto.randomUUID(),'0'],
+    { cwd:REPO, windowsHide:true, encoding:'utf8', timeout:4000 });
+  assert.equal(result.status,2,'Direct worker invocation must exit instead of occupying the agent command.');
+  assert.match(result.stderr,/session-visualizer\.sh start/);
+  assert.equal(fs.existsSync(path.join(root,store.CACHE,'server-lock')),false);
+});
+test('captured shell startup returns and the background service survives its caller', async t => {
+  const root = fixture(t), cli = path.join(REPO,'commands/lib/session-visualizer.cjs');
+  const bash = process.platform === 'win32' ? path.join(process.env.ProgramFiles,'Git/bin/bash.exe') : 'bash';
+  const caller = path.join(root,'caller.cjs');
+  fs.writeFileSync(caller,`const cp=require('node:child_process');const [bash,entry,root]=process.argv.slice(2);const output=cp.execFileSync(bash,[entry,'start','--host','codex','--no-open'],{windowsHide:true,encoding:'utf8',timeout:25000,env:{...process.env,HEPHAERA_PROJECT_ROOT:root,HEPHAERA_SESSION_ID:''}});process.send(JSON.parse(output));setInterval(()=>{},1000);`);
+  const parent = cp.spawn(process.execPath,[caller,bash,path.join(REPO,'commands/session-visualizer.sh'),root],
+    { cwd:REPO,windowsHide:true,detached:process.platform !== 'win32',stdio:['ignore','pipe','pipe','ipc'] });
+  let diagnostics = '', running;
+  parent.stderr.on('data',bytes=>{diagnostics=(diagnostics+bytes).slice(-4096);});
+  const exited = new Promise(resolve=>parent.once('close',resolve));
+  const terminate = () => { if(parent.exitCode !== null || parent.signalCode !== null)return;try { if(process.platform === 'win32')parent.kill();else process.kill(-parent.pid,'SIGTERM'); } catch {} };
+  try {
+    const response = await new Promise((resolve,reject)=>{
+      const timer=setTimeout(()=>reject(new Error('Captured startup did not return within its bounded startup window. '+diagnostics)),30000);
+      parent.once('message',value=>{clearTimeout(timer);resolve(value);});
+      parent.once('error',error=>{clearTimeout(timer);reject(error);});
+      parent.once('exit',()=>{clearTimeout(timer);reject(new Error('Caller exited before startup returned. '+diagnostics));});
+    });
+    running = require('../commands/lib/session-visualizer-server.cjs').runtime(root);
+    assert.equal(response.status,'running'); assert.equal(response.execution,'background'); assert.equal(response.pid,running.pid);
+    assert.match(response.nextStep,/Continue/); assert.ok(running.pid !== parent.pid);
+    terminate(); await exited;
+    assert.equal(await require('../commands/lib/session-visualizer-server.cjs').probe(running),true);
+    const before=store.page(root,response.sessionId).total;
+    const stream = new Promise((resolve,reject)=>{
+      const request=https.get(running.url+'/api/sessions/'+response.sessionId+'/events?after='+before,
+        {ca:running.certificate,agent:false,headers:{Authorization:'Bearer '+running.token}},response=>{
+          let wire='';response.on('data',bytes=>{wire+=bytes;if(wire.includes('After launcher exit')){resolve();request.destroy();}});
+        });
+      request.setTimeout(5000,()=>request.destroy(new Error('No fresh background event.')));request.once('error',reject);
+    });
+    const [result]=await Promise.all([child([cli,'run','--root',root,'--session',response.sessionId,'--label','After launcher exit','--',process.execPath,'-e','process.stdout.write("continued work");']),stream]);
+    assert.equal(result.code,0,result.stderr);assert.equal(result.stdout,'continued work');
+    const status=await child([cli,'status','--root',root,'--session',response.sessionId]);
+    assert.equal(status.code,0,status.stderr);const detail=JSON.parse(status.stdout);
+    assert.equal(detail.execution,'background');assert.equal(detail.pid,running.pid);
+    assert.equal(detail.activity.total,before+2);assert.equal(detail.activity.lastRecordedSequence,before+2);
+    assert.equal(detail.activity.lastRecordedAt,store.page(root,response.sessionId,before+1,1).events[0].at);
+  } finally {
+    terminate();await exited;
+    // Keep cleanup bound to this fixture's exact service; never kill unknown owners.
+    if(!running)try{running=require('../commands/lib/session-visualizer-server.cjs').runtime(root);}catch{}
+    if(running)await child([cli,'stop','--root',root]);
+  }
+});
 test('server restart preserves replay and session ownership while rotating access capabilities', async t => {
   const { root, id } = prepare(t), first = recorded(root, id, 'Before restart');
   const before = store.page(root, id).events, original = await server(t, root);

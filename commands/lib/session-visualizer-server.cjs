@@ -9,6 +9,7 @@ const store = require('./session-events.cjs');
 const { createLocalTls } = require('./local-preview-tls.cjs');
 const BASE = path.resolve(__dirname, '../..');
 const versionHash = crypto.createHash('sha256').update(fs.readFileSync(__filename)).update(fs.readFileSync(require.resolve('./session-events.cjs')));
+versionHash.update(fs.readFileSync(path.join(__dirname, 'session-visualizer.cjs')));
 versionHash.update(fs.readFileSync(path.join(__dirname, 'private-visualizer-cache.ps1')));
 for (const name of ['index.html','app.mjs','state.mjs','app.css']) versionHash.update(fs.readFileSync(path.join(BASE, 'visualizer', name)));
 const VERSION = versionHash.digest('hex');
@@ -44,7 +45,7 @@ function browserExecutable(root) {
   } catch {}
   return null;
 }
-async function startServer({ root, instanceId = crypto.randomUUID(), port = 0, openBrowser = true } = {}) {
+async function startServer({ root, instanceId = crypto.randomUUID(), port = 0, openBrowser = true, background = false } = {}) {
   root = store.rootPath(root); store.id(instanceId);
   if (!Number.isInteger(port) || port !== 0 && (port < 1024 || port > 65535)) throw new Error('Invalid visualizer port.');
   store.privateCache(root);
@@ -136,7 +137,7 @@ async function startServer({ root, instanceId = crypto.randomUUID(), port = 0, o
     server.maxConnections = 64; server.requestTimeout = 15000; server.headersTimeout = 10000;
     server.on('tlsClientError', () => {});
     await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', resolve); });
-    info = { schemaVersion: 1, root, pid: process.pid, instanceId, version: VERSION, url: 'https://127.0.0.1:' + server.address().port,
+    info = { schemaVersion: 1, root, pid: process.pid, execution: background ? 'background' : 'embedded', instanceId, version: VERSION, url: 'https://127.0.0.1:' + server.address().port,
       token, certificate: tls.certificate.toString(), spki: tls.spki, createdAt: new Date().toISOString() };
     store.write(root, RUNTIME, info, fs.existsSync(store.safe(root, RUNTIME, 'file')));
     store.directory(root, store.CACHE + '/requests'); store.directory(root, store.CACHE + '/opened');
@@ -183,8 +184,11 @@ async function startServer({ root, instanceId = crypto.randomUUID(), port = 0, o
 }
 module.exports = { VERSION, RUNTIME, runtime, probe, startServer, browserExecutable };
 if (require.main === module) {
-  const [root, instanceId, rawPort] = process.argv.slice(2);
-  startServer({ root, instanceId, port: Number(rawPort || 0) }).then(service => {
+  const [mode, root, instanceId, rawPort, ...extra] = process.argv.slice(2);
+  if (mode !== '--background-worker' || !root || !instanceId || extra.length) {
+    console.error('Internal visualizer worker: use commands/session-visualizer.sh start. Startup detaches the service and returns; do not run or wait on this module in the foreground.');
+    process.exitCode = 2;
+  } else startServer({ root, instanceId, port: Number(rawPort || 0), background: true }).then(service => {
     for (const signal of ['SIGINT','SIGTERM']) process.once(signal, () => service.close());
   }).catch(error => {
     try {
