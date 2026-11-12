@@ -80,6 +80,11 @@ test('hard-linked metadata is rejected while an interrupted owned publication re
   assert.throws(() => store.remove(root,id)); assert.equal(fs.existsSync(published),true); fs.unlinkSync(foreign);
 });
 test('parallel processes publish complete ordered events without cross-session attribution', async t => {
+  if(process.platform==='win32') {
+    const pending=prepare(t), lock=path.join(pending.root,store.CACHE,'sessions',pending.id,'writer-lock'), mkdir=fs.mkdirSync; let injected=false;
+    fs.mkdirSync=function(target,...args){if(target===lock&&!injected){injected=true;throw Object.assign(new Error('Synthetic delete-pending lock directory'),{code:'EPERM'});}return mkdir.call(this,target,...args);};
+    try { recorded(pending.root,pending.id); assert.equal(injected,true); assert.equal(store.page(pending.root,pending.id).total,1); } finally { fs.mkdirSync=mkdir; }
+  }
   const { root, id } = prepare(t), other = store.createSession(root);
   const source = `const s=require('./commands/lib/session-events.cjs');for(let i=0;i<4;i++)s.emit(process.argv[1],process.argv[2],{label:'Concurrent producer'});`;
   const results = await Promise.all(Array.from({ length: 12 }, (_, i) => child(['-e', source, root, i % 2 ? id : other.id])));

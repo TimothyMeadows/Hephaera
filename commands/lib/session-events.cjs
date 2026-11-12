@@ -120,10 +120,16 @@ function session(root, sessionId) {
   return value;
 }
 function withLock(root, relative, action) {
-  const full = safe(root, relative, 'dir'), deadline = Date.now() + 3000;
+  const full = safe(root, relative, 'dir'), deadline = performance.now() + 3000;
   while (true) {
     try { fs.mkdirSync(full, { mode: 0o700 }); break; }
-    catch (e) { if (e.code !== 'EEXIST') throw e; if (Date.now() >= deadline) fail('Visualizer writer busy; retain its lock for inspection.'); Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10); }
+    catch (e) {
+      // NTFS can report access/busy while another producer's removed lock
+      // directory is still delete-pending. Acquire only after mkdir succeeds.
+      if (e.code !== 'EEXIST' && !(process.platform === 'win32' && ['EPERM','EACCES','EBUSY'].includes(e.code))) throw e;
+      if (performance.now() >= deadline) fail('Visualizer writer busy or unavailable; retain storage for inspection.');
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10);
+    }
   }
   try { return action(); } finally { fs.rmdirSync(full); }
 }
