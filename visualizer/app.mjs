@@ -159,7 +159,8 @@ function listView() {
 }
 function updateMode() {
   $('replay-mode').textContent = following ? 'LIVE VIEW' : 'SESSION REPLAY';
-  connection(!following ? 'Replay' : !connected ? 'Reconnecting' : metadata?.ended ? 'Session ended' : 'Live · session open', following && connected && !metadata?.ended ? 'live' : 'offline');
+  const catchingUp = connected && metadata && liveState.cursor < metadata.total;
+  connection(!following ? 'Replay' : !connected ? 'Reconnecting' : catchingUp ? 'Loading session history' : metadata?.ended ? 'Session ended' : 'Live · session open', following && connected && !catchingUp && !metadata?.ended ? 'live' : 'offline');
 }
 function structures() {
   const groups = modeGroups(state, structureLimit), root = $('structure');

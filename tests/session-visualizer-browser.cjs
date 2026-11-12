@@ -108,7 +108,7 @@ async function main() {
     const destination = running.url + '/#session=' + options.session + '&token=' + running.token;
     fs.writeFileSync(bootstrap,'<!doctype html><meta http-equiv="refresh" content="0;url=' + destination.replaceAll('&','&amp;') + '">',{flag:'wx',mode:0o600});
     await call('Page.navigate', { url: pathToFileURL(bootstrap).href });
-    await waitFor(`document.getElementById('connection')?.textContent.includes('Live')`);
+    await waitFor(`document.getElementById('connection')?.textContent.includes('Live')`, 600);
     // An open SSE connection can still be catching up retained history. Start
     // interaction and fresh-update timing only after the initial backlog loads.
     const initialTotal = store.page(root, options.session, 0, 1).total;
@@ -138,7 +138,7 @@ async function main() {
     await waitFor(`document.querySelector('[data-activity="${revision}"]')!==null && document.querySelectorAll('.edge.parent').length>=4`);
     assert.ok(await evaluate(`document.querySelectorAll('.activity-card.running').length>=2`));
     await call('Page.reload', { ignoreCache: true }); await delay(200);
-    await waitFor(`document.readyState==='complete' && document.getElementById('connection')?.textContent.includes('Live') && document.querySelector('[data-activity="${revision}"]')!==null`);
+    await waitFor(`document.readyState==='complete' && document.getElementById('connection')?.textContent.includes('Live') && document.querySelector('[data-activity="${revision}"]')!==null`, 600);
     assert.equal(await evaluate(`document.querySelectorAll('[data-activity="${revision}"]').length`), 1);
     assert.equal(await evaluate(`location.hash.includes('token=')`), false);
     await waitFor(`document.querySelector('[data-mode="goal"] [data-structure-activity="${plan}"] [data-structure-activity="${branch}"]')!==null`);
