@@ -14,6 +14,7 @@ const BASE = path.resolve(__dirname, '../..');
 const versionHash = crypto.createHash('sha256').update(fs.readFileSync(__filename)).update(fs.readFileSync(require.resolve('./session-events.cjs')));
 versionHash.update(fs.readFileSync(path.join(__dirname, 'session-visualizer.cjs')));
 versionHash.update(fs.readFileSync(path.join(__dirname, 'private-visualizer-cache.ps1')));
+try { versionHash.update(fs.readFileSync(path.join(__dirname, 'session-task-context.cjs'))); } catch { versionHash.update('task-context-unavailable'); }
 for (const name of ['index.html','app.mjs','state.mjs','app.css']) versionHash.update(fs.readFileSync(path.join(BASE, 'visualizer', name)));
 const VERSION = versionHash.digest('hex');
 const RUNTIME = store.CACHE + '/private/runtime.json';

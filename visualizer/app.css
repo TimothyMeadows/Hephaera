@@ -258,6 +258,20 @@ h3 {
   border-radius:12px;
   overflow:hidden;
 }
+.current-work-panel { background:var(--panel); border:1px solid var(--line); border-radius:12px; margin-bottom:22px; }
+#current-work { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(245px,100%),1fr)); gap:12px; padding:0 20px 20px; }
+.work-card { text-align:left; padding:16px; display:flex; flex-direction:column; gap:9px; min-width:0; overflow-wrap:anywhere; }
+.work-title { font-size:16px; line-height:1.4; font-weight:600; }
+.work-status { font-size:11px; color:var(--muted); }
+.work-status.running { color:var(--gold); }
+.work-status.succeeded { color:var(--green); }
+.work-status.blocked,.work-status.failed { color:var(--red); }
+.work-purpose { color:var(--muted); font-size:12px; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+.work-operation,.detail-operation { color:var(--gold); font-size:12px; }
+.activity-operation { fill:var(--gold); font-size:10px; }
+.event-operation { display:block; color:var(--muted); font-size:11px; font-weight:400; margin-top:4px; }
+.task-purpose,.list-purpose { color:var(--muted); line-height:1.6; overflow-wrap:anywhere; }
+.list-purpose { max-width:60ch; font-size:12px; margin:8px 0 0; }
 .canvas-panel {
   position:relative;
 }

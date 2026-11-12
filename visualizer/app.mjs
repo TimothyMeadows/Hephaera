@@ -1,4 +1,4 @@
-import { emptyState, applyEvent, replay, phases, modeGroups } from './state.mjs';
+import { emptyState, applyEvent, replay, phases, modeGroups, activityText, currentWork } from './state.mjs';
 const $ = id => document.getElementById(id);
 const fragment = new URLSearchParams(location.hash.slice(1));
 let sessionId = fragment.get('session'), token = fragment.get('token') || sessionStorage.getItem('hephaera-viewer-token');
@@ -78,6 +78,23 @@ async function stream(ownGeneration) {
 let renderPending = false;
 function scheduleRender() { if (!renderPending) { renderPending = true; requestAnimationFrame(() => { renderPending = false; render(); }); } }
 function activate(node, action) { node.setAttribute('role', 'button'); node.setAttribute('tabindex', '0'); node.addEventListener('click', action); node.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); action(); } }); }
+function workOverview() {
+  const groups = currentWork(state), root = $('current-work'); root.replaceChildren(); $('current-work-panel').hidden = !groups.length;
+  for (const group of groups) {
+    const button = element('button', 'work-card'); button.dataset.task = group.task; button.dataset.focusKey = 'task-' + group.task;
+    const taskStatus = { running:'Task in progress',waiting:'Task waiting',blocked:'Task blocked',succeeded:'Task completed',failed:'Task failed',cancelled:'Task cancelled',unknown:'Task status unknown' };
+    const status = group.current.category === 'task' ? taskStatus[group.current.status] + ' · ' + group.current.source : 'Activity ' + group.current.status;
+    button.append(element('span', 'work-status ' + group.current.status, status), element('strong', 'work-title', group.title));
+    button.append(element('span', 'work-purpose', group.summary || (group.recordedContext ? 'No purpose in this recorded task snapshot.' : 'Task details were not recorded with this activity.')));
+    button.append(element('span', 'work-operation', activityText(group.latest).operation + ' · ' + group.latest.status), element('small', 'muted', time(group.latest.updatedAt) + ' · ' + group.latest.source));
+    button.addEventListener('click', () => { selected = group.latest.activityId; render(); $('details').scrollIntoView({ block: 'nearest' }); }); root.append(button);
+  }
+}
+function titleLines(value, width = 31) {
+  const words = value.split(/\s+/), lines = [''];
+  for (const word of words) { const index = lines.length - 1; if (lines[index] && (lines[index] + ' ' + word).length > width) lines.push(word); else lines[index] += (lines[index] ? ' ' : '') + word; }
+  return lines.slice(0,2).map((line,index) => shorten(index === 1 ? lines.slice(1).join(' ') : line,width));
+}
 function canvas() {
   const root = $('canvas'); root.replaceChildren(); const positions = new Map(), nodes = [], byPhase = new Map(phases.map(p => [p, []]));
   for (const activity of state.activities.values()) byPhase.get(activity.phase)?.push(activity);
@@ -90,25 +107,33 @@ function canvas() {
       svg('text', { x: x + 17, y: 45, class: 'stage-number' }, '0' + (index + 1)), svg('text', { x: x + 17, y: 70, class: 'stage-label' }, phase[0].toUpperCase() + phase.slice(1)),
       svg('text', { x: x + 17, y: 91, class: 'stage-count' }, activities.length + (activities.length === 1 ? ' activity · ' : ' activities · ') + (expanded.has(phase) ? 'collapse −' : 'expand +')));
     activate(group, () => { expanded.has(phase) ? expanded.delete(phase) : expanded.add(phase); canvas(); root.querySelectorAll('.stage-toggle')[index]?.focus(); }); nodes.push(group);
-    if (expanded.has(phase)) for (const [row, activity] of visible.entries()) {
-      const y = 136 + row * 91; height = Math.max(height, y + 125); positions.set(activity.activityId, { x, y });
-      const node = svg('g', { class: 'activity-node', 'data-activity': activity.activityId, 'data-focus-key': 'activity-' + activity.activityId, 'aria-label': activity.label + ', ' + activity.status + ', ' + activity.source });
-      node.append(svg('rect', { x, y, width: 250, height: 72, rx: 9, class: 'activity-card ' + activity.status + (activity.activityId === selected ? ' selected' : '') }),
+    let nextY = 136;
+    if (expanded.has(phase)) for (const activity of visible) {
+      const text = activityText(activity), cardHeight = text.context ? 113 : 72, y = nextY; nextY += cardHeight + 19;
+      height = Math.max(height, nextY + 34); positions.set(activity.activityId, { x, y, height: cardHeight });
+      const node = svg('g', { class: 'activity-node', 'data-activity': activity.activityId, 'data-focus-key': 'activity-' + activity.activityId, 'aria-label': text.title + ', ' + text.operation + ', ' + activity.status + ', ' + activity.source });
+      node.append(svg('rect', { x, y, width: 250, height: cardHeight, rx: 9, class: 'activity-card ' + activity.status + (activity.activityId === selected ? ' selected' : '') }),
         svg('circle', { cx: x + 17, cy: y + 20, r: 3, class: 'status-dot ' + activity.status }),
-        svg('text', { x: x + 29, y: y + 24, class: 'activity-title' }, shorten(activity.label, 30)),
-        svg('text', { x: x + 16, y: y + 44, class: 'activity-subtitle' }, shorten([activity.mode, activity.task || activity.owner || activity.category].filter(Boolean).join(' · '), 37)),
-        svg('text', { x: x + 16, y: y + 61, class: 'activity-subtitle' }, activity.status + ' · ' + activity.source), svg('title', {}, activity.label));
+        svg('title', {}, [text.title,text.operation,text.summary,activity.status,activity.source].filter(Boolean).join(' · ')));
+      if (text.context) {
+        for (const [lineIndex,line] of titleLines(text.title).entries()) node.append(svg('text', { x: x + 29, y: y + 24 + lineIndex * 16, class: 'activity-title' }, line));
+        node.append(svg('text', { x: x + 16, y: y + 61, class: 'activity-operation' }, shorten(text.operation,36)),
+          svg('text', { x: x + 16, y: y + 79, class: 'activity-subtitle' }, shorten(text.summary || activity.task,38)),
+          svg('text', { x: x + 16, y: y + 99, class: 'activity-subtitle' }, activity.status + ' · ' + activity.source));
+      } else node.append(svg('text', { x: x + 29, y: y + 24, class: 'activity-title' }, shorten(text.title,30)),
+        svg('text', { x: x + 16, y: y + 44, class: 'activity-subtitle' }, shorten([activity.mode, activity.task || activity.owner || activity.category].filter(Boolean).join(' · '),37)),
+        svg('text', { x: x + 16, y: y + 61, class: 'activity-subtitle' }, activity.status + ' · ' + activity.source));
       activate(node, () => { selected = activity.activityId; render(); root.querySelector('[data-activity="' + selected + '"]')?.focus(); }); nodes.push(node);
     }
     if (expanded.has(phase) && activities.length > limit) {
-      const more = svg('text', { x: x + 16, y: 128 + visible.length * 91, class: 'more-label', 'data-focus-key': 'more-' + phase }, 'Show ' + Math.min(10, activities.length - limit) + ' more activities');
+      const more = svg('text', { x: x + 16, y: nextY - 8, class: 'more-label', 'data-focus-key': 'more-' + phase }, 'Show ' + Math.min(10, activities.length - limit) + ' more activities');
       activate(more, () => { shown[phase] += 10; canvas(); (root.querySelector('[data-focus-key="more-' + phase + '"]') || root.querySelector('[data-focus-key="phase-' + phase + '"]'))?.focus(); }); nodes.push(more);
     }
     root.append(svg('line', { x1: x + 125, y1: 109, x2: x + 125, y2: height - 20, class: 'stage-guide' }));
   }
   for (const edge of state.transitions) {
     const from = positions.get(edge.from), to = positions.get(edge.to); if (!from || !to) continue;
-    const same = from.x === to.x, sx = same ? from.x + 240 : from.x + 250, sy = from.y + 36, tx = same ? to.x + 240 : to.x, ty = to.y + 36;
+    const same = from.x === to.x, sx = same ? from.x + 240 : from.x + 250, sy = from.y + from.height / 2, tx = same ? to.x + 240 : to.x, ty = to.y + to.height / 2;
     const bend = same ? 70 : Math.max(35, Math.abs(tx - sx) / 2);
     const path = svg('path', { d: `M ${sx} ${sy} C ${sx + bend} ${sy}, ${same ? tx + bend : tx - bend} ${ty}, ${tx} ${ty}`, class: 'edge ' + edge.kind + (state.activities.get(edge.to)?.status === 'running' && following && connected ? ' active' : '') });
     path.append(svg('title', {}, edge.kind === 'parent' ? 'Parent activity' : 'Activity progression; no dependency inferred')); root.append(path);
@@ -118,14 +143,17 @@ function canvas() {
 function details() {
   const target = $('details'), activity = state.activities.get(selected); target.replaceChildren();
   if (!activity) { target.append(element('p', 'muted', 'Select an activity to inspect its owner, status, and evidence.')); return; }
-  target.append(element('h3', 'detail-title', activity.label), element('span', 'detail-source', activity.source));
+  const text = activityText(activity);
+  target.append(element('h3', 'detail-title', text.title), element('span', 'detail-source', activity.source));
+  if (text.context) { target.append(element('p', 'detail-operation', text.operation)); if (text.summary) target.append(element('p', 'task-purpose', text.summary)); }
   const dl = element('dl');
   const values = { Stage: activity.phase, Status: activity.status, Owner: activity.owner || 'Hephaera', Mode: activity.mode, Task: activity.task, Role: activity.role, Skill: activity.skill, Operation: activity.operation,
-    Started: time(activity.startedAt), Updated: time(activity.updatedAt), Duration: activity.durationMs !== undefined ? (activity.durationMs / 1000).toFixed(2) + ' s' : 'Not reported', Result: activity.exitCode !== undefined ? String(activity.exitCode) : undefined, Blocker: activity.blocker };
+    Started: time(activity.startedAt), Updated: time(activity.updatedAt), Duration: activity.durationMs !== undefined ? (activity.durationMs / 1000).toFixed(2) + ' s' : 'Not reported', 'Exit code': activity.exitCode !== undefined ? String(activity.exitCode) : undefined, Blocker: activity.blocker,
+    'Task record': text.context?.reference, 'Task description': activity.task && !text.context ? 'Not recorded with this activity' : undefined };
   for (const [key, value] of Object.entries(values)) if (value !== undefined) dl.append(element('dt', '', key), element('dd', '', value));
   if (activity.parentId) {
     const parent = state.activities.get(activity.parentId), value = element('dd');
-    if (parent) { const button = element('button', '', parent.label); button.addEventListener('click', () => { selected = parent.activityId; render(); }); value.append(button); }
+    if (parent) { const button = element('button', '', activityText(parent).title); button.addEventListener('click', () => { selected = parent.activityId; render(); }); value.append(button); }
     else value.textContent = 'Not present in the current recording or replay position';
     dl.append(element('dt', '', 'Recorded parent'), value);
   }
@@ -137,7 +165,9 @@ function timeline() {
   const available = following ? events : events.slice(0, state.cursor);
   for (const event of available.slice(-visibleEvents).reverse()) {
     const li = element('li', 'timeline-item'), button = element('button'); button.dataset.focusKey = 'event-' + event.sequence;
-    button.append(element('time', '', time(event.at)), element('i', 'timeline-dot ' + event.source), element('span', 'event-text', event.label), element('span', 'event-state', event.status));
+    const text = activityText(event), name = element('span', 'event-text'); name.append(element('span','',text.title));
+    if (text.context) name.append(element('small','event-operation',text.operation));
+    button.append(element('time', '', time(event.at)), element('i', 'timeline-dot ' + event.source), name, element('span', 'event-state', event.status));
     button.addEventListener('click', () => { selected = event.activityId; render(); }); li.append(button); root.append(li);
   }
   $('more-events').hidden = available.length <= visibleEvents; $('timeline-count').textContent = available.length + ' recorded events';
@@ -148,7 +178,8 @@ function listView() {
   const thead = element('thead'); thead.append(head); table.append(thead); const body = element('tbody');
   const activities = [...state.activities.values()];
   for (const activity of activities.slice(-visibleActivities).reverse()) {
-    const row = element('tr'), name = element('td'), button = element('button', '', activity.label); button.dataset.focusKey = 'list-' + activity.activityId; button.addEventListener('click', () => { selected = activity.activityId; details(); }); name.append(button); row.append(name);
+    const text = activityText(activity), row = element('tr'), name = element('td'), button = element('button', '', text.title); button.dataset.focusKey = 'list-' + activity.activityId; button.addEventListener('click', () => { selected = activity.activityId; details(); }); name.append(button);
+    if (text.context) { name.append(element('small','event-operation',text.operation)); if (text.summary) name.append(element('p','list-purpose',text.summary)); } row.append(name);
     for (const text of [activity.phase, activity.owner || 'Hephaera', activity.status, activity.source]) row.append(element('td', '', text)); body.append(row);
   }
   table.append(body); $('list-view').replaceChildren(element('p', 'muted', 'Showing ' + Math.min(visibleActivities, activities.length) + ' of ' + activities.length + ' activities'), table);
@@ -180,7 +211,7 @@ function structures() {
       const stack = [{ activity: start, target: list, unresolved }];
       while (stack.length) {
         const { activity, target, unresolved } = stack.pop(); if (visited.has(activity.activityId)) continue; visited.add(activity.activityId);
-        const item = element('li', 'structure-item'), button = element('button', 'structure-activity', activity.label);
+        const item = element('li', 'structure-item'), button = element('button', 'structure-activity', activityText(activity).title);
         item.dataset.structureActivity = activity.activityId; button.dataset.focusKey = 'structure-' + activity.activityId;
         button.addEventListener('click', () => { selected = activity.activityId; render(); }); item.append(button);
         item.append(element('small', '', [activity.category, activity.owner || 'Hephaera', activity.status, activity.source, activity.role, activity.skill, activity.task].filter(Boolean).join(' · ')));
@@ -211,7 +242,7 @@ function render() {
   $('replay-position').textContent = (following ? events.length : state.cursor) + ' / ' + events.length + ' events';
   if (metadata?.capped) notice('Recording reached its session capacity. Work continues; the remaining activity is untracked.');
   else if (connected) notice('');
-  updateMode(); canvas(); details(); timeline(); listView(); structures();
+  updateMode(); workOverview(); canvas(); details(); timeline(); listView(); structures();
   if (focusKey) document.querySelector('[data-focus-key="' + CSS.escape(focusKey) + '"]')?.focus({ preventScroll: true });
 }
 $('scrubber').addEventListener('input', () => { following = false; state = replay(events, Number($('scrubber').value)); scheduleRender(); });

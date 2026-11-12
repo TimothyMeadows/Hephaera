@@ -15,7 +15,7 @@ const HELP = `Usage: session-visualizer.sh <start|status|emit|run|end|stop|histo
        [--status running|waiting|blocked|succeeded|failed|cancelled|unknown]
        [--owner TEXT] [--role TEXT] [--skill TEXT] [--task TEXT] [--mode brainstorm|task|goal|gauntlet]
        [--operation TEXT] [--blocker TEXT] [--evidence PROJECT_RELATIVE_PATH ...]
-  run --session UUID [--phase PHASE] [--label TEXT] -- EXECUTABLE [ARG ...]
+  run --session UUID [--phase PHASE] [--label TEXT] [--task TASK_ID] [--operation TEXT] -- EXECUTABLE [ARG ...]
   end|delete --session UUID   Explicit ending; deletion accepts ended sessions only.
   status [--session UUID]    No credentials are printed.
   history [--offset N] [--limit N]
@@ -37,7 +37,7 @@ function parse(values) {
     const value = args[++i]; if (key === 'evidence') (options.evidence ||= []).push(value); else options[key] = value;
   }
   if (!['start','status','emit','run','end','stop','history','delete'].includes(operation)) throw new Error('Unknown visualizer operation.');
-  const perOperation = { start: ['session','host','label','port','noOpen'], status: ['session'], emit: ['session','label','phase','category','activity','parent','action','status','owner','role','skill','task','mode','operation','blocker','evidence'], run: ['session','label','phase'], end: ['session'], stop: [], history: ['offset','limit'], delete: ['session'] };
+  const perOperation = { start: ['session','host','label','port','noOpen'], status: ['session'], emit: ['session','label','phase','category','activity','parent','action','status','owner','role','skill','task','mode','operation','blocker','evidence'], run: ['session','label','phase','task','operation'], end: ['session'], stop: [], history: ['offset','limit'], delete: ['session'] };
   if (Object.keys(options).some(k => k !== 'root' && !perOperation[operation].includes(k)) || operation !== 'run' && command.length) throw new Error('Option is not supported by this operation.');
   return { operation, options, command };
 }
@@ -93,9 +93,10 @@ async function start(root, options) {
 async function run(root, options, command) {
   if (!command.length) throw new Error('run requires an executable after --.');
   store.id(options.session);
-  const span = store.begin(root, { phase: options.phase || 'work', category: 'command', label: options.label || 'Shell operation' }, options.session);
+  const span = store.begin(root, { phase: options.phase || 'work', category: 'command', label: options.label || 'Shell operation',
+    ...(options.task ? { task: options.task } : {}), ...(options.operation || options.task ? { operation: options.operation || options.label || 'Shell operation' } : {}) }, options.session);
   // begin uses explicit process context; no argv or output is copied to events.
-  const childEnv = { ...process.env, HEPHAERA_SESSION_ID: options.session, HEPHAERA_ACTIVITY_ID: span.activityId || '', HEPHAERA_VISUALIZER_WRAPPED: '1' };
+  const childEnv = { ...process.env, HEPHAERA_SESSION_ID: options.session, HEPHAERA_ACTIVITY_ID: span.activityId || '', HEPHAERA_TASK_ID: span.taskId || '', HEPHAERA_VISUALIZER_WRAPPED: '1' };
   const msys = process.platform === 'win32' && process.env.HEPHAERA_VISUALIZER_MSYS === '1';
   let executable = command[0], arguments_ = command.slice(1);
   if (msys) {

@@ -1,6 +1,6 @@
 'use strict';
 
-// Passive, project-local metadata. Never read transcripts, tool output or argv.
+// Passive, project-local metadata. Never record transcripts, tool output or argv.
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
@@ -17,6 +17,8 @@ const SOURCES = ['command-observed', 'agent-reported', 'untracked'];
 const producerId = crypto.randomUUID();
 let producerSequence = 0, warned = false;
 const context = new AsyncLocalStorage();
+let taskContextCapture;
+try { taskContextCapture = require('./session-task-context.cjs').capture; } catch { /* Optional enrichment; base observation remains usable. */ }
 const fail = message => { throw new Error(message); };
 const native = value => process.platform === 'win32' ? value.replace(/^\/(?:mnt\/)?([a-zA-Z])\//, (_, d) => d.toUpperCase() + ':/') : value;
 function rootPath(value) {
@@ -61,7 +63,7 @@ function privateCache(root) {
   } catch { const error = new Error('Visualizer cache privacy is unavailable.'); error.code = 'HEPHAERA_PRIVACY_UNAVAILABLE'; throw error; }
   privateRoots.add(root); return target;
 }
-function read(root, relative, max = 16384) {
+function readText(root, relative, max = 16384) {
   const full = safe(root, relative, 'file');
   const fd = fs.openSync(full, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0) | (fs.constants.O_NONBLOCK || 0));
   try {
@@ -74,9 +76,10 @@ function read(root, relative, max = 16384) {
     if (named.isSymbolicLink() || [after, named].some(s => s.nlink !== 1 || s.dev !== before.dev || s.ino !== before.ino || s.size !== before.size || s.mtimeMs !== before.mtimeMs)) fail('Visualizer metadata changed.');
     const text = bytes.toString('utf8');
     if (!Buffer.from(text).equals(bytes)) fail('Visualizer metadata must be UTF-8.');
-    return JSON.parse(text);
+    return text;
   } finally { fs.closeSync(fd); }
 }
+function read(root, relative, max = 16384) { return JSON.parse(readText(root, relative, max)); }
 function write(root, relative, value, replace = false) {
   const full = safe(root, relative, 'file'), tempRelative = relative + '.' + crypto.randomUUID() + '.tmp';
   if (fs.existsSync(full) && fs.lstatSync(full).nlink !== 1) fail('Linked visualizer metadata cannot be replaced.');
@@ -149,8 +152,17 @@ function createSession(root, { sessionId = crypto.randomUUID(), host = 'other', 
   });
 }
 function validateEvent(root, event) {
-  const keys = ['schemaVersion','id','sessionId','sequence','producerId','producerSequence','at','activityId','parentId','phase','category','action','status','source','label','owner','role','skill','task','mode','operation','blocker','durationMs','exitCode','evidence'];
-  if (!event || Object.keys(event).some(k => !keys.includes(k)) || event.schemaVersion !== 1) fail('Invalid activity event.');
+  const keys = ['schemaVersion','id','sessionId','sequence','producerId','producerSequence','at','activityId','parentId','phase','category','action','status','source','label','owner','role','skill','task','mode','operation','blocker','durationMs','exitCode','evidence','taskContext'];
+  if (!event || Object.keys(event).some(k => !keys.includes(k)) || ![1,2].includes(event.schemaVersion)) fail('Invalid activity event.');
+  if (event.schemaVersion === 2) {
+    const value = event.taskContext;
+    if (!value || Object.keys(value).some(k => !['schemaVersion','taskId','title','summary','reference','sha256'].includes(k)) || value.schemaVersion !== 1
+      || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,119}$/.test(value.taskId || '') || value.taskId !== event.task
+      || value.reference !== '.hephaera/.cache/tasks/' + value.taskId + '/TASK.md' || !/^[a-f0-9]{64}$/.test(value.sha256 || '')) fail('Invalid task context.');
+    label(value.title); if (value.summary !== undefined) label(value.summary, 320);
+    // A recorded snapshot stays readable after its source changes or disappears.
+    // Its reference is display-only; never reopen the task during replay.
+  } else if (event.taskContext !== undefined) fail('Task context requires a version2 event.');
   for (const k of ['id','sessionId','producerId','activityId']) id(event[k]);
   label(event.label);
   if (event.parentId !== null) id(event.parentId);
@@ -194,9 +206,13 @@ function emit(root, sessionId, fields) {
       write(root, base + '/budget.json', { ...state, capped: true }, true);
       return { recorded: false, reason: 'capacity' };
     }
-    const event = validateEvent(root, { schemaVersion: 1, id: crypto.randomUUID(), sessionId, sequence: state.count + 1,
+    let taskContext = fields.taskContext;
+    if (taskContext === undefined && fields.task && taskContextCapture) {
+      try { taskContext = taskContextCapture(root, fields.task, { readText, label }); } catch { /* Keep base telemetry. */ }
+    }
+    const event = validateEvent(root, { schemaVersion: taskContext ? 2 : 1, id: crypto.randomUUID(), sessionId, sequence: state.count + 1,
       producerId, producerSequence: ++producerSequence, at: new Date().toISOString(), activityId: crypto.randomUUID(), parentId: null,
-      phase: 'work', category: 'command', action: 'updated', status: 'running', source: 'agent-reported', evidence: [], ...fields });
+      phase: 'work', category: 'command', action: 'updated', status: 'running', source: 'agent-reported', evidence: [], ...fields, ...(taskContext ? { taskContext } : {}) });
     const bytes = Buffer.byteLength(JSON.stringify(event) + '\n');
     if (bytes > 16384) fail('Activity metadata exceeds its serialized byte bound.');
     if (state.capped || state.count >= MAX_EVENTS || state.bytes + bytes > MAX_BYTES) {
@@ -264,11 +280,13 @@ function begin(root, fields, explicitSession) {
   if (!sessionId) return { finish() {}, activityId: null };
   const activityId = crypto.randomUUID(), started = performance.now();
   const parentId = active?.sessionId === sessionId ? active.activityId : process.env.HEPHAERA_SESSION_ID === sessionId ? process.env.HEPHAERA_ACTIVITY_ID || null : null;
-  const common = { ...fields, activityId, parentId, source: 'command-observed' };
+  const inheritedTask = active?.sessionId === sessionId ? active.taskId : process.env.HEPHAERA_SESSION_ID === sessionId ? process.env.HEPHAERA_TASK_ID : undefined;
+  const task = fields.task || (/^[A-Za-z0-9][A-Za-z0-9_-]{0,119}$/.test(inheritedTask || '') ? inheritedTask : undefined);
+  const common = { ...fields, ...(task ? {task} : {}), activityId, parentId, source: 'command-observed' };
   const record = data => { try { const result = emit(root, sessionId, { ...common, ...data }); if (!result.recorded && result.reason !== 'disabled') warn(); } catch { warn(); } };
   record({ action: 'started', status: 'running' });
   let finished = false;
-  return { activityId, sessionId, finish(status = 'succeeded', exitCode) { if (finished) return; finished = true; record({ action: 'finished', status, durationMs: performance.now() - started, ...(exitCode !== undefined ? { exitCode } : {}) }); } };
+  return { activityId, sessionId, taskId: task, finish(status = 'succeeded', exitCode) { if (finished) return; finished = true; record({ action: 'finished', status, durationMs: performance.now() - started, ...(exitCode !== undefined ? { exitCode } : {}) }); } };
 }
 async function observe(root, fields, action, outcome) {
   const span = begin(root, fields);

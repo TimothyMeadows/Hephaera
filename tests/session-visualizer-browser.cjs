@@ -81,8 +81,8 @@ async function main() {
     assert.ok(await evaluate(`Number(document.getElementById('activity-count').textContent)>0`));
     // Explicitly labelled QA reports exercise branching and a verification ->
     // revision loop without presenting synthetic work as real development.
-    const reportFixture = (label, phase, parentId = null, status = 'running', category = 'task', mode) => {
-      const fields = { label: 'QA fixture: ' + label, phase, parentId, status, action: status === 'running' ? 'started' : 'finished', category, source: 'agent-reported', owner: 'Browser QA fixture', ...(mode ? { mode } : {}) };
+    const reportFixture = (label, phase, parentId = null, status = 'running', category = 'task', mode, extra = {}) => {
+      const fields = { label: 'QA fixture: ' + label, phase, parentId, status, action: status === 'running' ? 'started' : 'finished', category, source: 'agent-reported', owner: 'Browser QA fixture', ...(mode ? { mode } : {}), ...extra };
       const event = store.emit(root, options.session, fields).event;
       if (status === 'running') fixtures.push({ ...fields, activityId: event.activityId });
       return event.activityId;
@@ -146,6 +146,33 @@ async function main() {
     assert.equal(await evaluate(`document.querySelector('#details .detail-title').textContent`), label);
     assert.equal(await evaluate(`document.querySelector('#details img')!==null || window.hephaeraXss===1`), false);
     store.emit(root, options.session, { label, phase: 'verification', category: 'command', activityId: fixture.activityId, action: 'finished', status: 'succeeded', source: 'command-observed', owner: 'Browser QA' });
+    // Real task-file metadata capture, using explicitly synthetic task records.
+    const taskId='qa-context-'+crypto.randomUUID(), completedTask='qa-finished-'+crypto.randomUUID();
+    const taskDirectory=store.directory(root,'.hephaera/.cache/tasks/'+taskId), taskFile=path.join(taskDirectory,'TASK.md');
+    const taskMarkdown='# Improve controller reconnection\n\n## Goal\n\nKeep movement responsive when a controller reconnects.\n';fs.writeFileSync(taskFile,taskMarkdown,{flag:'wx'});
+    const completedDirectory=store.directory(root,'.hephaera/.cache/tasks/'+completedTask);fs.writeFileSync(path.join(completedDirectory,'TASK.md'),'# Add journal quest markers\n\n## Goal\n\nShow the current objective beside the journal.\n',{flag:'wx'});
+    const currentTask=reportFixture('Task running','work',null,'running','task','task',{task:taskId,operation:'Implement controller recovery'});
+    const checkpoint=reportFixture('Task checkpoint','review',currentTask,'succeeded','command','task',{task:taskId,operation:'Record task checkpoint'});
+    reportFixture('Task completed','verification',null,'succeeded','task','task',{task:completedTask,operation:'Finish quest marker verification'});
+    await waitFor(`document.querySelector('[data-task="${taskId}"]')?.textContent.includes('Improve controller reconnection') && document.querySelector('[data-task="${completedTask}"]')?.textContent.includes('Task completed')`);
+    assert.ok(await evaluate(`document.querySelector('[data-task="${taskId}"]').textContent.includes('Task in progress')`));
+    assert.ok(await evaluate(`document.querySelector('[data-task="${taskId}"]').textContent.includes('Keep movement responsive when a controller reconnects.')`));
+    assert.ok(await evaluate(`document.querySelector('[data-activity="${checkpoint}"]').getAttribute('aria-label').includes('Improve controller reconnection')`));
+    assert.equal(await evaluate(`document.querySelector('[data-activity="${checkpoint}"] .activity-operation').textContent`),'Record task checkpoint');
+    assert.ok(await evaluate(`document.getElementById('timeline').textContent.includes('Improve controller reconnection') && document.getElementById('timeline').textContent.includes('Record task checkpoint')`));
+    await click('[data-task="'+taskId+'"]');
+    assert.equal(await evaluate(`document.querySelector('#details .detail-title').textContent`),'Improve controller reconnection');
+    assert.equal(await evaluate(`document.querySelector('#details .task-purpose').textContent`),'Keep movement responsive when a controller reconnects.');
+    assert.ok(await evaluate(`document.getElementById('details').textContent.includes('.hephaera/.cache/tasks/${taskId}/TASK.md')`));
+    const detailScreenshot=await call('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});fs.writeFileSync(path.join(output,'task-details.png'),Buffer.from(detailScreenshot.data,'base64'));
+    await click('#list-toggle');assert.ok(await evaluate(`document.getElementById('list-view').textContent.includes('Improve controller reconnection') && document.getElementById('list-view').textContent.includes('Keep movement responsive')`));await click('#list-toggle');
+    fs.writeFileSync(taskFile,'# Unrecorded rewrite\n\n## Goal\n\nThis must not replace recorded metadata.\n');
+    await call('Page.reload',{ignoreCache:true});await waitFor(`document.getElementById('connection')?.textContent.includes('Live') && document.querySelector('[data-task="${taskId}"]')?.textContent.includes('Improve controller reconnection')`,600);
+    assert.equal(await evaluate(`document.getElementById('current-work').textContent.includes('Unrecorded rewrite')`),false);fs.writeFileSync(taskFile,taskMarkdown);
+    await evaluate(`(()=>{const slider=document.getElementById('scrubber');slider.value='1';slider.dispatchEvent(new Event('input',{bubbles:true}))})()`);await waitFor(`document.getElementById('current-work-panel').hidden`);
+    await click('#go-live');await waitFor(`document.querySelector('[data-task="${taskId}"]')!==null`);
+    await evaluate(`document.querySelector('[data-task="${taskId}"]').focus()`);assert.equal(await evaluate(`document.activeElement.dataset.task`),taskId);
+    await evaluate('scrollTo(0,0)');await delay(150);const contextualDesktop=await call('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});fs.writeFileSync(path.join(output,'desktop.png'),Buffer.from(contextualDesktop.data,'base64'));
     await call('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
     assert.equal(await evaluate(`matchMedia('(prefers-reduced-motion: reduce)').matches`), true);
     assert.equal(await evaluate(`(()=>{const n=document.querySelector('.edge.active');return !n||getComputedStyle(n).animationName==='none'})()`), true);
@@ -156,9 +183,9 @@ async function main() {
     const mobile = await call('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false }); fs.writeFileSync(path.join(output, 'mobile.png'), Buffer.from(mobile.data, 'base64'));
     assert.deepEqual(external, []); assert.deepEqual(errors, []);
     fs.writeFileSync(path.join(output, 'report.json'), JSON.stringify({ status: 'passed', platform: process.platform, transport: 'native browser HTTP on my.hephaera.com bound to 127.0.0.1',
-      checks: ['IPv4 loopback HTTP','no certificate or security exception flags','ordinary HTTP hostname context','offline browser resolver mapping','actual browser peer127.0.0.1','live session','private DevTools pipe','fragment capability removal','parallel branches','verification revision loop','browser refresh and resumed stream','recorded Goal parent hierarchy','mode expansion by keyboard',...(options.structures ? ['recorded Brainstorm and Gauntlet hierarchies'] : []),'stage expansion','keyboard activation and focus','keyboard focus during live updates','list view',...(listPagingChecked ? ['list pagination'] : []),'replay','live return','label escaping','reduced motion','mobile layout','no external page requests','no uncaught browser errors'],
+      checks: ['task title and purpose at a glance','checkpoint success preserves running task report','task context on canvas timeline list and details','task source rewrite cannot change recorded context','task context replay and keyboard focus','IPv4 loopback HTTP','no certificate or security exception flags','ordinary HTTP hostname context','offline browser resolver mapping','actual browser peer127.0.0.1','live session','private DevTools pipe','fragment capability removal','parallel branches','verification revision loop','browser refresh and resumed stream','recorded Goal parent hierarchy','mode expansion by keyboard',...(options.structures ? ['recorded Brainstorm and Gauntlet hierarchies'] : []),'stage expansion','keyboard activation and focus','keyboard focus during live updates','list view',...(listPagingChecked ? ['list pagination'] : []),'replay','live return','label escaping','reduced motion','mobile layout','no external page requests','no uncaught browser errors'],
       metrics: { recordedEventsBeforeUpdate: focusFixture.sequence - 1, liveUpdateMs, largeHistoryCheck: focusFixture.sequence > 10000 },
-      screenshots: ['desktop.png','mobile.png','structure.png'], limits: 'Existing Chromium on this host only; no Linux/macOS or other coding-host acceptance inferred.' }, null, 2));
+      screenshots: ['desktop.png','mobile.png','structure.png','task-details.png'], limits: 'Existing Chromium on this host only; no Linux/macOS or other coding-host acceptance inferred.' }, null, 2));
     passed = true;
     console.log(JSON.stringify({ status: 'passed', transport: 'native-browser-http-loopback', evidence: base, screenshots: [base + '/desktop.png', base + '/mobile.png'] }));
   } finally {

@@ -22,6 +22,87 @@ function fixture(t) {
 }
 function prepare(t) { const root = fixture(t), session = store.createSession(root, { host: 'codex', title: 'Test session' }); return { root, id: session.id }; }
 function recorded(root, id, label = 'Test activity', fields = {}) { return store.emit(root, id, { label, ...fields }).event; }
+test('task names and purpose are captured at observation time without rewriting replay', async t => {
+  const {root,id}=prepare(t),dir=store.directory(root,'.hephaera/.cache/tasks/movement-controls'),file=path.join(dir,'TASK.md');
+  const original='# Improve movement controls\n\n## Goal\n\nMake keyboard movement responsive and predictable.\n\n## Private notes\n\nDo not copy this unrelated section.\n';
+  fs.writeFileSync(file,original);const first=recorded(root,id,'Task checkpoint',{task:'movement-controls',operation:'Save task checkpoint'});
+  assert.equal(first.schemaVersion,2);assert.equal(first.taskContext.title,'Improve movement controls');
+  assert.equal(first.taskContext.summary,'Make keyboard movement responsive and predictable.');
+  assert.equal(first.taskContext.reference,'.hephaera/.cache/tasks/movement-controls/TASK.md');
+  assert.equal(first.taskContext.sha256,crypto.createHash('sha256').update(original).digest('hex'));
+  fs.writeFileSync(file,'# Refine controller support\n\n## Goal\n\nSupport the selected controller layout.\n');
+  const second=recorded(root,id,'Task completed',{task:'movement-controls',activityId:first.activityId,status:'succeeded',action:'finished'});
+  assert.equal(second.taskContext.title,'Refine controller support');assert.notEqual(second.taskContext.sha256,first.taskContext.sha256);
+  fs.unlinkSync(file);const events=store.page(root,id).events,reducer=await import('../visualizer/state.mjs');
+  assert.equal(reducer.replay(events,1).activities.get(first.activityId).taskContext.title,'Improve movement controls');
+  assert.equal(reducer.replay(events).activities.get(first.activityId).taskContext.title,'Refine controller support');
+  assert.equal(JSON.stringify(events).includes('unrelated section'),false);
+});
+test('task context is optional, confined and bounded without ambient task inference', t => {
+  const {root,id}=prepare(t),dir=store.directory(root,'.hephaera/.cache/tasks/bounded-task'),file=path.join(dir,'TASK.md');
+  fs.writeFileSync(file,'# '+ 'Readable title '.repeat(30)+'\n\n## Goal\n\n'+ 'A bounded purpose. '.repeat(50));
+  const bounded=recorded(root,id,'Work',{task:'bounded-task'});assert.equal(bounded.taskContext.title.length,160);assert.equal(bounded.taskContext.summary.length,320);
+  assert.equal(recorded(root,id,'No explicit task').taskContext,undefined);
+  for(const task of ['missing-task','../bounded-task','/outside','C:/outside'])assert.equal(recorded(root,id,'No context',{task}).taskContext,undefined);
+  fs.writeFileSync(file,'# A safe title\n\n## Goal\n\napi_key=do-not-record\n');
+  const redacted=recorded(root,id,'Work',{task:'bounded-task'});assert.equal(redacted.taskContext.title,'A safe title');assert.equal(redacted.taskContext.summary,undefined);
+  for(const text of ['# password=do-not-record\n','# Bearer do-not-record\n','# ghp_'+ 'A'.repeat(30)+'\n','# https://user:private@example.test\n', '# '+ 'a'.repeat(140000),Buffer.from([0xff,0xfe,0xfd])]){
+    fs.writeFileSync(file,text);assert.equal(recorded(root,id,'Unusable context',{task:'bounded-task'}).taskContext,undefined);
+  }
+  fs.writeFileSync(file,'# Safe title\n\n## Goal\n\nA safe purpose.\n');
+  const linked=path.join(root,'.hephaera/.cache/tasks/linked-task');fs.symlinkSync(dir,linked,process.platform==='win32'?'junction':'dir');
+  assert.equal(recorded(root,id,'Linked context',{task:'linked-task'}).taskContext,undefined);
+  fs.linkSync(file,path.join(dir,'foreign-link.md'));assert.equal(recorded(root,id,'Hard-linked context',{task:'bounded-task'}).taskContext,undefined);
+  assert.equal(JSON.stringify(store.page(root,id).events).includes('do-not-record'),false);
+});
+test('explicit run task context preserves command output and failure status', async t => {
+  const {root,id}=prepare(t),dir=store.directory(root,'.hephaera/.cache/tasks/explicit-task');fs.writeFileSync(path.join(dir,'TASK.md'),'# Fix controller input\n\n## Goal\n\nKeep input stable during reconnects.\n');
+  const result=await child(['commands/lib/session-visualizer.cjs','run','--root',root,'--session',id,'--task','explicit-task','--operation','Verify controller reconnection','--label','Focused verification','--',process.execPath,'-e','process.stdout.write("expected stdout");process.stderr.write("expected stderr");process.exitCode=7;']);
+  assert.equal(result.code,7);assert.equal(result.stdout,'expected stdout');assert.equal(result.stderr,'expected stderr');
+  const events=store.page(root,id).events;assert.equal(events.length,2);assert.equal(events[0].taskContext.title,'Fix controller input');assert.equal(events[1].taskContext.summary,'Keep input stable during reconnects.');assert.equal(events[1].operation,'Verify controller reconnection');assert.equal(events[1].status,'failed');assert.equal(events[1].exitCode,7);
+  assert.equal(JSON.stringify(events).includes('expected stdout'),false);
+});
+test('shared task wrapper captures its documented task identifier and preserves argv', t => {
+  const {root,id}=prepare(t),dir=store.directory(root,'.hephaera/.cache/tasks/wrapped-task');fs.writeFileSync(path.join(dir,'TASK.md'),'# Improve quest tracking\n\n## Goal\n\nShow the active quest clearly.\n');
+  const entry=path.join(root,'record-task-checkpoint.sh'),observer=path.join(REPO,'commands/lib/session-observer.sh').replaceAll('\\','/');
+  fs.writeFileSync(entry,'#!/usr/bin/env bash\nsource "$HEPHAERA_TEST_OBSERVER"\nhephaera_visualizer_entrypoint review "Task checkpoint" "${BASH_SOURCE[0]}" "$@"\nprintf "%s\\n%s" "$1" "$2"\nexit 7\n');
+  const bash=process.platform==='win32'?path.join(process.env.ProgramFiles,'Git/bin/bash.exe'):'bash';
+  const result=cp.spawnSync(bash,[entry,'wrapped-task','literal argument'],{cwd:REPO,windowsHide:true,encoding:'utf8',env:{...process.env,HEPHAERA_PROJECT_ROOT:root,HEPHAERA_SESSION_ID:id,HEPHAERA_VISUALIZER_WRAPPED:'',HEPHAERA_TEST_OBSERVER:observer}});
+  assert.equal(result.status,7,result.stderr);assert.equal(result.stdout,'wrapped-task\nliteral argument');
+  const events=store.page(root,id).events;assert.equal(events.length,2);assert.equal(events[0].taskContext.title,'Improve quest tracking');assert.equal(events[1].operation,'Task checkpoint');assert.equal(events[1].exitCode,7);assert.equal(JSON.stringify(events).includes('literal argument'),false);
+});
+test('task snapshots reject malformed metadata and ignore fenced instructions', t => {
+  const {root,id}=prepare(t),dir=store.directory(root,'.hephaera/.cache/tasks/parsed-task');
+  fs.writeFileSync(path.join(dir,'TASK.md'),'```md\n# Hidden code heading\n```\n# Visible task\n\n## Goal\n\nA real purpose.\n\n~~~\n# Hidden ending\n');
+  const event=recorded(root,id,'Task operation',{task:'parsed-task'});assert.equal(event.taskContext.title,'Visible task');assert.equal(event.taskContext.summary,'A real purpose.');
+  for(const change of [{taskId:'other-task'},{reference:'../private'},{sha256:'not-a-hash'},{title:'secret=do-not-record'},{summary:'x'.repeat(321)},{rawTask:'private body'}]){
+    assert.throws(()=>recorded(root,id,'Invalid context',{task:'parsed-task',taskContext:{...event.taskContext,...change}}));
+  }
+  assert.equal(store.page(root,id).total,1);
+  fs.writeFileSync(path.join(dir,'TASK.md'),'\uFEFF# Add `MODEL_TO_ACTION` support\n\n## Goal\n\nKeep **rigid parts** intact.\n');
+  const formatted=recorded(root,id,'Formatted task',{task:'parsed-task'});assert.equal(formatted.taskContext.title,'Add MODEL_TO_ACTION support');assert.equal(formatted.taskContext.summary,'Keep rigid parts intact.');
+  fs.writeFileSync(path.join(dir,'TASK.md'),'```md\n```js\n# Hidden code heading\n```\n# Keep C#\n\n## Goal ###\n\nPreserve technical names.\n');
+  const technical=recorded(root,id,'Technical title',{task:'parsed-task'});assert.equal(technical.taskContext.title,'Keep C#');assert.equal(technical.taskContext.summary,'Preserve technical names.');
+  fs.writeFileSync(path.join(dir,'TASK.md'),'<!--\n# Hidden comment title\n\n## Goal\n\nPrivate comment prose.\n');assert.equal(recorded(root,id,'Unclosed comment',{task:'parsed-task'}).taskContext,undefined);
+});
+test('nested observations inherit explicit task context only within the same session', async t => {
+  const {root,id}=prepare(t),other=store.createSession(root),dir=store.directory(root,'.hephaera/.cache/tasks/inherited-task');fs.writeFileSync(path.join(dir,'TASK.md'),'# Keep nested work identifiable\n\n## Goal\n\nShow the parent task for nested observations.\n');
+  const script=`const store=require('./commands/lib/session-events.cjs');const span=store.begin(process.argv[1],{label:'Nested operation'});span.finish('succeeded',0);`;
+  const linked=await child(['commands/lib/session-visualizer.cjs','run','--root',root,'--session',id,'--task','inherited-task','--',process.execPath,'-e',script,root]);
+  assert.equal(linked.code,0,linked.stderr);const events=store.page(root,id).events;assert.equal(events.length,4);assert.ok(events.every(e=>e.taskContext?.title==='Keep nested work identifiable'));assert.equal(events[1].parentId,events[0].activityId);
+  const switched=await child(['commands/lib/session-visualizer.cjs','run','--root',root,'--session',other.id,'--',process.execPath,'-e',script,root],{HEPHAERA_SESSION_ID:id,HEPHAERA_TASK_ID:'inherited-task',HEPHAERA_ACTIVITY_ID:events[0].activityId});
+  assert.equal(switched.code,0,switched.stderr);assert.ok(store.page(root,other.id).events.every(e=>e.task===undefined&&e.taskContext===undefined));
+});
+test('current work distinguishes an explicit task report from a successful operation', async t => {
+  const {root,id}=prepare(t),dir=store.directory(root,'.hephaera/.cache/tasks/summary-task');fs.writeFileSync(path.join(dir,'TASK.md'),'# Improve quest tracking\n\n## Goal\n\nShow active objectives clearly.\n');
+  const task=recorded(root,id,'Task running',{task:'summary-task',category:'task',action:'started',status:'running'});
+  recorded(root,id,'Task checkpoint',{task:'summary-task',operation:'Record task checkpoint',action:'finished',status:'succeeded'});
+  const reducer=await import('../visualizer/state.mjs');let groups=reducer.currentWork(reducer.replay(store.page(root,id).events));
+  assert.equal(groups[0].title,'Improve quest tracking');assert.equal(groups[0].current.status,'running');assert.equal(groups[0].latest.status,'succeeded');assert.equal(reducer.activityText(groups[0].latest).operation,'Record task checkpoint');
+  recorded(root,id,'Task completed',{task:'summary-task',category:'task',activityId:task.activityId,action:'finished',status:'succeeded'});
+  groups=reducer.currentWork(reducer.replay(store.page(root,id).events));assert.equal(groups[0].current.status,'succeeded');
+  assert.equal(reducer.activityText({label:'Old activity',task:'other-task',taskContext:task.taskContext}).title,'Old activity');
+});
 function jsonRequest(service, route, options = {}) {
   return new Promise((resolve, reject) => {
     const url = new URL(service.url);
@@ -303,9 +384,11 @@ test('run preserves the original working directory inside a host project', async
 });
 test('command observation does not depend on the viewer server or static UI being available', async t => {
   const { root, id } = prepare(t), lib = path.join(root,'.hephaera/commands/lib'); fs.mkdirSync(lib,{recursive:true});
+  const taskDir=store.directory(root,'.hephaera/.cache/tasks/missing-helper');fs.writeFileSync(path.join(taskDir,'TASK.md'),'# A readable task\n');
   for (const name of ['session-visualizer.cjs','session-events.cjs','state-transition.cjs']) fs.copyFileSync(path.join(REPO,'commands/lib',name),path.join(lib,name));
-  const result = await child([path.join(lib,'session-visualizer.cjs'),'run','--root',root,'--session',id,'--',process.execPath,'-e',`process.stdout.write('independent command');process.exitCode=3;`]);
+  const result = await child([path.join(lib,'session-visualizer.cjs'),'run','--root',root,'--session',id,'--task','missing-helper','--',process.execPath,'-e',`process.stdout.write('independent command');process.exitCode=3;`]);
   assert.equal(result.code,3); assert.equal(result.stdout,'independent command'); assert.equal(store.page(root,id).events.at(-1).exitCode,3);
+  assert.equal(store.page(root,id).events.at(-1).taskContext,undefined);
 });
 test('switching explicit sessions does not inherit a parent from another session', async t => {
   const { root, id } = prepare(t), other = store.createSession(root);
