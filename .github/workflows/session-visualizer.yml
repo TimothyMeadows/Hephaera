@@ -21,11 +21,9 @@ jobs:
           node-version: '24.15.0'
       - name: Check private cache prerequisite on Windows
         if: runner.os == 'Windows'
-        shell: powershell
+        shell: pwsh
         run: |
-          $target = Join-Path $PWD '.local/visualizer-ci-private-probe'
-          New-Item -ItemType Directory -Path (Split-Path $target) -Force | Out-Null
-          & ./commands/lib/private-visualizer-cache.ps1 -Directory $target
+          node -e "const fs=require('node:fs'),p=require('node:path'),cp=require('node:child_process');fs.mkdirSync('.local',{recursive:true});cp.execFileSync(p.join(process.env.SystemRoot,'System32/WindowsPowerShell/v1.0/powershell.exe'),['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',p.resolve('commands/lib/private-visualizer-cache.ps1'),'-Directory',p.resolve('.local/visualizer-ci-private-probe')],{stdio:'inherit'});"
       - name: Select the existing Chrome installation on Linux
         if: runner.os == 'Linux'
         shell: bash

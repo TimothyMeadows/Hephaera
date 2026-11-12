@@ -8,7 +8,7 @@ source "$script_dir/lib/memory-common.sh"
 hephaera_resolve_paths
 node_bin="$(command -v node 2>/dev/null || command -v node.exe 2>/dev/null || true)"
 if [[ "$1" == run ]]; then
-  if [[ -n "$node_bin" ]] && source "$script_dir/lib/session-observer.sh" 2>/dev/null; then
+  if [[ -n "$node_bin" && -r "$script_dir/lib/session-observer.sh" ]] && source "$script_dir/lib/session-observer.sh" 2>/dev/null; then
     if hephaera_visualizer_exec_node "$node_bin" "$script_dir/lib/session-visualizer.cjs" "$HEPHAERA_PROJECT_ROOT_RESOLVED" "$@"; then exit 0; fi
   fi
   printf '%s\n' 'Hephaera visualizer: recorder unavailable; running the original command without observation.' >&2

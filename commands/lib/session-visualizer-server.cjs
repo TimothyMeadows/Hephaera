@@ -35,7 +35,7 @@ function browserExecutable(root) {
     candidates.push(path.join(base, 'Microsoft/Edge/Application/msedge.exe'), path.join(base, 'Google/Chrome/Application/chrome.exe'));
   }
   if (!explicit && process.platform === 'darwin') candidates.push('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge');
-  if (!explicit && process.platform !== 'win32') for (const base of (process.env.PATH || '').split(path.delimiter)) if (path.isAbsolute(base)) for (const name of ['chromium','chromium-browser','google-chrome','microsoft-edge']) candidates.push(path.join(base, name));
+  if (!explicit && process.platform !== 'win32') for (const base of (process.env.PATH || '').split(path.delimiter)) if (path.isAbsolute(base)) for (const name of ['google-chrome','microsoft-edge','chromium','chromium-browser']) candidates.push(path.join(base, name));
   for (const candidate of candidates) try {
     if (!path.isAbsolute(candidate)) continue;
     const real = fs.realpathSync(candidate), relative = path.relative(root, real);
