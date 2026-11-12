@@ -68,6 +68,14 @@ Private API requests require a random per-run bearer capability. A private local
 
 No raw argv, standard output, environment values, transcripts or reasoning are recorded. Labels are bounded and reject common credential patterns; agents remain responsible for using non-sensitive labels. Evidence is confined to project-relative references without reading file contents.
 
+## Designated hostname and planned HTTPS
+
+`my.hephaera.com` is the user-owned hostname designated for future local HTTPS. The running viewer continues to use the literal IPv4 HTTP URL returned by `start` until HTTPS support is ready. DNS pointing at loopback does not enable a hostname in the application or install a trusted certificate. See the [local HTTPS implementation plan](SESSION_VISUALIZER_HTTPS_PLAN.md) for the proposed certificate lifecycle, explicit setup, address validation and migration.
+
+If manually replacing `127.0.0.1` with `my.hephaera.com` displays `{"error":"Invalid request origin."}`, the current exact Host/Origin restriction rejected the alias. Restore `127.0.0.1` in that same viewer window, retaining its port and session fragment. Do not disable the check or expose a wildcard listener. A separate browser/profile may require reopening authenticated access through the launcher.
+
+An ESET inspection exemption is separate from browser certificate trust. It does not issue a certificate, enable HTTPS or authorize changes to Hephaera's listener. No scanner or trust-store changes occur during normal viewer startup.
+
 ## Settings and lifecycle
 
 Settings, session records and immutable event files live only at the resolved `.hephaera/.cache/visualizer/`. This is durable host state, ignored by the shared baseline. Do not commit or sweep it as download data.

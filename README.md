@@ -529,6 +529,8 @@ bash .hephaera/commands/session-visualizer.sh status --session UUID
 
 Use `claude`, `cursor` or `other` for the corresponding host. Startup opens authenticated HTTP in an isolated browser profile, bound exclusively to IPv4 `127.0.0.1` on a local port. The address cannot be overridden with settings, environment variables or a CLI flag; wildcard, LAN and IPv6 bindings are unsupported. Reuse the command to reopen access. Existing Node.js24+ and Chromium are required; the viewer needs no OpenSSL, certificates or browser security-exception flags, and startup installs nothing. Set `enabled` to `false` in `.hephaera/.cache/visualizer/config.json` to disable the viewer, or set `openBrowser` to `false` to keep it running without opening a window. Stopping the service preserves history; stop it before managed baseline updates. Other local previews retain their HTTPS policy.
 
+`my.hephaera.com` is the designated hostname for future local HTTPS access. For now, use the literal `127.0.0.1` URL returned by startup: changing it to the domain is rejected by the current Host/Origin checks, even when DNS points to loopback. The [local HTTPS implementation plan](docs/SESSION_VISUALIZER_HTTPS_PLAN.md) covers trusted per-installation certificates, renewal and a session-preserving switch; HTTPS/domain support is not implemented yet.
+
 Native headless browser checks have passed on Windows, Linux and macOS, and interactive Windows startup has been exercised. Interactive Linux/macOS desktop startup and actual Claude/Cursor host sessions remain unverified. See the [visualizer usage and recovery guide](docs/SESSION_VISUALIZER.md) for settings, recording commands, lifecycle controls and coverage limits.
 
 ## Managed Updates and Recovery
