@@ -531,6 +531,8 @@ Use `claude`, `cursor` or `other` for the corresponding host. Startup opens auth
 
 The viewer supports HTTP only so source/npm/NuGet installations can work fully offline without machine configuration or an online certificate service. The browser's normal Not secure label remains. Use the authenticated address opened by startup; another browser/profile still needs working DNS and authentication. Older installations that reject the domain need a baseline update and viewer restart with the same session UUID. The [offline transport decision](docs/SESSION_VISUALIZER_HTTPS_PLAN.md) replaces the former local HTTPS setup proposal and explains this boundary.
 
+Task-linked activity shows the task's actual title and a short purpose from its task record, alongside the specific operation and status. A current/recent-work panel makes running and completed tasks visible at a glance; canvas cards, timeline, list and details use the same recorded context. Pass `--task TASK_ID` on `run`/`emit` when known; supported shared task commands carry it automatically. Descriptions are captured when the event is recorded, so later task edits do not change replay. Earlier events without recorded context keep their original detail level. See [task context and privacy](docs/SESSION_VISUALIZER.md#task-names-purpose-and-operation-details).
+
 Native headless browser checks have passed on Windows, Linux and macOS, and interactive Windows startup has been exercised. Interactive Linux/macOS desktop startup and actual Claude/Cursor host sessions remain unverified. See the [visualizer usage and recovery guide](docs/SESSION_VISUALIZER.md) for settings, recording commands, lifecycle controls and coverage limits.
 
 ## Managed Updates and Recovery

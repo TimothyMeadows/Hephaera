@@ -44,6 +44,16 @@ hephaera_visualizer_entrypoint() {
   entry="$(cd -- "$(dirname -- "$entry")" && pwd)/$(basename -- "$entry")" || return 0
   # Resolve in a subshell to avoid changing the caller's variables or traps.
   project="$(source "$observer_dir/memory-common.sh"; hephaera_resolve_paths; printf '%s' "$HEPHAERA_PROJECT_ROOT_RESOLVED")" || return 0
-  # No command arguments or output enter the event record.
-  hephaera_visualizer_exec_node "$node_bin" "$observer_dir/session-visualizer.cjs" "$project" run --session "$HEPHAERA_SESSION_ID" --phase "$phase" --label "$label" -- "$BASH" "$entry" "$@" || return 0
+  # Only the documented task identifier at known boundaries becomes metadata;
+  # arbitrary argv/output remain private. Never infer an ambient current task.
+  local task_ref=''
+  case "$(basename -- "$entry")" in
+    create-task-file.sh|create-task-issue.sh|record-task-checkpoint.sh|validate-task-checkpoint.sh|link-pr-to-task-issue.sh|pr-readiness-check.sh) task_ref="${1:-}" ;;
+    import-task-from-issue.sh) task_ref="${2:-}" ;;
+  esac
+  if [[ "$task_ref" =~ ^[A-Za-z0-9][A-Za-z0-9_-]{0,119}$ ]]; then
+    hephaera_visualizer_exec_node "$node_bin" "$observer_dir/session-visualizer.cjs" "$project" run --session "$HEPHAERA_SESSION_ID" --phase "$phase" --label "$label" --task "$task_ref" --operation "$label" -- "$BASH" "$entry" "$@" || return 0
+  else
+    hephaera_visualizer_exec_node "$node_bin" "$observer_dir/session-visualizer.cjs" "$project" run --session "$HEPHAERA_SESSION_ID" --phase "$phase" --label "$label" -- "$BASH" "$entry" "$@" || return 0
+  fi
 }

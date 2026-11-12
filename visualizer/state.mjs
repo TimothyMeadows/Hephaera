@@ -22,6 +22,28 @@ export function replay(events, count = events.length) {
   return state;
 }
 
+export function activityText(activity) {
+  const context = activity.taskContext?.taskId === activity.task ? activity.taskContext : undefined;
+  return { title: context?.title || activity.label, summary: context?.summary, operation: activity.operation || activity.label, context };
+}
+
+// Status describes an observed activity. A successful checkpoint/command never
+// establishes task completion; only an explicit task report can describe that.
+export function currentWork(state, limit = 3) {
+  const groups = new Map(), active = new Set(['running','waiting','blocked']);
+  for (const activity of state.activities.values()) {
+    if (!activity.task) continue;
+    if (!groups.has(activity.task)) groups.set(activity.task, []);
+    groups.get(activity.task).push(activity);
+  }
+  return [...groups.entries()].map(([task, activities]) => {
+    activities.sort((a,b) => b.sequence - a.sequence);
+    const latest = activities[0], current = activities.find(a => a.category === 'task') || activities.find(a => active.has(a.status)) || latest;
+    const snapshot = activities.find(a => activityText(a).context), text = activityText(snapshot || latest);
+    return { task, latest, current, title: text.context?.title || task, summary: text.summary, recordedContext: !!text.context };
+  }).sort((a,b) => Number(active.has(b.current.status)) - Number(active.has(a.current.status)) || b.latest.sequence - a.latest.sequence).slice(0, limit);
+}
+
 // A mode belongs to an explicit report or its recorded parent, never to an
 // inferred project-wide current workflow. Memoization bounds long ancestry.
 export function modeGroups(state, limit = 25) {

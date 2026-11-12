@@ -40,6 +40,27 @@ On Git Bash/MSYS, the bridge keeps path arguments and environment values intact 
 
 ## Conversational reports and coverage
 
+### Task names, purpose and operation details
+
+The current/recent-work panel shows actual task titles, concise purposes and the latest recorded operation. Task-linked canvas cards, timeline rows, accessible list entries and selected details show the same information. An explicit task report can say the task completed; a successful checkpoint or command describes that operation's result. Running task reports remain running when a checkpoint succeeds.
+
+![Synthetic task overview with running and completed work](images/session-visualizer/task-context.png)
+
+[Task operation details](images/session-visualizer/task-details.png). These screenshots use synthetic records and contain no private project conversation.
+
+Identify a task explicitly when reporting or wrapping its work:
+
+```bash
+bash .hephaera/commands/session-visualizer.sh run --session UUID --task movement-controls --operation "Verify controller reconnection" --label "Focused verification" --phase verification -- node --test tests/movement.test.mjs
+bash .hephaera/commands/session-visualizer.sh emit --session UUID --task movement-controls --category task --label "Movement controls ready" --action finished --status succeeded
+```
+
+Known shared task boundaries carry their documented task identifier automatically: task creation/issue tracking, checkpoint recording/verification, explicit task import, task/PR linkage and readiness calls that name a task. Issue URLs and unrelated arguments are not guessed into task identities. Child and nested observations inherit an explicitly scoped task only within the same session; there is no project-wide current task. Other host work still needs an explicit report or wrapper.
+
+The recorder reads only the explicitly identified `.hephaera/.cache/tasks/TASK_ID/TASK.md`, using bounded, stable UTF-8 file reads that reject links. It extracts the first title and the first concise paragraph in a Goal, Objective, Objectives, Summary or Request section. Titles are at most160 characters, purposes320; files above128KiB are unavailable for enrichment. Markdown decoration, code fences, comments and unrelated sections are excluded from the captured description. Recognized credential patterns are omitted; authors must keep titles and purpose text safe to display. No full task body, raw arguments/output, transcript or reasoning is recorded or served.
+
+Version2 activity events contain the title/purpose snapshot, task identifier, project-relative reference and source hash; version1 events remain supported. Replay uses those immutable snapshots without reopening a task file. Missing, unsafe or unavailable context leaves base activity reporting and command outcomes intact. Old events that never recorded a task identity or description are not retroactively attributed or rewritten. Updating the baseline requires restarting its viewer with the retained session UUID before consuming new event fields.
+
 Shared task/delivery, subagent, test, media and packaging entrypoints emit command observations when an explicit session ID is supplied. The common Bubo host transport observes native execution without changing native DTOs, approval ledgers, ownership hooks or inference timing claims. Admission blocks, process failures, requested cancellation and unknown launch ownership retain distinct metadata outcomes; available exit codes come from the retired child. Other shell work can use `run`. No observer starts the viewer implicitly.
 
 The agent reports significant conversational phases and host tools that the shared commands cannot observe:
