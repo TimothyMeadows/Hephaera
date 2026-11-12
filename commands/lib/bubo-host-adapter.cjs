@@ -227,6 +227,18 @@ async function invokeOwned(workflow, operation, options) {
   return execute(workflow, operation, options, prepared, info);
 }
 async function execute(workflow, operation, options, prepared, info, emit = true, lifecycle) {
+  let observer;
+  if (process.env.HEPHAERA_SESSION_ID) { try { observer = require('./session-events.cjs'); } catch { /* Optional observation cannot block dispatch. */ } }
+  if (!observer) return executeCore(workflow, operation, options, prepared, info, emit, lifecycle);
+  // Metadata describes registered operations, never arbitrary dispatch argv
+  // (engineering fixtures can use an executable path as the workflow value).
+  const observedWorkflow = ['proof-to-model', 'floor-plan-to-model', 'schematic-to-model', 'model-to-animation', 'model-to-action', 'media', 'vfx', 'blender-inspection'].includes(workflow) ? workflow : 'execution';
+  const observedOperation = ['doctor', 'inspect', 'setup', 'generate', 'validate', 'preview', 'build', 'export', 'review', 'record', 'status', 'reconstruct', 'finish', 'rig', 'animate', 'motion', 'build-parts', 'assemble', 'prove-motion', 'inspect-effects', 'prepare-effects', 'compile-effects'].includes(operation) ? operation : 'execute';
+  return observer.observe(prepared.root,
+    { phase: ['review', 'validate', 'doctor', 'inspect'].includes(observedOperation) ? 'verification' : 'work', category: 'command', label: 'Native ' + observedWorkflow + ' ' + observedOperation, operation: observedOperation },
+    () => executeCore(workflow, operation, options, prepared, info, emit, lifecycle));
+}
+async function executeCore(workflow, operation, options, prepared, info, emit = true, lifecycle) {
   // Every compiled caller (including media/VFX preparation) shares this final
   // launch boundary. Reject malformed delays before creating state or a child;
   // Node otherwise coerces invalid timer delays into a one-millisecond timer.

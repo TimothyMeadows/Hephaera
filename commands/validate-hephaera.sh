@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
+if [[ -n "${HEPHAERA_SESSION_ID:-}" && "${HEPHAERA_VISUALIZER_WRAPPED:-}" != '1' ]]; then
+  if source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/lib/session-observer.sh" 2>/dev/null; then
+    hephaera_visualizer_entrypoint verification "Hephaera validation" "${BASH_SOURCE[0]}" "$@"
+  fi
+fi
 
 exclude_gauntlet=0
 while [[ $# -gt 0 ]]; do
@@ -13,6 +18,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+node --test ./tests/test-session-visualizer.cjs
 ./tests/test-hephaera-layout.sh
 bash ./tests/test-state-transition.sh
 node ./tests/test-state-transition.cjs

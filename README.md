@@ -611,6 +611,8 @@ Roles, skills, and commands deepen control, but baseline Hephaera behavior works
 
 ## Session Startup and Context Resolution
 
+Hephaera also starts an optional local [session visualizer](docs/SESSION_VISUALIZER.md) after system-memory loading. Its charcoal-and-gold workflow canvas shows recorded commands, agent-reported phases, parallel activity, verification and review, with local history and replay. It distinguishes observed work from tracking gaps. Existing Node24/OpenSSL/Chromium prerequisites are required; viewer failure never blocks the work. Installation does not launch it, and persistent settings can disable it.
+
 At session start, Hephaera follows a memory-first sequence:
 
 1. Resolve the actual project root and mounted baseline with `commands/resolve-hephaera-paths.sh`.

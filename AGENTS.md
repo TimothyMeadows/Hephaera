@@ -32,6 +32,7 @@ On Windows without a usable Bash runtime, run the PowerShell bootstrap described
 1. Resolve the project root and repository-local `.hephaera/.cache` paths with `./commands/resolve-hephaera-paths.sh`.
 2. Run `./commands/create-host-ai-scaffold.sh` automatically when required files are missing. The command is idempotent, creates `.hephaera/.cache/`, and preserves project content outside the managed root `AGENTS.md` bootstrap block. It does not discover, import, or support previous install locations.
 3. Load all of `SYSTEM_MEMORY.md`. It has precedence over project memory and rules, but never over actual system, developer, or current user instructions.
+   Then, in an execution-capable session, the root agent runs `./commands/session-visualizer.sh start --host codex` (use `claude`, `cursor`, or `other` as appropriate). Retain its returned session UUID for the whole conversation, including compaction; on subsequent loads pass `--session UUID`. Subagents inherit that UUID and never run `start`. If the viewer is disabled or unavailable, report its status once and continue. Do not launch it from scaffold/installation or while operating in a read-only planning mode.
 4. Run `./commands/brainstorm-mode.sh status` when the command is available. If `BRAINSTORM.md` is active, load all of it and restore Brainstorm mode before planning, task tracking, Goal, or Gauntlet selection; reconstitute its two researcher subagents before processing ideas.
 5. Review project `RULES.md`, `ENGINE.md`, `ARCHITECTURE.md`, `STYLE.md`, active task tracking, active goal or Gauntlet state, and open issues when present. Read `DEBUG.md` only for debugging work.
 6. Run `./commands/query-project-context.sh --list-tags`, infer relevant tags from the request and active task, then query those tags with the default ranked limit before raw file searches.
@@ -41,6 +42,18 @@ On Windows without a usable Bash runtime, run the PowerShell bootstrap described
 Read `../MEDIA.md` only when the current task configures, generates, validates, or promotes image or audio media. Do not load it for unrelated work.
 
 You should send a message to the user that you are a Hephaera session and ready for usage.
+
+### Session visualization
+
+The optional session visualizer observes activity; it grants no execution, production, review, or publication authority. Read `./docs/SESSION_VISUALIZER.md` for commands, local HTTPS prerequisites, coverage and recovery.
+
+- Pass the retained `HEPHAERA_SESSION_ID` explicitly in each shell execution environment, or use `./commands/session-visualizer.sh run --session UUID --label "Short safe label" -- EXECUTABLE ...`. The wrapper supplies the session and parent activity to children. Never write a global current-session pointer or infer session ownership from changed files.
+- Emit concise `agent-reported` metadata before/after significant conversational phases and host-tool work: `./commands/session-visualizer.sh emit --session UUID --phase planning --category phase --label "Plan movement controls" --action started`. Retain the returned activity UUID and use `--activity UUID --action finished --status succeeded` for its actual result. Use explicit waiting, blocked, failed, cancelled or unknown statuses when appropriate; do not invent success.
+- Report role/skill activation and delegation through the matching categories; include `--owner`, `--role`, `--skill`, `--task`, `--mode` and `--parent` when known. Resolve role/skill compatibility normally before activation. Mode labels describe existing state and never activate a mode.
+- Report known Brainstorm `branch`/`idea`, Goal `goal`/`task`, and Gauntlet `gauntlet`/`work-unit`/`round` activities with their actual parent activity UUIDs and selected `--mode`. Agent lanes, roles, skills, commands and artifacts can be children in that recorded hierarchy. Reports never create or select those workflows, and missing structure stays untracked.
+- Do not record prompts, transcripts, reasoning, raw argv/output, environment values, credentials or private media. Use short safe labels and project-relative evidence references only. Host actions without an observation or report remain untracked. Timing represents observed operation duration, never inferred model inference time.
+- Quiet periods, browser disconnects and completed assistant responses never end a session. Use `end --session UUID` only on explicit session closure. Stop the viewer before managed baseline updates. Never delete sessions without the user's explicit selection.
+- Observer failures must not change task outcomes. Existing state-transition fences, Bubo ownership/approval ledgers and all delivery gates remain authoritative.
 
 ## Versioned package installation
 

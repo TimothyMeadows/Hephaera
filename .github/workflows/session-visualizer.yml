@@ -1,0 +1,58 @@
+name: Session visualizer
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  metadata-and-service:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24.15.0'
+      - name: Event, replay, local HTTPS, concurrency and lifecycle tests
+        run: node --test tests/test-session-visualizer.cjs
+      - name: Native browser lifecycle, hierarchy and 10000-event rendering
+        run: node tests/session-visualizer-browser-performance.cjs
+      - name: Retain synthetic browser reports and screenshots
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: session-visualizer-${{ matrix.os }}
+          include-hidden-files: true
+          if-no-files-found: warn
+          path: |
+            .hephaera/.cache/tasks/session-visualizer/evidence/performance-*/report.json
+            .hephaera/.cache/tasks/session-visualizer/evidence/performance-*/*.png
+  complete-baseline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24.15.0'
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.x
+      - name: Restore existing pinned verification tools without package scripts
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund --prefix tests/fixtures/threejs-quarks --cache .local/ci-npm-cache
+          npm ci --ignore-scripts --no-audit --no-fund --prefix tests/fixtures/threejs-postprocessing --cache .local/ci-npm-cache
+          npm ci --ignore-scripts --no-audit --no-fund --prefix tests/fixtures/web3 --cache .local/ci-npm-cache
+      - name: Build the existing pinned Bubo runtime for CPU verification
+        run: bash commands/build-bubo-runtime.sh Release
+      - name: Run the complete canonical baseline validation
+        run: bash commands/validate-hephaera.sh

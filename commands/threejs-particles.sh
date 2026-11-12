@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
+if [[ -n "${HEPHAERA_SESSION_ID:-}" && "${HEPHAERA_VISUALIZER_WRAPPED:-}" != '1' ]]; then
+  if source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/lib/session-observer.sh" 2>/dev/null; then
+    hephaera_visualizer_entrypoint work "Particle workflow" "${BASH_SOURCE[0]}" "$@"
+  fi
+fi
 command_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 [[ $# -gt 0 ]] || set -- --help
 source "$command_dir/lib/memory-common.sh"

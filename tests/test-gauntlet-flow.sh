@@ -65,10 +65,16 @@ expect_line() {
 
 wait_for_path() {
   local path="$1"
-  local attempts=0
-  while [[ ! -e "$path" && $attempts -lt 200 ]]; do
-    sleep 0.01
-    attempts=$((attempts + 1))
+  # This is a fixture setup barrier, not a production-operation deadline. A
+  # cold Git Bash process tree can need longer than two seconds on Windows.
+  local default_wait=10 wait_seconds deadline
+  case "${OSTYPE:-}" in msys*|cygwin*) default_wait=60 ;; esac
+  wait_seconds="${HEPHAERA_TEST_GAUNTLET_WAIT_SECONDS:-$default_wait}"
+  [[ "$wait_seconds" =~ ^[0-9]+$ && "$wait_seconds" -gt 0 && "$wait_seconds" -le 120 ]] \
+    || fail 'HARNESS_SETUP_FAILURE: invalid Gauntlet fixture wait budget'
+  deadline=$((SECONDS + wait_seconds))
+  while [[ ! -e "$path" && $SECONDS -lt $deadline ]]; do
+    sleep 0.05
   done
   [[ -e "$path" ]] || fail "timed out waiting for concurrent fixture path: $path"
 }
