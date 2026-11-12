@@ -17,16 +17,16 @@ async function main() {
   }
   const root = store.rootPath(options.root); store.session(root, options.session);
   const running = service.runtime(root); assert.ok(await service.probe(running), 'Start the local viewer first.');
-  assert.match(running.url,/^http:\/\/127\.0\.0\.1:\d+$/);
+  assert.match(running.url,/^http:\/\/my\.hephaera\.com:\d+$/);
   const executable = service.browserExecutable(root); assert.ok(executable, 'An existing Chromium browser is required; nothing was installed.');
   const base = '.hephaera/.cache/tasks/session-visualizer/evidence/browser-' + crypto.randomUUID();
   store.privateCache(root);
   const profile = store.directory(root, store.CACHE + '/private/qa-browser/' + crypto.randomUUID()), output = store.directory(root, base);
   const bootstrap = store.safe(root, store.CACHE + '/private/qa-open-' + crypto.randomUUID() + '.html', 'file');
   const child = cp.spawn(executable, ['--headless=new','--remote-debugging-pipe','--user-data-dir=' + profile,
-    '--enable-automation','--no-first-run','--no-default-browser-check','--disable-background-networking','--disable-component-update','--disable-sync','--no-proxy-server','about:blank'], { windowsHide: true, stdio: ['ignore','ignore','pipe','pipe','pipe'] });
+    '--enable-automation','--no-first-run','--no-default-browser-check','--disable-background-networking','--disable-component-update','--disable-sync',...service.BROWSER_NETWORK_ARGS,'about:blank'], { windowsHide: true, stdio: ['ignore','ignore','pipe','pipe','pipe'] });
   let startupDiagnostics = ''; child.stderr.on('data', bytes => { startupDiagnostics = (startupDiagnostics + bytes).slice(-8192); });
-  let socket, pageSession, pipeError, sequence = 0, passed = false, listPagingChecked = false; const pending = new Map(), external = [], errors = [], fixtures = [];
+  let socket, pageSession, pipeError, sequence = 0, passed = false, listPagingChecked = false; const pending = new Map(), external = [], errors = [], fixtures = [], peers = new Set();
   try {
     const rejectPipe = () => { pipeError = new Error('Chromium private debugging pipe is unavailable.' + (!pageSession && startupDiagnostics ? '\n' + startupDiagnostics : '')); for (const task of pending.values()) { clearTimeout(task.timer); task.reject(pipeError); } pending.clear(); };
     child.once('error', rejectPipe); child.once('exit', rejectPipe); child.stdio[3].on('error', rejectPipe); child.stdio[4].on('error', rejectPipe);
@@ -34,6 +34,7 @@ async function main() {
     const receive = value => {
       if (value.id) { const task = pending.get(value.id); if (!task) return; clearTimeout(task.timer); pending.delete(value.id); value.error ? task.reject(new Error(value.error.message)) : task.resolve(value.result); }
       else if (value.method === 'Network.requestWillBeSent') { const url = value.params.request.url; if (/^https?:/.test(url) && new URL(url).origin !== running.url) external.push(new URL(url).origin); }
+      else if (value.method === 'Network.responseReceived') { const response=value.params.response;if(response.url.startsWith(running.url+'/')&&response.remoteIPAddress)peers.add(response.remoteIPAddress); }
       else if (value.method === 'Runtime.exceptionThrown') errors.push(value.params.exceptionDetails.text);
     };
     const decoder = new TextDecoder(); let wire = '';
@@ -67,8 +68,11 @@ async function main() {
     fs.writeFileSync(bootstrap,'<!doctype html><meta http-equiv="refresh" content="0;url=' + destination.replaceAll('&','&amp;') + '">',{flag:'wx',mode:0o600});
     await call('Page.navigate', { url: pathToFileURL(bootstrap).href });
     await waitFor(`document.getElementById('connection')?.textContent.includes('Live')`, 600);
-    assert.equal(await evaluate(`location.protocol==='http:'&&location.hostname==='127.0.0.1'`),true);
-    assert.equal(await evaluate('isSecureContext'),true);
+    assert.equal(await evaluate(`location.protocol==='http:'&&location.hostname==='my.hephaera.com'`),true);
+    assert.equal(await evaluate('isSecureContext'),false);
+    assert.deepEqual([...peers],['127.0.0.1']);
+    const launchArgs=(await call('Browser.getBrowserCommandLine')).arguments;
+    assert.ok(launchArgs.includes('--host-resolver-rules=MAP my.hephaera.com 127.0.0.1,MAP * ~NOTFOUND'));
     // An open SSE connection can still be catching up retained history. Start
     // interaction and fresh-update timing only after the initial backlog loads.
     const initialTotal = store.page(root, options.session, 0, 1).total;
@@ -151,8 +155,8 @@ async function main() {
     assert.equal(await evaluate(`document.documentElement.scrollWidth<=innerWidth`), true);
     const mobile = await call('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false }); fs.writeFileSync(path.join(output, 'mobile.png'), Buffer.from(mobile.data, 'base64'));
     assert.deepEqual(external, []); assert.deepEqual(errors, []);
-    fs.writeFileSync(path.join(output, 'report.json'), JSON.stringify({ status: 'passed', platform: process.platform, transport: 'native browser HTTP on 127.0.0.1',
-      checks: ['IPv4 loopback HTTP','no certificate or security exception flags','browser trustworthy loopback context','live session','private DevTools pipe','fragment capability removal','parallel branches','verification revision loop','browser refresh and resumed stream','recorded Goal parent hierarchy','mode expansion by keyboard',...(options.structures ? ['recorded Brainstorm and Gauntlet hierarchies'] : []),'stage expansion','keyboard activation and focus','keyboard focus during live updates','list view',...(listPagingChecked ? ['list pagination'] : []),'replay','live return','label escaping','reduced motion','mobile layout','no external page requests','no uncaught browser errors'],
+    fs.writeFileSync(path.join(output, 'report.json'), JSON.stringify({ status: 'passed', platform: process.platform, transport: 'native browser HTTP on my.hephaera.com bound to 127.0.0.1',
+      checks: ['IPv4 loopback HTTP','no certificate or security exception flags','ordinary HTTP hostname context','offline browser resolver mapping','actual browser peer127.0.0.1','live session','private DevTools pipe','fragment capability removal','parallel branches','verification revision loop','browser refresh and resumed stream','recorded Goal parent hierarchy','mode expansion by keyboard',...(options.structures ? ['recorded Brainstorm and Gauntlet hierarchies'] : []),'stage expansion','keyboard activation and focus','keyboard focus during live updates','list view',...(listPagingChecked ? ['list pagination'] : []),'replay','live return','label escaping','reduced motion','mobile layout','no external page requests','no uncaught browser errors'],
       metrics: { recordedEventsBeforeUpdate: focusFixture.sequence - 1, liveUpdateMs, largeHistoryCheck: focusFixture.sequence > 10000 },
       screenshots: ['desktop.png','mobile.png','structure.png'], limits: 'Existing Chromium on this host only; no Linux/macOS or other coding-host acceptance inferred.' }, null, 2));
     passed = true;
