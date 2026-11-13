@@ -208,6 +208,27 @@ async function main() {
     assert.equal(await evaluate(`document.querySelector('#details .detail-title').textContent`),'QA fixture: Deliver movement controls');
     await evaluate('scrollTo(0,0)');await delay(150);const goalDesktop=await call('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});fs.writeFileSync(path.join(output,'goal-progress.png'),Buffer.from(goalDesktop.data,'base64'));
     const contextualDesktop=await call('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});fs.writeFileSync(path.join(output,'desktop.png'),Buffer.from(contextualDesktop.data,'base64'));
+    await delay(300);
+    await evaluate(`(()=>{window.passiveMutations=0;window.passiveObserver=new MutationObserver(records=>window.passiveMutations+=records.length);window.passiveObserver.observe(document.getElementById('canvas'),{subtree:true,childList:true,attributes:true});})()`);
+    // Cover at least one real SSE heartbeat without replacing the canvas.
+    await delay(16200);const idleDomMutations=await evaluate('window.passiveMutations');assert.equal(idleDomMutations,0);
+    assert.equal(await evaluate(`[...document.querySelectorAll('#canvas .edge.active')].every(node=>getComputedStyle(node).animationName==='none'||getComputedStyle(node).animationIterationCount!=='infinite')`),true);
+    await evaluate(`Object.defineProperty(document,'hidden',{configurable:true,get:()=>true});document.dispatchEvent(new Event('visibilitychange'));window.passiveMutations=0`);
+    const hiddenEvent=store.emit(root,options.session,{label:'QA fixture: hidden view work',phase:'verification',category:'command',status:'succeeded',action:'finished',source:'command-observed'}).event;
+    await delay(600);assert.equal(await evaluate('window.passiveMutations'),0);assert.equal(await evaluate(`document.documentElement.classList.contains('viewer-hidden')`),true);
+    await evaluate(`delete document.hidden;document.dispatchEvent(new Event('visibilitychange'))`);
+    await waitFor(`document.querySelector('[data-activity="${hiddenEvent.activityId}"]')!==null`);
+    await evaluate(`window.passiveObserver.disconnect();window.passiveOriginalFetch=window.fetch;window.passiveOriginalRead=ReadableStreamDefaultReader.prototype.read;window.passiveAttempts=0;window.passiveReject=true;window.passiveFailRead=true;window.fetch=(...args)=>{if(String(args[0]).includes('/events?')){window.passiveAttempts++;if(window.passiveReject)return Promise.reject(new Error('Synthetic reconnect failure'));}return window.passiveOriginalFetch(...args)};ReadableStreamDefaultReader.prototype.read=function(...args){if(window.passiveFailRead){window.passiveFailRead=false;return Promise.reject(new Error('Synthetic stream interruption'));}return window.passiveOriginalRead.apply(this,args)}`);
+    const retryEvent=store.emit(root,options.session,{label:'QA fixture: reconnect cursor work',phase:'verification',category:'command',status:'succeeded',action:'finished',source:'command-observed'}).event;
+    await waitFor(`document.getElementById('connection').textContent==='Reconnecting'`);
+    const catchupEvent=store.emit(root,options.session,{label:'QA fixture: work during disconnect',phase:'verification',category:'command',status:'succeeded',action:'finished',source:'command-observed'}).event;
+    await delay(4400);assert.equal(await evaluate('window.passiveAttempts'),1,'A failed reconnect must back off beyond the old two-second retry loop');
+    await evaluate(`Object.defineProperty(document,'hidden',{configurable:true,get:()=>true});document.dispatchEvent(new Event('visibilitychange'))`);
+    await delay(2500);assert.equal(await evaluate('window.passiveAttempts'),1,'Hidden disconnected views must not keep retrying');
+    await evaluate(`window.passiveReject=false;ReadableStreamDefaultReader.prototype.read=window.passiveOriginalRead;delete document.hidden;document.dispatchEvent(new Event('visibilitychange'))`);
+    await waitFor(`document.getElementById('connection').textContent.includes('Live')&&document.querySelector('[data-activity="${catchupEvent.activityId}"]')!==null`);
+    assert.equal(await evaluate(`document.querySelectorAll('[data-activity="${catchupEvent.activityId}"]').length`),1);
+    await evaluate('window.fetch=window.passiveOriginalFetch');
     await call('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
     assert.equal(await evaluate(`matchMedia('(prefers-reduced-motion: reduce)').matches`), true);
     assert.equal(await evaluate(`(()=>{const n=document.querySelector('.edge.active');return !n||getComputedStyle(n).animationName==='none'})()`), true);
@@ -221,8 +242,8 @@ async function main() {
     const goalMobile=await call('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});fs.writeFileSync(path.join(output,'goal-progress-mobile.png'),Buffer.from(goalMobile.data,'base64'));
     assert.deepEqual(external, []); assert.deepEqual(errors, []);
     fs.writeFileSync(path.join(output, 'report.json'), JSON.stringify({ status: 'passed', platform: process.platform, transport: 'native browser HTTP on my.hephaera.com bound to 127.0.0.1',
-      checks: ['canonical Goal task counts','live queue snapshots','immutable Goal replay','unavailable Goal progress','multiple and empty Goals','Goal completion is explicit','Goal keyboard focus','responsive Goal progress','task title and purpose at a glance','checkpoint success preserves running task report','task context on canvas timeline list and details','task source rewrite cannot change recorded context','task context replay and keyboard focus','IPv4 loopback HTTP','no certificate or security exception flags','ordinary HTTP hostname context','QA-only resolver mapping','actual browser peer127.0.0.1','live session','private DevTools pipe','fragment capability removal','parallel branches','verification revision loop','browser refresh and resumed stream','recorded Goal parent hierarchy','mode expansion by keyboard',...(options.structures ? ['recorded Brainstorm and Gauntlet hierarchies'] : []),'stage expansion','keyboard activation and focus','keyboard focus during live updates','list view',...(listPagingChecked ? ['list pagination'] : []),'replay','live return','label escaping','reduced motion','mobile layout','no external page requests','no uncaught browser errors'],
-      metrics: { recordedEventsBeforeUpdate: focusFixture.sequence - 1, liveUpdateMs, goalLiveUpdateMs, largeHistoryCheck: focusFixture.sequence > 10000 },
+      checks: ['idle heartbeat causes no canvas redraw','hidden data catches up without rendering','finite flow animation','reconnect backs off','hidden reconnect pauses','cursor recovery without duplicates','canonical Goal task counts','live queue snapshots','immutable Goal replay','unavailable Goal progress','multiple and empty Goals','Goal completion is explicit','Goal keyboard focus','responsive Goal progress','task title and purpose at a glance','checkpoint success preserves running task report','task context on canvas timeline list and details','task source rewrite cannot change recorded context','task context replay and keyboard focus','IPv4 loopback HTTP','no certificate or security exception flags','ordinary HTTP hostname context','QA-only resolver mapping','actual browser peer127.0.0.1','live session','private DevTools pipe','fragment capability removal','parallel branches','verification revision loop','browser refresh and resumed stream','recorded Goal parent hierarchy','mode expansion by keyboard',...(options.structures ? ['recorded Brainstorm and Gauntlet hierarchies'] : []),'stage expansion','keyboard activation and focus','keyboard focus during live updates','list view',...(listPagingChecked ? ['list pagination'] : []),'replay','live return','label escaping','reduced motion','mobile layout','no external page requests','no uncaught browser errors'],
+      metrics: { recordedEventsBeforeUpdate: focusFixture.sequence - 1, liveUpdateMs, goalLiveUpdateMs, idleDomMutations, largeHistoryCheck: focusFixture.sequence > 10000 },
       screenshots: ['desktop.png','mobile.png','structure.png','task-details.png','goal-progress.png','goal-progress-mobile.png'], limits: 'Existing Chromium on this host only; no Linux/macOS or other coding-host acceptance inferred.' }, null, 2));
     passed = true;
     console.log(JSON.stringify({ status: 'passed', transport: 'native-browser-http-loopback', evidence: base, screenshots: [base + '/desktop.png', base + '/mobile.png'] }));
@@ -234,4 +255,4 @@ async function main() {
     if (fs.existsSync(bootstrap)) fs.unlinkSync(bootstrap);
   }
 }
-main().catch(error => { console.error('Visualizer browser verification failed: ' + error.message); process.exitCode = 1; });
+main().catch(error => { console.error('Visualizer browser verification failed: ' + (error.stack || error.message)); process.exitCode = 1; });

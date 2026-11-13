@@ -8,6 +8,14 @@ Synthetic benchmark session, captured from native Chromium on Windows:
 
 [Mobile layout](images/session-visualizer/mobile.png) · [Recorded mode structure](images/session-visualizer/structure.png). These screenshots contain synthetic test metadata, not a private conversation recording.
 
+## Passive operation and cost
+
+After the one-time startup, monitoring needs no recurring agent/model calls. Existing agent sessions must reload the updated instructions once to stop their earlier mandatory reporting behavior. Agents must not emit progress, wrap every command, poll status or restart the viewer merely to keep it current. Automatic command/native hooks and explicitly linked Goal queue observations supply available metadata. Host actions without automatic context/hooks stay untracked; the viewer cannot promise complete host coverage without an integration. run/emit/status remain optional operator and integration tools, not recurring agent duties.
+
+File notifications trigger validated metadata reads, with a five-second stat-based recovery check for unsupported/missed notifications. Idle viewers do not reread event pages or reparse unchanged Goal files. Heartbeats do not rebuild the UI. Hidden tabs defer rendering, pause motion/playback and reconnect retries, then catch up when shown; active render bursts are coalesced. Disconnections back off to30seconds while visible. Close old disconnected viewer tabs after an update: already-loaded older code cannot be replaced without reloading or closing that tab. Flow animation is finite and never substitutes for status text. Automatic records never wait on busy history locks, and failures are quiet unless HEPHAERA_VISUALIZER_DIAGNOSTICS=1 is explicitly enabled. Under contention, some observations can be untracked while real commands continue unchanged. Explicit operator writes retain their bounded retry behavior.
+
+Instrumentation has a small remaining runtime cost; this is not a zero-CPU or zero-latency claim. It makes no model/provider calls.
+
 ## Startup and session identity
 
 The root agent starts the viewer after resolving paths and reading system memory. Installation and scaffold commands do not start it. Read-only planning does not launch processes or create session state.
@@ -22,15 +30,15 @@ Use `claude`, `cursor` or `other` for other hosts. The result reports a session 
 
 `start` is a bounded launcher, not a foreground web-server command. It starts the worker detached with no inherited terminal streams, returns `execution: "background"` and its PID, and tells the agent to continue its task immediately. Do not launch the internal `session-visualizer-server.cjs` module directly, wait for the service to exit, or poll its terminal throughout the task. Direct foreground worker invocation is rejected. The normal launcher survives its caller exiting; explicit `stop` still controls the owned service. Cancellation that explicitly kills the service itself remains outside this guarantee.
 
-Set `HEPHAERA_SESSION_ID` explicitly in each shell execution environment. It is a correlation ID, not permission or a global project current-session setting. The command wrapper supplies it and its parent activity to children:
+Host/launcher integrations can supply the explicit HEPHAERA_SESSION_ID correlation ID. It grants no permission and is never a project-wide current-session setting. The optional operator wrapper propagates identity to children; routine agents need not use it:
 
 ```bash
 bash .hephaera/commands/session-visualizer.sh run --session UUID --label "Focused tests" --phase verification -- node --test tests/movement.test.mjs
 ```
 
-Tool calls often start fresh shells. Starting the visualizer or exporting a variable in one tool call does not supply the identity to the next call. Use `run --session UUID -- ...` for subsequent shell work, including after reload/compaction, or set the identity in the same invocation as each shared command. Keep the UUID in the task's continuation notes and supply it to delegated work. Host-tool actions outside those command boundaries still need concise `emit` reports.
+Tool calls often start fresh shells. Starting the viewer does not configure later host calls automatically. A host/launcher can propagate the explicit session identity to automatic hooks; agents must not compensate with extra reporting calls or decorate every shell command just for visualization. Unsupported host actions remain untracked.
 
-If the canvas stops changing, inspect `status --session UUID` once. `status` reports service execution/PID separately from `activity.total`, `activity.lastRecordedSequence` and `activity.lastRecordedAt`. A healthy server with an unchanged last recorded activity is waiting for observations; it does not establish that the agent is idle or finished. Continue the real task with explicit session context rather than repeatedly restarting or waiting on the server.
+When the user requests viewer troubleshooting, an operator can inspect status --session UUID once. `status` reports service execution/PID separately from `activity.total`, `activity.lastRecordedSequence` and `activity.lastRecordedAt`. A healthy server with an unchanged last recorded activity is waiting for observations; it does not establish that the agent is idle or finished. Continue the real task without monitoring calls.
 
 The wrapper preserves child arguments, standard streams and exit status. It forwards SIGINT/SIGTERM and records observed cancellation; native Windows console/process signal behavior still depends on the host. Native execution keeps Bubo's existing cancellation ownership.
 
@@ -44,7 +52,7 @@ On Git Bash/MSYS, the bridge keeps path arguments and environment values intact 
 
 Active Goals have a gold progress bar showing completed tasks, percentage, remaining tasks and total tasks. The total comes from the explicitly linked Goal's canonical Task Queue, including tasks that have not started. A successful checkpoint or command does not advance it. Zero queued tasks stays explicitly empty;100% does not finish the Goal report automatically. Multiple active Goals have separate bars, and missing/unlinked/ambiguous queues show progress unavailable without an invented denominator.
 
-When Goal mode is actually active, report its real identity:
+Optional host integrations or operator diagnostics can link a genuinely active Goal; agents do not issue these extra calls solely for monitoring:
 
 ```bash
 bash .hephaera/commands/session-visualizer.sh emit --session UUID --category goal --mode goal --goal movement-goal --label "Deliver movement controls" --action started
@@ -56,7 +64,7 @@ This links only `.hephaera/.cache/goals/movement-goal/GOAL.md`. Existing Goal re
 
 The optional recorder reads at most128KiB and counts at most2000 top-level numbered/bulleted task checkboxes in exactly one `## Task Queue` section. Nested substeps, other sections, comments and fenced examples do not count. Duplicate tasks, malformed checkbox rows and scaffold placeholders make counts unavailable. Only counts, canonical reference and source hash are recorded as version3 events; task names, full Goal prose and other source contents are not served. Versions1/2 remain readable, including version2 task context.
 
-While a live session stream is caught up, the server checks only explicitly linked active Goal queues, at most every500ms. It records changed counts or availability as command-observed **queue snapshots**, without attributing those edits to the session, changing Goal/task state, or certifying task QA. Snapshots use a stable child activity across refresh, multiple viewers and server restart. Monitoring is bounded to16 linked Goals per session and32 recently viewed sessions; older/unviewed sessions retain their last recorded snapshots. Closed browsers do not record every intermediate queue state. Reopening records the then-current queue, and replay always uses the original recorded counts without reading today's Goal file.
+While a live session stream is caught up, filesystem notifications and a five-second recovery check cover only explicitly linked active Goal queues. Unchanged file stamps skip parsing. It records changed counts or availability as command-observed **queue snapshots**, without attributing those edits to the session, changing Goal/task state, or certifying task QA. Snapshots use a stable child activity across refresh, multiple viewers and server restart. Monitoring is bounded to16 linked Goals per session and32 recently viewed sessions; older/unviewed sessions retain their last recorded snapshots. Closed browsers do not record every intermediate queue state. Reopening records the then-current queue, and replay always uses the original recorded counts without reading today's Goal file.
 
 The native progress element has a text equivalent and an accessible value; Goal titles support keyboard selection. Static progress bars respect reduced motion. Normal task sessions without an active Goal have no Goal progress panel.
 
@@ -72,14 +80,14 @@ The current/recent-work panel shows actual task titles, concise purposes and the
 
 [Task operation details](images/session-visualizer/task-details.png). These screenshots use synthetic records and contain no private project conversation.
 
-Identify a task explicitly when reporting or wrapping its work:
+Optional integrations and explicit operator diagnostics can identify a task when reporting or wrapping work:
 
 ```bash
 bash .hephaera/commands/session-visualizer.sh run --session UUID --task movement-controls --operation "Verify controller reconnection" --label "Focused verification" --phase verification -- node --test tests/movement.test.mjs
 bash .hephaera/commands/session-visualizer.sh emit --session UUID --task movement-controls --category task --label "Movement controls ready" --action finished --status succeeded
 ```
 
-Known shared task boundaries carry their documented task identifier automatically: task creation/issue tracking, checkpoint recording/verification, explicit task import, task/PR linkage and readiness calls that name a task. Issue URLs and unrelated arguments are not guessed into task identities. Child and nested observations inherit an explicitly scoped task only within the same session; there is no project-wide current task. Other host work still needs an explicit report or wrapper.
+Known shared task boundaries carry their documented task identifier automatically: task creation/issue tracking, checkpoint recording/verification, explicit task import, task/PR linkage and readiness calls that name a task. Issue URLs and unrelated arguments are not guessed into task identities. Child and nested observations inherit an explicitly scoped task only within the same session; there is no project-wide current task. Other host work without automatic hooks stays untracked; no extra agent reports are required.
 
 The recorder reads only the explicitly identified `.hephaera/.cache/tasks/TASK_ID/TASK.md`, using bounded, stable UTF-8 file reads that reject links. It extracts the first title and the first concise paragraph in a Goal, Objective, Objectives, Summary or Request section. Titles are at most160 characters, purposes320; files above128KiB are unavailable for enrichment. Markdown decoration, code fences, comments and unrelated sections are excluded from the captured description. Recognized credential patterns are omitted; authors must keep titles and purpose text safe to display. No full task body, raw arguments/output, transcript or reasoning is recorded or served.
 
@@ -87,7 +95,7 @@ Version2 activity events contain the title/purpose snapshot, task identifier, pr
 
 Shared task/delivery, subagent, test, media and packaging entrypoints emit command observations when an explicit session ID is supplied. The common Bubo host transport observes native execution without changing native DTOs, approval ledgers, ownership hooks or inference timing claims. Admission blocks, process failures, requested cancellation and unknown launch ownership retain distinct metadata outcomes; available exit codes come from the retired child. Other shell work can use `run`. No observer starts the viewer implicitly.
 
-The agent reports significant conversational phases and host tools that the shared commands cannot observe:
+Optional host adapters or explicit operator diagnostics can report metadata outside automatic boundaries; routine agents do not make these calls:
 
 ```bash
 bash .hephaera/commands/session-visualizer.sh emit --session UUID --phase planning --category phase --label "Plan movement controls" --action started --owner "Lead agent" --mode task

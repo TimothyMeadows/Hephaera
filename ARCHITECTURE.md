@@ -24,6 +24,8 @@ The developer companion under `visualizer/` and `commands/lib/session-*.cjs` fol
 
 Goal visualization uses the optional `commands/lib/session-goal-progress.cjs` boundary to count only the explicitly linked canonical Task Queue and record bounded version3 snapshots. The server restores bindings from that session's retained events and observes active linked queues while its live stream is caught up. Counts describe declared queue state, without attributing edits, certifying task QA or modifying Goal execution. The pure browser reducer owns live/replay progress; older event versions remain valid and unknown queues stay explicit.
 
+`session-change-notifier.cjs` shares debounced filesystem hints with a five-second recovery check. Consumers revalidate changed metadata and reuse stamps for unchanged pages/Goal queues; heartbeats do not cause browser redraws, and hidden rendering/retries pause. Automatic recording never waits on contended history locks. Automatic hooks consume explicit host context where available; the agent is not required to report, poll or wrap calls just for visualization. Unsupported actions stay untracked.
+
 ## Native asset orchestration
 
 The standalone .NET 10 execution runtime is the exact Git submodule at `runtime/bubo`, pinned by its parent gitlink and `runtime/bubo.lock.json`. Read Bubo's own `ARCHITECTURE.md` for its inward domain/application/infrastructure layering. Bubo owns execution algorithms, fixed audited scripts, resources and native process ownership. Native subprocesses are bounded, cancellable and logged; cooperative file guards are not an OS sandbox.

@@ -124,8 +124,8 @@ function session(root, sessionId) {
   label(value.label);
   return value;
 }
-function withLock(root, relative, action) {
-  const full = safe(root, relative, 'dir'), deadline = performance.now() + 3000;
+function withLock(root, relative, action, waitMs = 3000) {
+  const full = safe(root, relative, 'dir'), deadline = performance.now() + waitMs;
   while (true) {
     try { fs.mkdirSync(full, { mode: 0o700 }); break; }
     catch (e) {
@@ -196,8 +196,9 @@ function budget(root, base) {
   if (Object.keys(value).some(k => !['count','bytes','capped'].includes(k)) || !Number.isSafeInteger(value.count) || value.count < 0 || value.count > MAX_EVENTS || !Number.isSafeInteger(value.bytes) || value.bytes < 0 || value.bytes > MAX_BYTES || typeof value.capped !== 'boolean') fail('Invalid recording budget.');
   return value;
 }
-function emit(root, sessionId, fields) {
+function emit(root, sessionId, fields, { waitMs = 3000 } = {}) {
   root = rootPath(root); session(root, sessionId);
+  if (!Number.isInteger(waitMs) || waitMs < 0 || waitMs > 3000) fail('Invalid observation wait bound.');
   if (!fields || Object.keys(fields).some(key => ['schemaVersion','id','sessionId','sequence','producerId','producerSequence','at'].includes(key))) fail('Event envelope identities are assigned by the recorder.');
   if (!settings(root).enabled) return { recorded: false, reason: 'disabled' };
   const base = CACHE + '/sessions/' + sessionId;
@@ -238,7 +239,7 @@ function emit(root, sessionId, fields) {
     write(root, base + '/events/' + String(event.sequence).padStart(6, '0') + '.json', event);
     write(root, base + '/budget.json', { count: event.sequence, bytes: state.bytes + bytes, capped: false }, true);
     return { recorded: true, event };
-  });
+  }, waitMs);
 }
 function page(root, sessionId, after = 0, limit = 200) {
   session(root, sessionId);
@@ -290,7 +291,7 @@ function remove(root, sessionId) {
   for (const file of files) fs.unlinkSync(file);
   fs.rmdirSync(safe(root, base + '/events', 'dir')); fs.rmdirSync(folder);
 }
-function warn() { if (!warned) { warned = true; process.stderr.write('Hephaera visualizer: activity recording unavailable; command behavior is unchanged.\n'); } }
+function warn() { if (!warned && process.env.HEPHAERA_VISUALIZER_DIAGNOSTICS === '1') { warned = true; process.stderr.write('Hephaera visualizer: activity recording unavailable; command behavior is unchanged.\n'); } }
 function begin(root, fields, explicitSession) {
   const active = context.getStore(), sessionId = explicitSession || active?.sessionId || process.env.HEPHAERA_SESSION_ID;
   if (!sessionId) return { finish() {}, activityId: null };
@@ -299,7 +300,7 @@ function begin(root, fields, explicitSession) {
   const inheritedTask = active?.sessionId === sessionId ? active.taskId : process.env.HEPHAERA_SESSION_ID === sessionId ? process.env.HEPHAERA_TASK_ID : undefined;
   const task = fields.task || (/^[A-Za-z0-9][A-Za-z0-9_-]{0,119}$/.test(inheritedTask || '') ? inheritedTask : undefined);
   const common = { ...fields, ...(task ? {task} : {}), activityId, parentId, source: 'command-observed' };
-  const record = data => { try { const result = emit(root, sessionId, { ...common, ...data }); if (!result.recorded && result.reason !== 'disabled') warn(); } catch { warn(); } };
+  const record = data => { try { const result = emit(root, sessionId, { ...common, ...data }, { waitMs: 0 }); if (!result.recorded && result.reason !== 'disabled') warn(); } catch { warn(); } };
   record({ action: 'started', status: 'running' });
   let finished = false;
   return { activityId, sessionId, taskId: task, finish(status = 'succeeded', exitCode) { if (finished) return; finished = true; record({ action: 'finished', status, durationMs: performance.now() - started, ...(exitCode !== undefined ? { exitCode } : {}) }); } };
