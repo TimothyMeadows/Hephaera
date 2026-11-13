@@ -750,8 +750,10 @@ test('10,000-event history is paged and a fresh update does not replay old files
   assert.equal(result.body.events.length, 1); assert.equal(result.body.events[0].sequence, 10001); assert.ok(performance.now() - startAt < 1000);
   // Consume enough real SSE to exceed the response high-water mark. Accepted
   // frames must drain, not be destroyed before a large history can catch up.
-  const sequences = [];
-  await new Promise((resolve, reject) => {
+  const sequences = [], page = store.page; let readEvents = 0;
+  store.page = (...args) => { const snapshot = page(...args); readEvents += snapshot.events.length; return snapshot; };
+  const replayAt = performance.now();
+  try { await new Promise((resolve, reject) => {
     const request = http.get(running.connectUrl + '/api/sessions/' + id + '/events', { agent: false, headers: { Host: new URL(running.url).host, Authorization: 'Bearer ' + running.token } }, response => {
       let buffer = '';
       response.on('data', chunk => { buffer += chunk; let index;
@@ -764,8 +766,10 @@ test('10,000-event history is paged and a fresh update does not replay old files
     });
     const deadline = setTimeout(() => request.destroy(new Error('Bulk SSE deadline')), 20000);
     request.on('close', () => clearTimeout(deadline)); request.on('error', reject);
-  });
+  }); } finally { store.page = page; }
   assert.equal(sequences.length,10001); assert.deepEqual(sequences,Array.from({length:10001},(_,i)=>i+1));
+  assert.equal(readEvents,10002,'Socket drains must reuse the pending page instead of rereading its unsent tail.');
+  t.diagnostic('Bulk replay: '+Math.round(performance.now()-replayAt)+'ms, '+readEvents+' validated event reads.');
 });
 test('live reduction and replay agree, ignore duplicate IDs and reject recording gaps', async t => {
   const { root, id } = prepare(t), reducer = await import('../visualizer/state.mjs');

@@ -154,7 +154,7 @@ async function startServer(options = {}) {
         goalMonitor?.restore(match[1], cursor);
         response.writeHead(200, { 'Content-Type': 'text/event-stream', Connection: 'keep-alive' });
         response.write(': connected\n\n'); clients.add(response);
-        let busy = false, blocked = false, slowDeadline, lastMeta = '', lastStamp;
+        let busy = false, blocked = false, slowDeadline, lastMeta = '', lastStamp, pendingPage, pendingIndex = 0;
         const sessionBase = store.CACHE + '/sessions/' + match[1];
         const revision = () => ['budget.json','session.json','ended.json'].map(name => notifier.stamp(sessionBase + '/' + name)).join('|');
         const send = (kind, data, sequence) => {
@@ -171,11 +171,20 @@ async function startServer(options = {}) {
         const tick = () => {
           if (busy || blocked || response.destroyed) return; busy = true;
           try {
-            const stamp = revision();
-            if (stamp === lastStamp) return;
-            lastStamp = stamp;
-            const snapshot = store.page(root, match[1], cursor, 200);
-            for (const event of snapshot.events) { goalMonitor?.observe(match[1], event); if (!send('activity', event, event.sequence)) return; cursor = event.sequence; if (blocked) return; }
+            if (!pendingPage) {
+              const stamp = revision();
+              if (stamp === lastStamp) return;
+              lastStamp = stamp;
+              pendingPage = store.page(root, match[1], cursor, 200); pendingIndex = 0;
+            }
+            // Retain at most one validated page across socket drains. Rereading
+            // its unsent tail on every drain magnifies disk/AV work for replay.
+            while (pendingIndex < pendingPage.events.length) {
+              const event = pendingPage.events[pendingIndex];
+              goalMonitor?.observe(match[1], event); if (!send('activity', event, event.sequence)) return;
+              cursor = event.sequence; pendingIndex++; if (blocked) return;
+            }
+            const snapshot = pendingPage; pendingPage = undefined;
             if (snapshot.ended) { stopGoal?.(); stopGoal = undefined; }
             else if (cursor === snapshot.total && !blocked) goalMonitor?.poll(match[1]);
             const { events: ignored, ...metadata } = snapshot;
