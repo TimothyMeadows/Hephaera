@@ -436,7 +436,7 @@ h3 {
   stroke:var(--gold);
   stroke-opacity:.8;
   stroke-dasharray:7 6;
-  animation:flow 1.2s linear infinite;
+  animation:flow 1.2s linear 2;
 }
 .stage-guide {
   stroke:#3d4b56;
@@ -833,3 +833,4 @@ td button {
 .goal-progress-card progress::-webkit-progress-value { background:var(--gold); border-radius:8px; }
 .goal-progress-card progress::-moz-progress-bar { background:var(--gold); border-radius:8px; }
 .goal-progress-remaining,.goal-progress-unavailable { margin:0 0 10px; font-size:14px; }
+.viewer-hidden *, .viewer-hidden *::before, .viewer-hidden *::after { animation-play-state:paused!important; }

@@ -5,6 +5,7 @@ const crypto = require('node:crypto');
 const http = require('node:http');
 const https = require('node:https');
 const store = require('./session-events.cjs');
+const changes = require('./session-change-notifier.cjs');
 const LOOPBACK = '127.0.0.1';
 const VIEWER_HOST = 'my.hephaera.com';
 // Controlled browser QA only; production uses the user's registered browser.
@@ -15,6 +16,7 @@ versionHash.update(fs.readFileSync(path.join(__dirname, 'session-visualizer.cjs'
 versionHash.update(fs.readFileSync(path.join(__dirname, 'private-visualizer-cache.ps1')));
 try { versionHash.update(fs.readFileSync(path.join(__dirname, 'session-task-context.cjs'))); } catch { versionHash.update('task-context-unavailable'); }
 try { versionHash.update(fs.readFileSync(path.join(__dirname, 'session-goal-progress.cjs'))); } catch { versionHash.update('goal-progress-unavailable'); }
+versionHash.update(fs.readFileSync(require.resolve('./session-change-notifier.cjs')));
 for (const name of ['session-default-browser.cjs','session-default-browser-windows.ps1','session-default-browser-macos.js']) {
   try { versionHash.update(fs.readFileSync(path.join(__dirname, name))); } catch { versionHash.update(name + '-unavailable'); }
 }
@@ -85,11 +87,12 @@ async function startServer(options = {}) {
   if (!Number.isInteger(port) || port !== 0 && (port < 1024 || port > 65535)) throw new Error('Invalid visualizer port.');
   if (typeof openBrowser !== 'boolean' || typeof background !== 'boolean') throw new Error('Invalid visualizer process options.');
   store.privateCache(root);
+  const notifier = changes.create(root, store);
   let goalMonitor;
-  try { goalMonitor = require('./session-goal-progress.cjs').createMonitor(root, store); } catch { /* Progress is optional. */ }
+  try { goalMonitor = require('./session-goal-progress.cjs').createMonitor(root, store, notifier); } catch { /* Progress is optional. */ }
   const lock = store.safe(root, store.CACHE + '/server-lock', 'dir');
   fs.mkdirSync(lock, { mode: 0o700 });
-  let held, server, timer, expiry, closing = false;
+  let held, server, expiry, closing = false;
   const clients = new Set(), launchFiles = new Map(), browserOpening = new AbortController();
   const token = crypto.randomBytes(32).toString('hex');
   const ownerFile = store.CACHE + '/server-lock/owner.json';
@@ -97,7 +100,8 @@ async function startServer(options = {}) {
   async function close() {
     if (closing) return; closing = true;
     browserOpening.abort();
-    clearInterval(timer); clearTimeout(expiry);
+    clearTimeout(expiry);
+    goalMonitor?.close(); notifier.close();
     for (const response of clients) response.destroy();
     for (const [relative, bytes] of launchFiles) try {
       const full = store.safe(root, relative, 'file');
@@ -150,12 +154,15 @@ async function startServer(options = {}) {
         goalMonitor?.restore(match[1], cursor);
         response.writeHead(200, { 'Content-Type': 'text/event-stream', Connection: 'keep-alive' });
         response.write(': connected\n\n'); clients.add(response);
-        let busy = false, blocked = false, slowDeadline, lastMeta = '', heartbeat = Date.now();
+        let busy = false, blocked = false, slowDeadline, lastMeta = '', lastStamp, pendingPage, pendingIndex = 0;
+        const sessionBase = store.CACHE + '/sessions/' + match[1];
+        const revision = () => ['budget.json','session.json','ended.json'].map(name => notifier.stamp(sessionBase + '/' + name)).join('|');
         const send = (kind, data, sequence) => {
           if (response.destroyed) return false;
           const accepted = response.write((sequence !== undefined ? 'id: ' + sequence + '\n' : '') + 'event: ' + kind + '\ndata: ' + JSON.stringify(data) + '\n\n');
           if (!accepted) {
             blocked = true;
+            lastStamp = undefined;
             slowDeadline = setTimeout(() => response.destroy(), 5000);
             response.once('drain', () => { clearTimeout(slowDeadline); blocked = false; tick(); });
           }
@@ -164,18 +171,33 @@ async function startServer(options = {}) {
         const tick = () => {
           if (busy || blocked || response.destroyed) return; busy = true;
           try {
-            const snapshot = store.page(root, match[1], cursor, 200);
-            for (const event of snapshot.events) { goalMonitor?.observe(match[1], event); if (!send('activity', event, event.sequence)) return; cursor = event.sequence; if (blocked) return; }
-            if (cursor === snapshot.total && !blocked) goalMonitor?.poll(match[1]);
+            if (!pendingPage) {
+              const stamp = revision();
+              if (stamp === lastStamp) return;
+              lastStamp = stamp;
+              pendingPage = store.page(root, match[1], cursor, 200); pendingIndex = 0;
+            }
+            // Retain at most one validated page across socket drains. Rereading
+            // its unsent tail on every drain magnifies disk/AV work for replay.
+            while (pendingIndex < pendingPage.events.length) {
+              const event = pendingPage.events[pendingIndex];
+              goalMonitor?.observe(match[1], event); if (!send('activity', event, event.sequence)) return;
+              cursor = event.sequence; pendingIndex++; if (blocked) return;
+            }
+            const snapshot = pendingPage; pendingPage = undefined;
+            if (snapshot.ended) { stopGoal?.(); stopGoal = undefined; }
+            else if (cursor === snapshot.total && !blocked) goalMonitor?.poll(match[1]);
             const { events: ignored, ...metadata } = snapshot;
             const meta = JSON.stringify(metadata);
             if (meta !== lastMeta) { send('metadata', metadata); lastMeta = meta; }
-            if (cursor < snapshot.total && !blocked) setImmediate(tick);
-            if (Date.now() - heartbeat > 15000) { response.write(': heartbeat\n\n'); heartbeat = Date.now(); }
+            if (cursor < snapshot.total && !blocked) { lastStamp = undefined; setImmediate(tick); }
           } catch { send('unavailable', { error: 'Recording is unavailable; retained events were not modified.' }); response.end(); }
           finally { busy = false; }
         };
-        const interval = setInterval(tick, 200); response.once('close', () => { clearInterval(interval); clearTimeout(slowDeadline); clients.delete(response); }); tick();
+        const unsubscribe = notifier.subscribe(sessionBase, tick);
+        let stopGoal = initial.ended ? undefined : goalMonitor?.listen(match[1]);
+        const heartbeat = setInterval(() => { if (!blocked && !response.destroyed) response.write(': heartbeat\n\n'); }, 15000); heartbeat.unref();
+        response.once('close', () => { unsubscribe(); stopGoal?.(); clearInterval(heartbeat); clearTimeout(slowDeadline); clients.delete(response); }); tick();
       } catch { finish(400, { error: 'Invalid or unavailable session metadata.' }); }
     });
     server.maxConnections = 64; server.requestTimeout = 15000; server.headersTimeout = 10000;
@@ -187,7 +209,7 @@ async function startServer(options = {}) {
     store.write(root, RUNTIME, info, fs.existsSync(store.safe(root, RUNTIME, 'file')));
     store.directory(root, store.CACHE + '/requests'); store.directory(root, store.CACHE + '/opened');
     let polling = false;
-    timer = setInterval(async () => {
+    const control = async () => {
       if (polling || closing) return; polling = true;
       try {
         const stopFile = store.safe(root, store.CACHE + '/stop.json', 'file');
@@ -216,8 +238,12 @@ async function startServer(options = {}) {
           fs.unlinkSync(store.safe(root, relative, 'file'));
         }
       } catch { /* Observation must not change project execution. */ }
-      finally { polling = false; }
-    }, 200);
+      finally { polling = false; if (!closing) checkControl(); }
+    };
+    const controlStamp = () => [notifier.stamp(store.CACHE + '/requests'), notifier.stamp(store.CACHE + '/stop.json')].join('|');
+    let previousControl;
+    const checkControl = () => { if (closing || polling) return; const stamp = controlStamp(); if (stamp !== previousControl) { previousControl = stamp; void control(); } };
+    notifier.subscribe(store.CACHE, checkControl); notifier.subscribe(store.CACHE + '/requests', checkControl); checkControl();
     expiry = setTimeout(close, 23 * 3600000);
     return { ...info, close };
   } catch (error) { await close(); throw error; }

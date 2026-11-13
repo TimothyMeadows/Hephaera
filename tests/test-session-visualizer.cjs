@@ -23,6 +23,59 @@ function fixture(t) {
 function prepare(t) { const root = fixture(t), session = store.createSession(root, { host: 'codex', title: 'Test session' }); return { root, id: session.id }; }
 function recorded(root, id, label = 'Test activity', fields = {}) { return store.emit(root, id, { label, ...fields }).event; }
 
+test('idle live viewers do not reread event pages or unchanged Goal queues', async t => {
+  const {root,id}=prepare(t),dir=store.directory(root,'.hephaera/.cache/goals/idle-goal');
+  fs.writeFileSync(path.join(dir,'GOAL.md'),'# Goal\n## Task Queue\n- [ ] First\n- [ ] Second\n');
+  recorded(root,id,'Idle Goal',{category:'goal',mode:'goal',goal:'idle-goal'});
+  const running=await startServer({root,openBrowser:false}),requests=[],page=store.page,goal=store.goalProgress;
+  let measuring=false,pages=0,goals=0;
+  store.page=(...args)=>{if(measuring)pages++;return page(...args);};store.goalProgress=(...args)=>{if(measuring)goals++;return goal(...args);};
+  try {
+    for(let i=0;i<4;i++)await new Promise((resolve,reject)=>{const req=http.get(running.connectUrl+'/api/sessions/'+id+'/events',{agent:false,headers:{Host:new URL(running.url).host,Authorization:'Bearer '+running.token}},res=>{res.once('data',resolve);res.on('data',()=>{});});requests.push(req);req.on('error',reject);});
+    await delay(250);measuring=true;await delay(5300);measuring=false;
+    assert.equal(pages,0);assert.equal(goals,0);assert.equal(page(root,id).total,1);
+    fs.writeFileSync(path.join(dir,'GOAL.md'),'# Goal\n## Task Queue\n- [x] First\n- [ ] Second\n');
+    for(let i=0;i<60&&!page(root,id).events.some(e=>e.goalProgress?.completed===1);i++)await delay(50);
+    assert.equal(page(root,id).events.at(-1).goalProgress.completed,1);
+  } finally {measuring=false;for(const req of requests)req.destroy();await running.close();store.page=page;store.goalProgress=goal;}
+});
+
+test('missed or unavailable file notifications recover without an agent call', async t => {
+  const {root,id}=prepare(t),dir=store.directory(root,'.hephaera/.cache/goals/recovery-goal'),file=path.join(dir,'GOAL.md'),watch=fs.watch;
+  fs.writeFileSync(file,'# Goal\n## Task Queue\n- [ ] First\n');recorded(root,id,'Recovery Goal',{category:'goal',mode:'goal',goal:'recovery-goal'});
+  fs.watch=()=>{throw Object.assign(Error('Synthetic unavailable watcher'),{code:'ENOSYS'});};
+  let running,request;
+  try {
+    running=await startServer({root,openBrowser:false});
+    const observed=new Promise((resolve,reject)=>{request=http.get(running.connectUrl+'/api/sessions/'+id+'/events',{agent:false,headers:{Host:new URL(running.url).host,Authorization:'Bearer '+running.token}},res=>{let text='';res.on('data',data=>{text+=data;if(text.includes('"completed":1'))resolve();});});request.on('error',reject);});
+    await delay(200);fs.writeFileSync(file,'# Goal\n## Task Queue\n- [x] First\n');
+    let timeout;try{await Promise.race([observed,new Promise((_,reject)=>{timeout=setTimeout(()=>reject(Error('Recovery deadline exceeded')),6500);})]);}finally{clearTimeout(timeout);}
+    assert.equal(store.page(root,id).events.at(-1).goalProgress.completed,1);
+  } finally {request?.destroy();await running?.close();fs.watch=watch;}
+});
+
+test('automatic recording never waits for a busy history lock or changes work outcomes', async t => {
+  const {root,id}=prepare(t),lock=store.safe(root,store.CACHE+'/sessions/'+id+'/writer-lock','dir'),previous=process.env.HEPHAERA_SESSION_ID;
+  fs.mkdirSync(lock);process.env.HEPHAERA_SESSION_ID=id;
+  try {
+    const started=performance.now();let ran=0;
+    const result=await store.observe(root,{label:'Busy recorder fixture'},async()=>{ran++;return 17;});
+    assert.equal(result,17);assert.equal(ran,1);assert.ok(performance.now()-started<1000,'Automatic telemetry must not enter its former multi-second lock waits');
+    assert.equal(store.page(root,id).total,0);
+  } finally {fs.rmdirSync(lock);if(previous===undefined)delete process.env.HEPHAERA_SESSION_ID;else process.env.HEPHAERA_SESSION_ID=previous;}
+});
+
+test('automatic shell observation uses one Node launch and preserves the original operation', t => {
+  const {root,id}=prepare(t),bin=path.join(root,'fake-bin'),log=path.join(root,'launches'),entry=path.join(root,'entry.sh');fs.mkdirSync(bin);
+  const bash=process.platform==='win32'?path.join(process.env.ProgramFiles,'Git/bin/bash.exe'):'bash';
+  const toBash=value=>process.platform==='win32'?value.replaceAll('\\','/').replace(/^([A-Za-z]):/,(_,d)=>'/'+d.toLowerCase()):value;
+  fs.writeFileSync(path.join(bin,'node'),'#!/usr/bin/env bash\nprintf "launch\\n" >> "$HEPHAERA_TEST_NODE_LOG"\nexec "$HEPHAERA_TEST_REAL_NODE" "$@"\n',{mode:0o755});
+  fs.writeFileSync(entry,'set -euo pipefail\nif [[ "${HEPHAERA_VISUALIZER_WRAPPED:-}" != 1 ]]; then export PATH="$HEPHAERA_TEST_NODE_BIN:$PATH"; fi\nsource "$HEPHAERA_TEST_OBSERVER"\nhephaera_visualizer_entrypoint work "One-process observation" "${BASH_SOURCE[0]}" "$@"\nprintf "original operation"\nexit 7\n');
+  const env={...process.env,HEPHAERA_SESSION_ID:id,HEPHAERA_PROJECT_ROOT:root,HEPHAERA_VISUALIZER_WRAPPED:'',HEPHAERA_TEST_NODE_BIN:toBash(bin),HEPHAERA_TEST_OBSERVER:toBash(path.join(REPO,'commands/lib/session-observer.sh')),HEPHAERA_TEST_NODE_LOG:toBash(log),HEPHAERA_TEST_REAL_NODE:toBash(process.execPath)};
+  const result=cp.spawnSync(bash,[entry],{cwd:REPO,env,encoding:'utf8',windowsHide:true});
+  assert.equal(result.status,7,result.stderr);assert.equal(result.stdout,'original operation');assert.equal(fs.readFileSync(log,'utf8'),'launch\n');assert.equal(store.page(root,id).total,2);
+});
+
 test('Goal progress counts only the explicit canonical Task Queue and replays immutable snapshots', async t => {
   const {root,id}=prepare(t),directory=store.directory(root,'.hephaera/.cache/goals/movement-goal'),file=path.join(directory,'GOAL.md');
   const markdown='# Private goal description\n\n## Outcome\n\nDo not publish private prose.\n\n## Task Queue\n1. [x] First task\n2. [ ] Second task\n  - [x] Nested substep\n<!--\n3. [x] Hidden item\n-->\n```md\n3. [x] Fenced item\n```\n3. [X] Third task\n\n## Final Checklist\n- [ ] Not a goal task\n';
@@ -600,7 +653,7 @@ test('native admission, process failure and requested cancellation keep distinct
 test('real clone and submodule mounts start the shipped UI without source builds or setup hooks', async t => {
   const base = fixture(t), source = path.join(base, 'source'); fs.mkdirSync(source);
   const hooks = path.join(base, 'empty-hooks'); fs.mkdirSync(hooks);
-  for (const relative of ['visualizer','commands/lib/session-events.cjs','commands/lib/session-visualizer.cjs','commands/lib/session-visualizer-server.cjs','commands/lib/session-observer.sh','commands/lib/private-visualizer-cache.ps1','commands/lib/state-transition.cjs','commands/lib/installation-maintenance.cjs','commands/lib/memory-common.sh','commands/lib/state-transition-common.sh','commands/session-visualizer.sh','commands/resolve-hephaera-paths.sh','logo.png','.gitignore']) {
+  for (const relative of ['visualizer','commands/lib/session-events.cjs','commands/lib/session-change-notifier.cjs','commands/lib/session-visualizer.cjs','commands/lib/session-visualizer-server.cjs','commands/lib/session-observer.sh','commands/lib/private-visualizer-cache.ps1','commands/lib/state-transition.cjs','commands/lib/installation-maintenance.cjs','commands/lib/memory-common.sh','commands/lib/state-transition-common.sh','commands/session-visualizer.sh','commands/resolve-hephaera-paths.sh','logo.png','.gitignore']) {
     const destination = path.join(source, relative); fs.mkdirSync(path.dirname(destination), { recursive: true }); fs.cpSync(path.join(REPO, relative), destination, { recursive: true });
   }
   const git = (cwd, ...args) => cp.execFileSync('git', ['-c','core.hooksPath=' + hooks,'-c','core.fsmonitor=false','-c','commit.gpgsign=false','-c','tag.gpgsign=false',...args], { cwd, windowsHide: true, stdio: ['ignore','pipe','pipe'] }).toString();
@@ -697,8 +750,10 @@ test('10,000-event history is paged and a fresh update does not replay old files
   assert.equal(result.body.events.length, 1); assert.equal(result.body.events[0].sequence, 10001); assert.ok(performance.now() - startAt < 1000);
   // Consume enough real SSE to exceed the response high-water mark. Accepted
   // frames must drain, not be destroyed before a large history can catch up.
-  const sequences = [];
-  await new Promise((resolve, reject) => {
+  const sequences = [], page = store.page; let readEvents = 0;
+  store.page = (...args) => { const snapshot = page(...args); readEvents += snapshot.events.length; return snapshot; };
+  const replayAt = performance.now();
+  try { await new Promise((resolve, reject) => {
     const request = http.get(running.connectUrl + '/api/sessions/' + id + '/events', { agent: false, headers: { Host: new URL(running.url).host, Authorization: 'Bearer ' + running.token } }, response => {
       let buffer = '';
       response.on('data', chunk => { buffer += chunk; let index;
@@ -711,8 +766,10 @@ test('10,000-event history is paged and a fresh update does not replay old files
     });
     const deadline = setTimeout(() => request.destroy(new Error('Bulk SSE deadline')), 20000);
     request.on('close', () => clearTimeout(deadline)); request.on('error', reject);
-  });
+  }); } finally { store.page = page; }
   assert.equal(sequences.length,10001); assert.deepEqual(sequences,Array.from({length:10001},(_,i)=>i+1));
+  assert.equal(readEvents,10002,'Socket drains must reuse the pending page instead of rereading its unsent tail.');
+  t.diagnostic('Bulk replay: '+Math.round(performance.now()-replayAt)+'ms, '+readEvents+' validated event reads.');
 });
 test('live reduction and replay agree, ignore duplicate IDs and reject recording gaps', async t => {
   const { root, id } = prepare(t), reducer = await import('../visualizer/state.mjs');

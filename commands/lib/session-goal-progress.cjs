@@ -36,12 +36,26 @@ function capture(root, goal, { readText }) {
 }
 
 const signature = value => value?.available ? value.completed + '/' + value.total : 'unavailable';
-function createMonitor(root, store) {
+function createMonitor(root, store, notifier) {
   const sessions = new Map();
+  function ensure(sessionId) {
+    if (!sessions.has(sessionId)) {
+      if (sessions.size >= 32) { const old = [...sessions].find(([, value]) => !value.listeners); if (!old) return; sessions.delete(old[0]); }
+      sessions.set(sessionId, { goals: new Map(), polledAt: 0, through: 0, listeners: 0 });
+    }
+    return sessions.get(sessionId);
+  }
+  function watch(state, sessionId) {
+    if (!notifier || !state.listeners) return;
+    for (const [id, goal] of state.goals) {
+      const active = goal.report?.mode === 'goal' && ['running','waiting','blocked','unknown'].includes(goal.report.status);
+      if (!active) { goal.stopWatch?.(); goal.stopWatch = null; continue; }
+      if (!goal.stopWatch) goal.stopWatch = notifier.subscribe('.hephaera/.cache/goals/' + id, () => { state.polledAt = 0; monitor.poll(sessionId); });
+    }
+  }
   const monitor = {
     observe(sessionId, event) {
-      if (!sessions.has(sessionId)) { if (sessions.size >= 32) sessions.delete(sessions.keys().next().value); sessions.set(sessionId, { goals: new Map(), polledAt: 0, through: 0 }); }
-      const state = sessions.get(sessionId);
+      const state = ensure(sessionId); if (!state) return;
       if (event.sequence === state.through + 1) state.through = event.sequence;
       if (!event.goal) {
         if (event.category !== 'goal') return;
@@ -56,14 +70,22 @@ function createMonitor(root, store) {
         if (event.category !== 'goal') return;
         if (state.goals.size >= 16) {
           const retired = [...state.goals].find(([, value]) => !['running','waiting','blocked','unknown'].includes(value.report?.status) || value.report?.mode !== 'goal');
-          if (retired) state.goals.delete(retired[0]);
+          if (retired) { retired[1].stopWatch?.(); state.goals.delete(retired[0]); }
         }
         if (state.goals.size >= 16) return;
         goal = { sequence: 0, snapshotSequence: 0 }; state.goals.set(event.goal, goal);
       }
       if (event.category === 'goal' && event.sequence > goal.sequence) { goal.report = event; goal.sequence = event.sequence; }
       if (event.goalProgress && event.sequence > goal.snapshotSequence) { goal.signature = signature(event.goalProgress); goal.snapshotSequence = event.sequence; }
+      watch(state, sessionId);
     },
+    listen(sessionId) {
+      const state = ensure(sessionId);
+      if (!state) return () => {};
+      state.listeners++; watch(state, sessionId);
+      return () => { if (--state.listeners === 0) for (const goal of state.goals.values()) { goal.stopWatch?.(); goal.stopWatch = null; goal.fileStamp = undefined; } };
+    },
+    close() { for (const state of sessions.values()) for (const goal of state.goals.values()) goal.stopWatch?.(); },
     restore(sessionId, cursor) {
       // Stream reconnection may resume after the original Goal declaration.
       // Rebuild only from this session's retained events, never a global Goal.
@@ -83,6 +105,9 @@ function createMonitor(root, store) {
         const report = goal.report;
         if (!report || report.mode !== 'goal' || !['running','waiting','blocked','unknown'].includes(report.status)) continue;
         try {
+          const stamp = notifier?.stamp(reference(report.goal));
+          if (notifier && stamp === goal.fileStamp) continue;
+          goal.fileStamp = stamp;
           const snapshot = store.goalProgress(root, report.goal);
           if (signature(snapshot) === goal.signature) continue;
           const bytes = crypto.createHash('sha256').update(sessionId + ':' + report.activityId + ':goal-progress').digest().subarray(0,16);
@@ -90,9 +115,10 @@ function createMonitor(root, store) {
           const hex = bytes.toString('hex'), activityId = [hex.slice(0,8),hex.slice(8,12),hex.slice(12,16),hex.slice(16,20),hex.slice(20)].join('-');
           const result = store.emit(root, sessionId, { goal: report.goal, goalProgress: snapshot, activityId, parentId: report.activityId,
             phase: report.phase, category: 'artifact', action: 'updated', status: snapshot.available ? 'succeeded' : 'unknown', source: 'command-observed',
-            owner: 'Hephaera viewer', label: snapshot.available ? 'Goal task queue snapshot' : 'Goal progress unavailable', operation: 'Observe Goal task queue' });
-          if (result.recorded) { goal.signature = signature(snapshot); goal.snapshotSequence = result.event.sequence; }
-        } catch { /* Passive state observation never changes Goal execution. */ }
+            owner: 'Hephaera viewer', label: snapshot.available ? 'Goal task queue snapshot' : 'Goal progress unavailable', operation: 'Observe Goal task queue' }, { waitMs: 0 });
+          if (result.recorded) { goal.signature = signature(snapshot); goal.snapshotSequence = result.event.sequence; notifier?.notify(store.CACHE + '/sessions/' + sessionId); }
+          else goal.fileStamp = undefined;
+        } catch { goal.fileStamp = undefined; /* Retry later in the viewer, never in the agent. */ }
       }
     }
   };

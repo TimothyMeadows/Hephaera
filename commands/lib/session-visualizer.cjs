@@ -95,7 +95,7 @@ async function start(root, options) {
       for (let attempt = 0; attempt < 30; attempt++) { if (fs.existsSync(store.safe(root, marker, 'file'))) { browserState = browserResult(root, running, session.id); break; } await delay(100); }
     }
     return { status: 'running', execution: running.execution || 'unknown', pid: running.pid, sessionId: session.id, url: running.url, ...browserState,
-      nextStep: 'Continue the task now. Pass this sessionId to run/emit for later activity; do not wait on the server.' };
+      nextStep: 'Continue the actual task now. Automatic observations update the viewer; no monitoring, reporting or polling calls are required.' };
   } finally { fs.rmdirSync(lock); }
 }
 async function run(root, options, command) {

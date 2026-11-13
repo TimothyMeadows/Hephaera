@@ -6,6 +6,7 @@ if (token) sessionStorage.setItem('hephaera-viewer-token', token);
 history.replaceState(null, '', sessionId ? '#session=' + encodeURIComponent(sessionId) : '/');
 let events = [], liveState = emptyState(), state = liveState, metadata, selected, controller, playback, zoom = 1, list = false, visibleEvents = 60, visibleActivities = 25, historyOffset = 0;
 let following = true, generation = 0, connected = false;
+let streaming = false, retryTimer, retryDelay = 2000;
 const expanded = new Set(phases), shown = Object.fromEntries(phases.map(p => [p, 5]));
 const structureOpen = new Map(); let structureLimit = 25;
 const headers = () => ({ Authorization: 'Bearer ' + token });
@@ -13,8 +14,8 @@ const element = (tag, className, text) => { const node = document.createElement(
 function svg(tag, attributes = {}, text) { const node = document.createElementNS('http://www.w3.org/2000/svg', tag); for (const [key, value] of Object.entries(attributes)) node.setAttribute(key, value); if (text !== undefined) node.textContent = text; return node; }
 const time = value => value ? new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Not reported';
 const shorten = (value, length = 28) => value.length > length ? value.slice(0, length - 1) + '…' : value;
-function notice(message) { $('notice').textContent = message; $('notice').hidden = !message; }
-function connection(text, style = '') { $('connection').textContent = text; $('connection').className = 'badge ' + style; }
+function notice(message) { if ($('notice').textContent !== message) $('notice').textContent = message; if ($('notice').hidden !== !message) $('notice').hidden = !message; }
+function connection(text, style = '') { if ($('connection').textContent !== text) $('connection').textContent = text; const name = 'badge ' + style; if ($('connection').className !== name) $('connection').className = name; }
 async function get(route) { const response = await fetch(route, { headers: headers(), cache: 'no-store' }); if (!response.ok) throw new Error(response.status === 401 ? 'Open this viewer through Hephaera startup to authorize the local connection.' : 'Session metadata is unavailable.'); return response.json(); }
 async function sessions(append = false) {
   const result = await get('/api/sessions?offset=' + (append ? historyOffset : 0));
@@ -30,6 +31,7 @@ async function sessions(append = false) {
 }
 async function selectSession(id) {
   generation++; const ownGeneration = generation; controller?.abort(); clearInterval(playback); playback = null; $('play').textContent = '▶';
+  clearTimeout(retryTimer); retryTimer = null; retryDelay = 2000; streaming = false;
   sessionId = id; events = []; liveState = emptyState(); state = liveState; selected = null; metadata = null; following = true; connected = false; visibleActivities = 25; visibleEvents = 60;
   history.replaceState(null, '', '#session=' + id);
   for (const button of $('sessions').children) { button.classList.toggle('active', button.dataset.session === id); button.setAttribute('aria-current', button.dataset.session === id ? 'true' : 'false'); }
@@ -43,7 +45,8 @@ async function selectSession(id) {
   } catch (error) { notice(error.message); connection('Unavailable', 'offline'); }
 }
 async function stream(ownGeneration) {
-  if (ownGeneration !== generation) return;
+  if (ownGeneration !== generation || streaming) return;
+  streaming = true;
   const ownController = new AbortController(); controller = ownController;
   try {
     const response = await fetch('/api/sessions/' + sessionId + '/events?after=' + liveState.cursor, { headers: headers(), signal: ownController.signal, cache: 'no-store' });
@@ -55,28 +58,41 @@ async function stream(ownGeneration) {
       buffer += decoder.decode(value, { stream: true });
       if (buffer.length > 1024 * 1024) throw new Error('Activity stream exceeded its bound.');
       let boundary;
+      let changed = false;
       while ((boundary = buffer.indexOf('\n\n')) !== -1) {
         const block = buffer.slice(0, boundary); buffer = buffer.slice(boundary + 2);
         const kind = block.split('\n').find(line => line.startsWith('event: '))?.slice(7);
         const data = block.split('\n').find(line => line.startsWith('data: '))?.slice(6);
         if (!data) continue;
         const payload = JSON.parse(data);
-        if (kind === 'activity' && payload.sequence > liveState.cursor) { applyEvent(liveState, payload); events.push(payload); }
-        else if (kind === 'metadata') metadata = payload;
+        if (kind === 'activity' && payload.sequence > liveState.cursor) { applyEvent(liveState, payload); events.push(payload); changed = true; }
+        else if (kind === 'metadata') { metadata = payload; changed = true; }
         else if (kind === 'unavailable') throw new Error(payload.error);
       }
       if (following) state = liveState;
-      scheduleRender();
+      if (changed) { retryDelay = 2000; scheduleRender(); }
     }
   } catch (error) {
     ownController.abort();
     if (ownGeneration !== generation || error.name === 'AbortError') return;
     connected = false; updateMode(); notice(error.message + ' Reconnecting without marking work complete.');
-    setTimeout(() => stream(ownGeneration), 2000);
-  }
+    if (!document.hidden) { const delay = retryDelay; retryDelay = Math.min(30000,retryDelay * 2); retryTimer = setTimeout(() => { retryTimer = null; stream(ownGeneration); }, delay); }
+  } finally { if (controller === ownController) streaming = false; }
 }
-let renderPending = false;
-function scheduleRender() { if (!renderPending) { renderPending = true; requestAnimationFrame(() => { renderPending = false; render(); }); } }
+let renderPending = false, renderTimer, lastRenderAt = 0;
+function scheduleRender() {
+  renderPending = true;
+  if (document.hidden || renderTimer) return;
+  renderTimer = setTimeout(() => { renderTimer = -1; requestAnimationFrame(() => { renderTimer = null; if (document.hidden) return; renderPending = false; render(); }); }, Math.max(0,100 - (performance.now() - lastRenderAt)));
+}
+document.addEventListener('visibilitychange', () => {
+  document.documentElement.classList.toggle('viewer-hidden', document.hidden);
+  if (document.hidden) { clearTimeout(retryTimer); retryTimer = null; }
+  if (document.hidden && playback) { clearInterval(playback); playback = null; $('play').textContent = '▶'; }
+  if (!document.hidden && renderPending) { renderPending = false; scheduleRender(); }
+  if (!document.hidden && !connected && sessionId && !retryTimer) stream(generation);
+});
+document.documentElement.classList.toggle('viewer-hidden', document.hidden);
 function activate(node, action) { node.setAttribute('role', 'button'); node.setAttribute('tabindex', '0'); node.addEventListener('click', action); node.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); action(); } }); }
 function workOverview() {
   const groups = currentWork(state), root = $('current-work'); root.replaceChildren(); $('current-work-panel').hidden = !groups.length;
@@ -252,6 +268,8 @@ function structures() {
   }
 }
 function render() {
+  if (document.hidden) { renderPending = true; return; }
+  lastRenderAt = performance.now();
   const focusKey = document.activeElement?.dataset.focusKey;
   const activities = [...state.activities.values()];
   $('activity-count').textContent = activities.length; $('running-count').textContent = activities.filter(a => a.status === 'running').length;
