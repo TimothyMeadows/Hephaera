@@ -115,6 +115,14 @@ function realRuntime() {
       ['qwen3-tts-customvoice', 'preset-speech'], ['qwen3-tts-base', 'consented-cloning']
     ].sort(), `${form}: actual prebuilt CLI advertises all five selected backends without loading models`);
     equal(runtime(baseline, ['resource', 'media/catalog.json']).status, 0, `${form}: recorded source admits the pinned media catalog`);
+    equal(liveMedia.splats.operations, ['inspect', 'validate', 'setup', 'provision', 'generate', 'verify-package'],
+      `${form}: actual pinned CLI advertises the complete Gaussian boundary without loading models`);
+    check(liveMedia.splats.generationAvailable === true && liveMedia.splats.nativeReadinessVerified === false
+      && liveMedia.splats.renderingAvailable === false && liveMedia.splats.runtimeAcceptanceAvailable === false,
+      `${form}: Gaussian generation capability preserves per-host readiness and separate rendering/runtime acceptance`);
+    for (const name of ['catalog.json', 'worker.py', 'provision.py'])
+      equal(runtime(baseline, ['resource', 'image-to-splat/' + name]).status, 0,
+        `${form}: recorded source admits the exact Gaussian ${name} resource`);
     function changed(name, mutate, expected, label) {
       const full = path.join(copiedBundle, name), original = fs.existsSync(full) ? fs.readFileSync(full) : null;
       const mode = original === null ? null : fs.statSync(full).mode & 0o777;
@@ -138,13 +146,15 @@ function realRuntime() {
     changed(resource, bytes => Buffer.concat([bytes, Buffer.from('\nfixture tamper\n')]), /Published Bubo audited resource changed/, 'published audited resource tamper');
     changed('resources/media/catalog.json', bytes => Buffer.concat([bytes, Buffer.from('\n')]), /Published Bubo audited resource changed/, 'published media catalog tamper');
     changed('resources/media/voice/worker.py', bytes => Buffer.concat([bytes, Buffer.from('\n# owned nonexecuted tamper\n')]), /Published Bubo audited resource changed/, 'published voice worker tamper');
+    changed('resources/image-to-splat/worker.py', bytes => Buffer.concat([bytes, Buffer.from('\n# inert Gaussian fixture tamper\n')]),
+      /Published Bubo audited resource changed/, 'published Gaussian worker tamper');
     changed('Bubo.Host.dll', bytes => Buffer.concat([bytes, Buffer.from([0])]), /Bubo built artifact changed: Bubo\.Host\.dll/, 'runtime assembly tamper');
     changed(executable, bytes => Buffer.concat([bytes, Buffer.from([0])]), /Bubo built artifact changed: bubo(?:\.exe)?/, 'apphost tamper');
     for (const config of ['bubo.runtimeconfig.json', 'bubo.deps.json']) changed(config, bytes => Buffer.concat([bytes, Buffer.from('\n')]), /Bubo built artifact changed:/, config + ' tamper');
     changed('unexpected-fixture.dll', () => Buffer.from('Reject the inventory before attempting to load this fixture.'), /Unexpected or missing Bubo runtime assembly/, 'unexpected runtime assembly');
     changed('build-info.json', modifyReceipt(value => { value.capabilities.build.cliSha256 = '0'.repeat(64); }), /live capability\/build identity differs/, 'receipt disagreement with actual prebuilt capabilities');
     equal(git(copiedDependency, 'status', '--porcelain', '--untracked-files=no'), '', `${form}: isolated build checks preserve pinned tracked source files`);
-    forms.push({ form, revision, cliSha256: identity.build.cliSha256, copiedFiles: files.length, rejectedCases: 13 });
+    forms.push({ form, revision, cliSha256: identity.build.cliSha256, copiedFiles: files.length, rejectedCases: 14 });
   }
   for (const file of files) assert.equal(digest(path.join(bundle, file.name)), file.sha256, 'Actual input bundle was modified: ' + file.name);
   check(true, 'Every original published bundle file retains its initial hash after isolated mutations');
@@ -153,7 +163,7 @@ function realRuntime() {
     assertions: observations.length, platform: process.platform, revision, resourceCatalogSha256: lock.resourceCatalogSha256,
     nativeBuilds: 0, executedCommands: ['prebuilt capabilities --api-version 2'], networkProtocolsAllowed: ['file'],
     forms, rejectionEvidence, observations }, null, 2) + '\n');
-  console.log(`Real Bubo build admission tests passed (${observations.length} assertions; 26 isolated rejection cases; actual prebuilt capabilities; no builds/models).`);
+  console.log(`Real Bubo build admission tests passed (${observations.length} assertions; ${rejectionEvidence.length} isolated rejection cases; actual prebuilt capabilities; no builds/models).`);
 }
 
 let completed = false;

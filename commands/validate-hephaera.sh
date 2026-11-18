@@ -32,6 +32,9 @@ node ./tests/test-schematic-selection.cjs
 node ./tests/test-schematic-host.cjs
 node ./tests/test-mechanical-host-context.cjs
 node ./tests/test-bubo-media-context.cjs
+node ./tests/test-bubo-splat-context.cjs
+node ./tests/test-image-to-splat-state.cjs
+node ./tests/test-image-to-splat-command.cjs
 node ./tests/test-media-pipeline-contract.cjs
 node ./tests/test-media-pipeline-state.cjs
 node ./tests/test-audio-pipeline-spec.cjs
@@ -45,6 +48,8 @@ node ./tests/test-media-pipeline-integration.cjs
 node ./tests/test-media-pipeline-promotion.cjs
 bash ./tests/test-generative-media.sh
 node ./tests/test-bubo-installation.cjs --real-runtime
+mkdir -p .local/splat-installed-validation
+python3 ./tests/test-image-to-splat-installed.py --evidence .local/splat-installed-validation
 bash ./commands/test-bubo-runtime.sh host
 bash ./commands/test-bubo-runtime.sh media
 bash ./commands/validate-engines.sh

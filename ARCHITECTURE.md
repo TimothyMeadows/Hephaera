@@ -38,6 +38,12 @@ LOCAL generated media uses `commands/lib/bubo-media-adapter.cjs` through the sam
 
 Read-only discovery remains available without an initialized or built runtime and distinguishes advertised capability from installation verification. Setup is dry-run unless explicitly authorized; generation never provisions. Each approval identity remains bound to one shared project-local media-state root across tasks and workspace changes. Provider-neutral manifests retain native output/settings/build ancestry with pending human review. CLOUD contracts and historical evidence remain compatible; runtime promotion and private-media disclosure require separate authorization.
 
+## Optional Gaussian object workflow
+
+`commands/lib/image-to-splat-state.cjs` owns host-only immutable visual versions, append-only dispatch/review evidence and current freshness. `image-to-splat-command.cjs` supplies strict public coordination; `bubo-splat-adapter.cjs` supplies full-art LOCAL policy to the existing verified bounded Bubo transport. This optional visual profile preserves STYLE's primary, engine and the three independent media domains.
+
+Source/request/selection/media and complete density/view identities bind technical, independent and human backend records. One immutable project-wide splat shared-state binding prevents task/workspace/approval changes from selecting fresh native ledgers. First-use registration retains an explicit operator history decision and its evidence; existing standalone roots are not silently replaced or automatically reconciled. Native algorithms, source-bound claims, model pins, provisioning and GPU ownership stay in Bubo. Producer-bound packages keep original build identities; receiving a historical package requires explicit preserved ancestry rather than relabeling it as current production. Rendering, runtime promotion and actual device/game acceptance remain separate.
+
 ## Independent media production domains
 
 `.media/pipelines/registry.json` defines AUDIO (SFX/ambience), MUSIC and VOICE independently of STYLE's visual primary. `commands/lib/media-pipeline-contract.cjs` owns optional domain contracts, deterministic modality routing and named contexts. Its selected-domain fingerprint includes that declaration/template/host contract and shared MEDIA identity, excluding unrelated domains. Loading contexts creates no contracts, selects no provider and performs no native discovery or inference. Domain execution readiness and native installation readiness are distinct.
