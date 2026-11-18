@@ -39,3 +39,7 @@ Read [Bubo's media API](../../../runtime/bubo/docs/MEDIA.md) for supported backe
 ## Role Fit
 
 Use with `generative-media-pipeline-engineer`, `generative-art-designer`, `sound-designer` and `ai-engineer`.
+
+## Optional static Gaussian objects
+
+For explicitly requested single-image Gaussian objects, use `build-image-to-splat-assets`, `commands/image-to-splat.sh` and `docs/IMAGE_TO_SPLAT.md`. Keep exact task-local LOCAL selection, source rights and separate installation/licence/generation/GPU prerequisites. The optional workflow retains immutable source-bound native attempts, complete density reviews and original producer identities. It preserves the current primary STYLE pipeline and media domains; rendering adapters, collision, animation, promotion and engine/device acceptance remain separate.

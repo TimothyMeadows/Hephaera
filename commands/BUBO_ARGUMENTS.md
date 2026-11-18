@@ -122,3 +122,22 @@ Execution state and receipts stay under the canonical task cache, with immutable
 `inspect-blender-scene.sh SCENE.blend --root PROJECT --profile PROFILE [--blender EXECUTABLE] [--output REPORT] [--replace] [--dry-run]`
 
 Profiles: `static-asset`, `rigged-actor`, `procedural-scene`, `render-scene`, `simulation`. Existing Blender 4.5.x is required. Dry-run queries prerequisites and creates no output. Without `--output`, stdout contains the validated v1 JSON report; otherwise it contains the report path. Existing reports require `--replace`. Sources, selected tools, Bubo dependency files and execution receipts remain read-only. Inspection requires no STYLE.md, ENGINE.md or MEDIA.md and grants no authoring or asset acceptance.
+
+## Optional image to splat
+
+Use `image-to-splat.sh OPERATION [--root PROJECT]` for the optional explicit LOCAL Gaussian workflow. It preserves the current STYLE primary, engine and independent media domains. Read [the workflow guide](../docs/IMAGE_TO_SPLAT.md) and the pinned native [Bubo contract](../runtime/bubo/docs/IMAGE_TO_SPLAT.md).
+
+| Operation | Arguments |
+| --- | --- |
+| `init` | `--task ID --asset ID --version ID --creator ID --request JSON --media MEDIA.md --workspace CACHE_CHILD --media-state CACHE_CHILD`; optional `--selection JSON --parent-manifest JSON --platform-modules JSON --ledger-registration JSON`. The native generation request and policy identities become immutable version inputs. |
+| `doctor` | `--root PROJECT`; optionally `--manifest JSON` for the retained version. Metadata and advertised readiness do not load a model or certify installation/device behavior. |
+| `validate`, `generate`, `verify-package`, `status` | `--manifest JSON`; continuation keeps original native task/run/request, settings, process limits, source approval, workspace and shared state. |
+| `review` | `--manifest JSON --packet JSON`; binds supplied pre-rendered canonical/full-orbit views for every ordered density variant. It does not render them. |
+| `record` | `--manifest JSON --evidence JSON`; the exact subject-bound receipt names its reviewer and `independent` or `human-backend` kind. Actual human decisions remain separate from technical checks. |
+| `setup`, `provision` | Explicit host `--task ID --request JSON --selection JSON --media MEDIA.md --workspace CACHE_CHILD --media-state CACHE_CHILD`, applicable process bounds and optional `--platform-modules JSON`; `--execute` is separately authorized and omitted for dry-run. Native request schemas distinguish provisioning from installation registration. |
+
+One immutable project-wide splat shared-root binding supplements the existing approval-root owner. Its first generation requires a `hephaera-splat-ledger-registration/v1` declaration naming the chosen root, explicit fresh/existing history, prior roots, operator and exact decision-evidence identity. Existing history retains exactly its original single root; different/multiple historical roots stop for separate reconciliation. No directory scan proves a fresh history, and old unregistered bindings are not upgraded silently. Changing task, approval, version or workspace cannot select fresh source ledgers. Preserve candidate/revision claims and original native task/approval identities; no operation here resets attempts or silently adopts historical standalone runs. A revision's source/style/catalog approval stays exact.
+
+Host descriptors and events retain source/request/policy/build/environment and complete output ancestry. Independent verification must use the exact producer build. Historical inspection preserves original identities and cannot be relabeled as current construction verification. Review subjects include every selected variant and all supplied view/camera identities; changes invalidate affected current decisions.
+
+Outputs stay in immutable non-runtime staging. There is no rendering, promotion or runtime handoff operation. Installation, component agreement, source-use/generation approval, GPU availability, private-media disclosure and later engine/device acceptance remain explicit separate boundaries.

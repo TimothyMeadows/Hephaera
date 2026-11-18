@@ -1,0 +1,4 @@
+interface:
+  display_name: "Build Image-to-Splat Assets"
+  short_description: "Create and review local static Gaussian object packages"
+  default_prompt: "Use $build-image-to-splat-assets to create a bounded local Gaussian object package from this rights-cleared image, preserving source ancestry and separate technical and human review."

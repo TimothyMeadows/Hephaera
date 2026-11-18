@@ -103,6 +103,7 @@ Skills:
 - `threejs-build-postprocessing`
 - `build-floor-plan-models`
 - `build-schematic-models`
+- `build-image-to-splat-assets`
 
 Commands:
 
@@ -131,6 +132,7 @@ Commands:
 - `commands/threejs-postprocessing.sh`
 - `commands/floor-plan-to-model.sh`
 - `commands/schematic-to-model.sh`
+- `commands/image-to-splat.sh`
 
 ### arts/blender-production-artist
 
@@ -159,6 +161,7 @@ Skills:
 - `build-proof-to-model-assets`
 - `build-floor-plan-models`
 - `build-schematic-models`
+- `build-image-to-splat-assets`
 
 Commands:
 
@@ -179,6 +182,7 @@ Commands:
 - `commands/proof-to-model.sh`
 - `commands/floor-plan-to-model.sh`
 - `commands/schematic-to-model.sh`
+- `commands/image-to-splat.sh`
 
 ### arts/board-ui-artist
 
@@ -580,6 +584,7 @@ Skills:
 - `threejs-build-postprocessing`
 - `build-floor-plan-models`
 - `build-schematic-models`
+- `build-image-to-splat-assets`
 
 Commands:
 
@@ -610,6 +615,7 @@ Commands:
 - `commands/threejs-postprocessing.sh`
 - `commands/floor-plan-to-model.sh`
 - `commands/schematic-to-model.sh`
+- `commands/image-to-splat.sh`
 
 ### arts/tile-set-artist
 
