@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "repository": "https://github.com/TimothyMeadows/Bubo.git",
   "path": "runtime/bubo",
-  "revision": "a47896d730b32d00b165e61820060e7c73d1ec4a",
+  "revision": "945403bd4f4e2190b5fe243d4c6bb11006d91aa7",
   "apiVersion": 2,
   "resourceCatalogSha256": "c93a6a37e65658ba39860ba89854dd265eb892b63966629a48609fe7cafe7ec1",
   "buildReceipt": "artifacts/bubo/build-info.json",
@@ -127,5 +127,14 @@
         }
       }
     }
+  },
+  "originalContextParserRepair": {
+    "pullRequest": "https://github.com/TimothyMeadows/Bubo/pull/55",
+    "reviewedHead": "945403bd4f4e2190b5fe243d4c6bb11006d91aa7",
+    "sourceBase": "a47896d730b32d00b165e61820060e7c73d1ec4a",
+    "adoption": "Exact reviewed PR head; distinct upstream merge recorded in host repair receipt",
+    "scope": "Original host context parser only; resource catalog and prior accepted history unchanged",
+    "executionApi": 2,
+    "oldPreparationSeals": "Retained immutable; fresh separately verified same-pixel technical packages use the new build identity"
   }
 }
