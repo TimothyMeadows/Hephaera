@@ -12,19 +12,21 @@ Use `proof-to-model.sh OPERATION` with common arguments above.
 
 | Operation | Additional arguments |
 | --- | --- |
-| `init` | Exactly one `--proof ORIGINAL_IMAGE` or `--sources SOURCE_SET_JSON`; required `--rights JSON --recipe JSON --toolchain JSON`; optional `--brief JSON --proof-metadata JSON --selection JSON --library-search JSON`. `--mode multi-view` is the default; explicit `single-view-diagnostic` is separate. |
+| `init` | Exactly one `--proof ORIGINAL_IMAGE` or `--sources SOURCE_SET_JSON`; required `--rights JSON --recipe JSON --toolchain JSON`; optional `--brief JSON --proof-metadata JSON --selection JSON --library-search JSON`. `--mode multi-view` is the six-view default. Separately qualified four-view requires explicit `--mode multi-view-four --conditioning-profile PATH`. Explicit `single-view-diagnostic` remains separate. |
 | `classify` | `--classification JSON` binds actual original-source research and classification. |
-| `prepare-proofs` | `--proof-set JSON` registers six actual images/cameras and applicable generation evidence. It does not generate them. |
+| `prepare-proofs` | `--proof-set JSON` registers exactly six or four distinct actual images/cameras for the immutable registered profile and applicable generation evidence. It does not generate them. |
 | `record` | `--kind KIND --reviewer ID --evidence JSON`; optional `--artifact FILE --source FILE` where the receipt contract uses them. |
 | `setup` | Omit `--execute` for dry-run. `--execute` or `--execute true` requests separately authorized provisioning; applicable licenses and complete pinned file evidence are still required. |
 | `doctor`, `preprocess`, `reconstruct` | Optional `--timeout SECONDS --gpu ID --blender EXECUTABLE`, subject to toolchain bounds and operation applicability. |
 | `finish` | Optional `--blender EXECUTABLE --timeout SECONDS --gpu ID --finish-settings JSON --finish-budget JSON`. Rigid-parts and extra-attempt selections require their explicit current evidence. |
 | `review` | Optional `--blender EXECUTABLE --timeout SECONDS --gpu ID`. |
-| `reuse` | `--reuse-manifest FILE`; register and review the receiving asset before reuse. Input ancestry and affected reviews remain enforced. |
+| `reuse` | `--reuse-manifest FILE`; register and review the receiving asset before reuse. Input ancestry and affected reviews remain enforced. Four-view reuse is initially refused; no cross-profile or SV donor stages/approvals transfer. |
 | `validate`, `status` | No additional operation arguments. |
 | `promote` | `--destination assets/models/NAME`; requires current independent and separate human runtime acceptance. |
 
-Single-view diagnostic continuations require `--mode single-view-diagnostic` explicitly on applicable operations. They cannot complete six-view production or promote. Diagnostic `init --reuse-manifest FILE` remains subject to donor checks; multi-view init rejects that shortcut. Missing tools, models, rights, source evidence or selected-pipeline capability stop the operation.
+Six-view production retains manifest v2 and proof-set v1. Explicit four-view registration creates a fresh manifest v3 with `conditioningProfile: "cardinal-four-v1"` and `conditioningProfileFile`; its proof-set v2 declares that profile and `viewCount: 4`. The schemaVersion1 profile binds id, mode, MV model family, ordered `front/right/back/left` views and accepted base-toolchain path/hash. Preserve the existing accepted `--toolchain` and installation/license evidence; do not rewrite them as the profile. Non-init four-view operations infer the profile from that immutable manifest, without repeating `--conditioning-profile`; optional `--mode` must match. Never select it from file count or six-view failure. A four-image subset cannot satisfy six-view, and profile selection grants no generation, inference spending or final-use acceptance.
+
+Single-view diagnostic continuations require `--mode single-view-diagnostic` explicitly on applicable operations. They cannot complete either production profile or promote. Diagnostic `init --reuse-manifest FILE` remains subject to donor checks; multi-view init rejects that shortcut. Missing tools, models, rights, source evidence or selected-pipeline capability stop the operation. Separate genuine technical preprocessing approval is allowed after inspecting current normalized inputs; human proof/proof-set and final acceptance gates remain unchanged.
 
 Pinned resources are under `.hephaera/runtime/bubo/resources/proof-to-model/`, including `recipes/static-prop.json`, `toolchain.json`, schemas and technical contracts. `PIPELINE.md` remains Hephaera policy; Bubo resources do not grant generation or human approval.
 

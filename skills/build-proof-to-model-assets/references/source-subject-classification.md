@@ -27,3 +27,5 @@ Only registered original IDs/hashes belong in the classification's `sources`, cl
 A proof defect can trigger reassessment, but reassessment returns to the originals and independent references. Do not convert a generated error into a source claim. Adding a genuine original requires a new registered source set and invalidates dependent classification and proofs.
 
 Human approval selects an inferred completion; it does not turn that completion into an observation or certify source rights. Validate source membership and immutable hashes separately from human judgment of anatomy, structure and likeness.
+
+The conditioning profile does not change this evidence boundary. A six-view or explicitly registered four-view proof plan derives its required/missing slots from that profile, while classification retains the actual original observations and uncertainty. Four cardinal proofs leave polar and other occluded surfaces underconstrained; do not mark them observed, fabricate top/bottom source entries, or reclassify approved generated designs as originals.

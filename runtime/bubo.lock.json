@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "repository": "https://github.com/TimothyMeadows/Bubo.git",
   "path": "runtime/bubo",
-  "revision": "945403bd4f4e2190b5fe243d4c6bb11006d91aa7",
+  "revision": "c1a96c6b3c8bdb6c4b0f60e70dfd21e500a52261",
   "apiVersion": 2,
-  "resourceCatalogSha256": "c93a6a37e65658ba39860ba89854dd265eb892b63966629a48609fe7cafe7ec1",
+  "resourceCatalogSha256": "8f56604770520e60f6952c24f8482470967890307891629035881bc31f6f3a0b",
   "buildReceipt": "artifacts/bubo/build-info.json",
   "trackingIssue": "https://github.com/TimothyMeadows/Hephaera/issues/212",
   "acceptedPrerequisite": {
@@ -136,5 +136,19 @@
     "scope": "Original host context parser only; resource catalog and prior accepted history unchanged",
     "executionApi": 2,
     "oldPreparationSeals": "Retained immutable; fresh separately verified same-pixel technical packages use the new build identity"
+  },
+  "cardinalFourIntegration": {
+    "pullRequest": "https://github.com/TimothyMeadows/Bubo/pull/56",
+    "reviewedHead": "c1a96c6b3c8bdb6c4b0f60e70dfd21e500a52261",
+    "sourceBase": "945403bd4f4e2190b5fe243d4c6bb11006d91aa7",
+    "executionApi": 2,
+    "conditioningProfile": "cardinal-four-v1",
+    "resourceCatalogSha256": "8f56604770520e60f6952c24f8482470967890307891629035881bc31f6f3a0b",
+    "adoption": "Exact reviewed PR head on scoped maintenance lineage; upstream merge recorded separately",
+    "preservedHistory": "Prior six-view manifests, receipts, accepted dependency toolchain/installations and licenses remain unchanged. Fresh four-view versions bind the new build/profile; approvals are not transferred.",
+    "qa": "https://github.com/TimothyMeadows/Bubo/pull/56#issuecomment-7085918780",
+    "requiredCi": 45070957936,
+    "mergedRevision": "e914be4757da73d2bb6b977999d298c507093d03",
+    "allCiPassed": true
   }
 }
