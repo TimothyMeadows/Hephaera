@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "repository": "https://github.com/TimothyMeadows/Bubo.git",
   "path": "runtime/bubo",
-  "revision": "c1a96c6b3c8bdb6c4b0f60e70dfd21e500a52261",
+  "revision": "994a469c3a99010e652785ebdf6c81cdf6a3272f",
   "apiVersion": 2,
-  "resourceCatalogSha256": "8f56604770520e60f6952c24f8482470967890307891629035881bc31f6f3a0b",
+  "resourceCatalogSha256": "7ed3fef6924d1aa728fc252353d6b27083aab41e907536cb2a17344e78132fed",
   "buildReceipt": "artifacts/bubo/build-info.json",
   "trackingIssue": "https://github.com/TimothyMeadows/Hephaera/issues/212",
   "acceptedPrerequisite": {
@@ -149,6 +149,21 @@
     "qa": "https://github.com/TimothyMeadows/Bubo/pull/56#issuecomment-7085918780",
     "requiredCi": 45070957936,
     "mergedRevision": "e914be4757da73d2bb6b977999d298c507093d03",
+    "allCiPassed": true
+  },
+  "canvasPreprocessingIntegration": {
+    "pullRequest": "https://github.com/TimothyMeadows/Bubo/pull/57",
+    "reviewedHead": "994a469c3a99010e652785ebdf6c81cdf6a3272f",
+    "sourceBase": "e914be4757da73d2bb6b977999d298c507093d03",
+    "executionApi": 2,
+    "preprocessingProfile": "birefnet-source-canvas-v1",
+    "stageLineageVersion": 1,
+    "resourceCatalogSha256": "7ed3fef6924d1aa728fc252353d6b27083aab41e907536cb2a17344e78132fed",
+    "qa": "https://github.com/TimothyMeadows/Bubo/pull/57#issuecomment-7089094639",
+    "adoption": "Exact independently reviewed PR head; separate upstream merge and successful CI recorded",
+    "preservedHistory": "Accepted base reconstruction toolchains/installations and original manifests/attempts remain immutable. Fresh explicit profiles and lineage retain cumulative stage expenditure without transferring approvals.",
+    "requiredCi": 45093822377,
+    "mergedRevision": "579770a04ecf00a008e9ec97e227a3f18c6347fa",
     "allCiPassed": true
   }
 }

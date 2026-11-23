@@ -12,7 +12,7 @@ Use `proof-to-model.sh OPERATION` with common arguments above.
 
 | Operation | Additional arguments |
 | --- | --- |
-| `init` | Exactly one `--proof ORIGINAL_IMAGE` or `--sources SOURCE_SET_JSON`; required `--rights JSON --recipe JSON --toolchain JSON`; optional `--brief JSON --proof-metadata JSON --selection JSON --library-search JSON`. `--mode multi-view` is the six-view default. Separately qualified four-view requires explicit `--mode multi-view-four --conditioning-profile PATH`. Explicit `single-view-diagnostic` remains separate. |
+| `init` | Exactly one `--proof ORIGINAL_IMAGE` or `--sources SOURCE_SET_JSON`; required `--rights JSON --recipe JSON --toolchain JSON`; optional `--brief JSON --proof-metadata JSON --selection JSON --library-search JSON`. `--mode multi-view` is the six-view default. Separately qualified four-view requires explicit `--mode multi-view-four --conditioning-profile PATH`. Its separately qualified source-canvas matting route additionally pairs `--preprocessing-profile JSON --stage-lineage JSON` on a fresh version only. Explicit `single-view-diagnostic` remains separate. |
 | `classify` | `--classification JSON` binds actual original-source research and classification. |
 | `prepare-proofs` | `--proof-set JSON` registers exactly six or four distinct actual images/cameras for the immutable registered profile and applicable generation evidence. It does not generate them. |
 | `record` | `--kind KIND --reviewer ID --evidence JSON`; optional `--artifact FILE --source FILE` where the receipt contract uses them. |
@@ -29,6 +29,8 @@ Six-view production retains manifest v2 and proof-set v1. Explicit four-view reg
 Single-view diagnostic continuations require `--mode single-view-diagnostic` explicitly on applicable operations. They cannot complete either production profile or promote. Diagnostic `init --reuse-manifest FILE` remains subject to donor checks; multi-view init rejects that shortcut. Missing tools, models, rights, source evidence or selected-pipeline capability stop the operation. Separate genuine technical preprocessing approval is allowed after inspecting current normalized inputs; human proof/proof-set and final acceptance gates remain unchanged.
 
 Pinned resources are under `.hephaera/runtime/bubo/resources/proof-to-model/`, including `recipes/static-prop.json`, `toolchain.json`, schemas and technical contracts. `PIPELINE.md` remains Hephaera policy; Bubo resources do not grant generation or human approval.
+
+Canvas preprocessing is opt-in and capability-gated; consult native `CANVAS_PREPROCESSING.md`, `canvas-preprocessing-profile.schema.json` and `canvas-stage-lineage.schema.json`. It selects a separate hash-bound BiRefNet/bg-only executable, fixed source-canvas/GPU-only arguments and at most four matting children. Reconstruction and the accepted base toolchain remain unchanged. The sealed bundle and exact predecessor state/staging are input-only roots. Existing CUDA dependencies are exact absolute tool identities, not generic file paths or ambient PATH selection. Original attempts (including empty failures) remain cumulative; no old approvals or budgets are reset through versioning. Setup, extra attempts and current actual mask/camera/RGB review need their separate real authority/evidence. Profile selection is not model/use acceptance or runtime promotion. Continuations use only immutable manifest `preprocessingProfileFile`/`stageLineageFile`; no selector replacement on an existing manifest is implied.
 
 ## Model to animation
 
