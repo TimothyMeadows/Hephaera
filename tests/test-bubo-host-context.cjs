@@ -44,6 +44,24 @@ check(!context.permissions.provisioning && !context.permissions.promotion, 'Stat
 check(context.budgets.timeoutSeconds === 2400 && context.budgets.maxLogBytes === 134217728, 'Configured bounded process ceilings are retained');
 check(context.roots.inputs.includes('models') && context.roots.inputs.includes('.hephaera/runtime/bubo/artifacts/bubo'), 'Selected model directory and verified publication have read-only admission');
 check(context.tools.some(item => runtime.samePath(item.path, process.execPath)), 'Existing selected native tool is exact hash-bound');
+// An explicit four-view profile is an immutable input at init and continuation.
+// The adapter admits bytes; native validates the profile's exact schema/count.
+write('conditioning-profile.json', { schemaVersion: 1, id: 'cardinal-four-v1', baseToolchain: { path: 'toolchain.json', sha256: runtime.hash(path.join(root, 'toolchain.json')) } });
+const profileHash = runtime.hash(path.join(root, 'conditioning-profile.json'));
+const initOptions = host.parse(['--root', root, '--task', task, '--rights', 'rights.json', '--recipe', 'recipe.json', '--toolchain', 'toolchain.json', '--conditioning-profile', 'conditioning-profile.json']);
+let profileContext = host.contextFor('proof-to-model', 'init', initOptions, info).context;
+check(profileContext.references.some(item => item.path === 'conditioning-profile.json' && item.sha256 === profileHash), 'Init binds exact conditioning profile bytes');
+check(profileContext.references.some(item => item.path === 'toolchain.json'), 'Profile retains original base toolchain reference');
+state.conditioningProfileFile = 'conditioning-profile.json'; write(manifest, state);
+profileContext = host.contextFor('proof-to-model', 'status', options(), info).context;
+check(profileContext.references.some(item => item.path === 'conditioning-profile.json' && item.sha256 === profileHash), 'Continuation admits registered profile without repeated flags');
+state.sourceInputs['conditioning-profile.json'] = profileHash; write(manifest, state);
+write('conditioning-profile.json', { changed: true });
+assert.throws(() => host.contextFor('proof-to-model', 'status', options(), info), /Retained source changed/); checks++;
+delete state.sourceInputs['conditioning-profile.json'];
+delete state.conditioningProfileFile; write(manifest, state);
+fs.unlinkSync(path.join(root, 'conditioning-profile.json'));
+assert.throws(() => host.contextFor('proof-to-model', 'init', initOptions, info), /Missing referenced input/); checks++;
 assert.throws(() => host.parse(['--host-context', 'injected.json']), /protected/); checks++;
 assert.throws(() => host.parse(['--execute', 'false']), /only true/); checks++;
 assert.throws(() => host.contextFor('proof-to-model', 'status', host.parse(['--root', root, '--manifest', manifest, '--task', 'other']), info), /ownership/); checks++;

@@ -14,8 +14,8 @@ const mechanicalHandoff = require('./bubo-mechanical-handoff.cjs');
 const actionVfx = require('./action-vfx-admission.cjs');
 const fail = message => { throw new Error(message); };
 const IDS = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/;
-const FILE_FLAGS = new Set(['rights', 'recipe', 'toolchain', 'selection', 'library-search', 'evidence', 'proof-set', 'classification', 'finish-settings', 'finish-budget', 'revision', 'source-review', 'sources', 'proof', 'model', 'motion-package', 'motion-source', 'mapping', 'brief', 'proof-metadata', 'source-metadata', 'editable-source', 'artifact', 'source', 'handoff']);
-const PATH_FIELDS = new Set(['path', 'image', 'stagedPath', 'copyEvidence', 'handoff', 'preparedGlb', 'authoringEvidence', 'generationManifest', 'generationReceipt', 'authorization', 'mediaContract', 'proof', 'rights', 'recipe', 'toolchain', 'brief', 'sourceSet', 'classification', 'proofSet', 'evidence', 'reviewEvidence', 'motionPackage', 'mapping', 'model', 'editableSource', 'receipt', 'sourceReview']);
+const FILE_FLAGS = new Set(['rights', 'recipe', 'toolchain', 'conditioning-profile', 'selection', 'library-search', 'evidence', 'proof-set', 'classification', 'finish-settings', 'finish-budget', 'revision', 'source-review', 'sources', 'proof', 'model', 'motion-package', 'motion-source', 'mapping', 'brief', 'proof-metadata', 'source-metadata', 'editable-source', 'artifact', 'source', 'handoff']);
+const PATH_FIELDS = new Set(['path', 'image', 'stagedPath', 'copyEvidence', 'handoff', 'preparedGlb', 'authoringEvidence', 'generationManifest', 'generationReceipt', 'authorization', 'mediaContract', 'proof', 'rights', 'recipe', 'toolchain', 'conditioningProfileFile', 'brief', 'sourceSet', 'classification', 'proofSet', 'evidence', 'reviewEvidence', 'motionPackage', 'mapping', 'model', 'editableSource', 'receipt', 'sourceReview']);
 function parse(values) {
   const options = new Map();
   for (let index = 0; index < values.length; index++) {
@@ -163,7 +163,7 @@ function contextFor(workflow, operation, options, info) {
   for (const [name, value] of options) if (FILE_FLAGS.has(name)) input(value, name === 'rights' ? 'rights' : ['evidence', 'source-review'].includes(name) ? 'review' : 'input');
   if (options.has('reuse-manifest')) input(options.get('reuse-manifest'), 'input');
   if (state) {
-    for (const name of ['rights', 'recipe', 'toolchain', 'brief', 'proofMetadata', 'sourceMetadata', 'sourceReview']) if (state[name]) input(state[name], name === 'rights' ? 'rights' : name === 'sourceReview' ? 'review' : 'input');
+    for (const name of ['rights', 'recipe', 'toolchain', 'conditioningProfileFile', 'brief', 'proofMetadata', 'sourceMetadata', 'sourceReview']) if (state[name]) input(state[name], name === 'rights' ? 'rights' : name === 'sourceReview' ? 'review' : 'input');
     for (const dictionary of [state.originals, state.sourceInputs, ...Object.values(state.stages || {}).map(stage => stage.inputs)].filter(Boolean)) for (const [name, expected] of Object.entries(dictionary)) {
       input(name, 'input', expected);
     }

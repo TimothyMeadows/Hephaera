@@ -479,8 +479,11 @@ for view in report["cameras"]:
 
     def test_19_incomplete_six_view_coverage_rejected(self):
         job, value = self.multiview("missing-view", lambda value: value["proofSet"]["views"].pop())
+        self.assertEqual(value["schemaVersion"], 2)
+        self.assertEqual(value["mode"], "multi-view")
+        self.assertEqual(len(value["proofSet"]["views"]), 5)
         process = self.run_blender(SCRIPTS / "review.py", job, "missing-view", success=False)
-        self.assertIn("Exactly six ordered", process.stdout)
+        self.assertIn("Exactly the profile's ordered conditioning views are required", process.stdout)
         self.assertFalse((ROOT / value["result"]).exists())
 
     def test_20_single_view_cannot_implicitly_satisfy_production_review(self):
