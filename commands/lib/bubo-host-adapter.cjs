@@ -12,10 +12,11 @@ const engines = require('./engine-contract.cjs');
 const styles = require('./style-contract.cjs');
 const mechanicalHandoff = require('./bubo-mechanical-handoff.cjs');
 const actionVfx = require('./action-vfx-admission.cjs');
+const canvasProfile = require('./bubo-canvas-profile.cjs');
 const fail = message => { throw new Error(message); };
 const IDS = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/;
-const FILE_FLAGS = new Set(['rights', 'recipe', 'toolchain', 'conditioning-profile', 'selection', 'library-search', 'evidence', 'proof-set', 'classification', 'finish-settings', 'finish-budget', 'revision', 'source-review', 'sources', 'proof', 'model', 'motion-package', 'motion-source', 'mapping', 'brief', 'proof-metadata', 'source-metadata', 'editable-source', 'artifact', 'source', 'handoff']);
-const PATH_FIELDS = new Set(['path', 'image', 'stagedPath', 'copyEvidence', 'handoff', 'preparedGlb', 'authoringEvidence', 'generationManifest', 'generationReceipt', 'authorization', 'mediaContract', 'proof', 'rights', 'recipe', 'toolchain', 'conditioningProfileFile', 'brief', 'sourceSet', 'classification', 'proofSet', 'evidence', 'reviewEvidence', 'motionPackage', 'mapping', 'model', 'editableSource', 'receipt', 'sourceReview']);
+const FILE_FLAGS = new Set(['rights', 'recipe', 'toolchain', 'conditioning-profile', 'preprocessing-profile', 'stage-lineage', 'selection', 'library-search', 'evidence', 'proof-set', 'classification', 'finish-settings', 'finish-budget', 'revision', 'source-review', 'sources', 'proof', 'model', 'motion-package', 'motion-source', 'mapping', 'brief', 'proof-metadata', 'source-metadata', 'editable-source', 'artifact', 'source', 'handoff']);
+const PATH_FIELDS = new Set(['path', 'image', 'stagedPath', 'copyEvidence', 'handoff', 'preparedGlb', 'authoringEvidence', 'generationManifest', 'generationReceipt', 'authorization', 'mediaContract', 'proof', 'rights', 'recipe', 'toolchain', 'conditioningProfileFile', 'preprocessingProfileFile', 'stageLineageFile', 'brief', 'sourceSet', 'classification', 'proofSet', 'evidence', 'reviewEvidence', 'motionPackage', 'mapping', 'model', 'editableSource', 'receipt', 'sourceReview']);
 function parse(values) {
   const options = new Map();
   for (let index = 0; index < values.length; index++) {
@@ -79,6 +80,11 @@ function contextFor(workflow, operation, options, info) {
   if (operation !== 'init' && !effectInspection && (!state || !manifest)) fail('A current --manifest is required.');
   if (state && (!state.hostPolicySha256 || !state.runtimeBuildSha256)) fail('Historical pre-extraction state is preserved. Initialize a new asset version with retained ancestry and fresh affected verification; do not rewrite old approvals.');
   const stateRoot = '.hephaera/.cache/tasks/' + task;
+  if (workflow !== 'proof-to-model' && (options.has('preprocessing-profile') || options.has('stage-lineage'))) fail('Canvas selection belongs only to proof-to-model.');
+  const canvasProfileFile = workflow === 'proof-to-model' ? options.get('preprocessing-profile') || state?.preprocessingProfileFile : null;
+  const canvasLineageFile = workflow === 'proof-to-model' ? options.get('stage-lineage') || state?.stageLineageFile : null;
+  if ((canvasProfileFile || canvasLineageFile) && (info.capability?.proofToModel?.canvasPreprocessingProfile !== 'birefnet-source-canvas-v1' || info.capability.proofToModel.stageLineageVersion !== 1)) fail('Installed native publication has not qualified explicit canvas preprocessing/lineage.');
+  const canvasOpaque = [canvasProfileFile, canvasLineageFile].filter(Boolean).map(value => relative(runtime.projectPath(root, value)));
   if (manifest && !relative(manifest).startsWith(stateRoot + '/')) fail('Manifest must stay in the active canonical task cache.');
   const actionRecipePath = workflow === 'model-to-action' && (options.get('recipe') || state?.recipe);
   const actionRecipe = actionRecipePath ? runtime.json(runtime.projectPath(root, actionRecipePath)) : null;
@@ -128,7 +134,7 @@ function contextFor(workflow, operation, options, info) {
   }
   function input(value, kind, expected) {
     const file = reference(value, kind, expected), rel = relative(file);
-    if (path.extname(file).toLowerCase() === '.json' && !visitedJson.has(file) && !mechanical?.isOpaque(rel, admittedHashes.get(rel))) { visitedJson.add(file); discover(runtime.json(file)); }
+    if (path.extname(file).toLowerCase() === '.json' && !visitedJson.has(file) && !mechanical?.isOpaque(rel, admittedHashes.get(rel)) && !canvasOpaque.includes(rel)) { visitedJson.add(file); discover(runtime.json(file)); }
     return file;
   }
   mechanical = mechanicalHandoff.prepare(root, workflow, operation, options, state);
@@ -163,7 +169,7 @@ function contextFor(workflow, operation, options, info) {
   for (const [name, value] of options) if (FILE_FLAGS.has(name)) input(value, name === 'rights' ? 'rights' : ['evidence', 'source-review'].includes(name) ? 'review' : 'input');
   if (options.has('reuse-manifest')) input(options.get('reuse-manifest'), 'input');
   if (state) {
-    for (const name of ['rights', 'recipe', 'toolchain', 'conditioningProfileFile', 'brief', 'proofMetadata', 'sourceMetadata', 'sourceReview']) if (state[name]) input(state[name], name === 'rights' ? 'rights' : name === 'sourceReview' ? 'review' : 'input');
+    for (const name of ['rights', 'recipe', 'toolchain', 'conditioningProfileFile', 'preprocessingProfileFile', 'stageLineageFile', 'brief', 'proofMetadata', 'sourceMetadata', 'sourceReview']) if (state[name]) input(state[name], name === 'rights' ? 'rights' : name === 'sourceReview' ? 'review' : 'input');
     for (const dictionary of [state.originals, state.sourceInputs, ...Object.values(state.stages || {}).map(stage => stage.inputs)].filter(Boolean)) for (const [name, expected] of Object.entries(dictionary)) {
       input(name, 'input', expected);
     }
@@ -187,8 +193,10 @@ function contextFor(workflow, operation, options, info) {
     if (!runtime.within(info.folder, file)) tool(file, true);
   }
   if (!effectInspection && state?.blender) tool(state.blender, true);
+  const canvas = workflow === 'proof-to-model' ? canvasProfile.collect({ root, task, asset: options.get('asset') || state?.asset, version: options.get('version') || state?.version, mode: options.get('mode') || (state?.schemaVersion === 3 ? 'multi-view-four' : null), profileFile: canvasProfileFile && relative(runtime.projectPath(root, canvasProfileFile)), lineageFile: canvasLineageFile && relative(runtime.projectPath(root, canvasLineageFile)), reference, tool }) : { inputs: [] };
   for (const file of tools.keys()) if (runtime.within(root, file)) references.delete(relative(file));
   const inputs = [];
+  for (const value of canvas.inputs) if (!inputs.includes(value)) inputs.push(value);
   if (actionV2) {
     const admitted = actionVfx.collect({ root, recipe: actionRecipe, stateRoot, reference });
     for (const scope of admitted.inputs) if (!inputs.includes(scope)) inputs.push(scope);
