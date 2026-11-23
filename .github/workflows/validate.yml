@@ -63,6 +63,8 @@ jobs:
           node tests/test-schematic-examples.cjs
           node tests/test-bubo-host-context.cjs
           node --test tests/canvas-profile-admission.test.cjs
+          node --test tests/canvas-lineage-v2-admission.test.cjs
+          node tests/test-canvas-v2-host-context.cjs
           node tests/test-bubo-media-context.cjs
           node tests/test-media-pipeline-contract.cjs
           node tests/test-media-pipeline-state.cjs
