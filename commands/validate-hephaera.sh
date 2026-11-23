@@ -27,6 +27,7 @@ bash ./tests/test-cache-workflows.sh
 bash ./tests/test-runtime-cache-layout.sh
 node ./tests/test-bubo-installation.cjs
 node ./tests/test-bubo-host-context.cjs
+node --test ./tests/canvas-profile-admission.test.cjs
 node ./tests/test-action-vfx-host-admission.cjs
 node ./tests/test-schematic-selection.cjs
 node ./tests/test-schematic-host.cjs
