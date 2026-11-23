@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "repository": "https://github.com/TimothyMeadows/Bubo.git",
   "path": "runtime/bubo",
-  "revision": "994a469c3a99010e652785ebdf6c81cdf6a3272f",
+  "revision": "bc8d0e6d71626f073c69f07b2ac652cd453fe0f2",
   "apiVersion": 2,
-  "resourceCatalogSha256": "7ed3fef6924d1aa728fc252353d6b27083aab41e907536cb2a17344e78132fed",
+  "resourceCatalogSha256": "cd35986a4397ae7b37439c03d4bb2c9e8ccd090aee42ddadf506a32b1feef241",
   "buildReceipt": "artifacts/bubo/build-info.json",
   "trackingIssue": "https://github.com/TimothyMeadows/Hephaera/issues/212",
   "acceptedPrerequisite": {
@@ -165,5 +165,26 @@
     "requiredCi": 45093822377,
     "mergedRevision": "579770a04ecf00a008e9ec97e227a3f18c6347fa",
     "allCiPassed": true
+  },
+  "canvasChainedRecoveryIntegration": {
+    "nativePullRequest": "https://github.com/TimothyMeadows/Bubo/pull/59",
+    "reviewedHead": "bc8d0e6d71626f073c69f07b2ac652cd453fe0f2",
+    "sourceCatalogSha256": "cd35986a4397ae7b37439c03d4bb2c9e8ccd090aee42ddadf506a32b1feef241",
+    "exactHeadQaSha256": "bd15553fccb75497766fc26d416deb00060cc04dbbd9e997f21f0376d02a9602",
+    "nativeCi": 45103970656,
+    "sourceCandidateOnly": false,
+    "nativeMergePending": false,
+    "guardPullRequest": "https://github.com/TimothyMeadows/Bubo/pull/58",
+    "guardMerge": "f90f9c30f6bff4442d668572dcbe1ed1fe9e8ed7",
+    "guardCi": 45100231518,
+    "guardAllCiPassed": true,
+    "stageLineageVersions": [
+      1,
+      2
+    ],
+    "actualAdditionalStageAuthorized": false,
+    "actualNewMasksOrModels": false,
+    "nativeMergedRevision": "364bce672fc9555b13e549ddf1271c1c80a7a84b",
+    "nativeAllCiPassed": true
   }
 }

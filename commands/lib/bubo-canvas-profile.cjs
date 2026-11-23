@@ -6,11 +6,12 @@ const fail=message=>{throw Error(message);};
 const HASH=/^[a-f0-9]{64}$/,ID=/^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/;
 function fields(value,names,label){if(!value||Object.getPrototypeOf(value)!==Object.prototype||Object.keys(value).some(name=>!names.includes(name))||names.some(name=>!Object.hasOwn(value,name)))fail('Exact '+label+' fields required.');}
 function relative(value){if(typeof value!=='string'||!value||/[\\:\x00-\x20]/.test(value)||value.startsWith('/')||value.split('/').some(part=>!part||part==='.'||part==='..'||/[. ]$/.test(part)))fail('Canonical relative canvas path required.');return value;}
-function json(root,value){
+function json(root,value,maximum=65536){
+ if(![65536,1048576].includes(maximum))fail('Fixed bounded canvas JSON limit required.');
  relative(value);const file=runtime.projectPath(root,value);runtime.components(file);const before=fs.lstatSync(file);
- if(!before.isFile()||before.isSymbolicLink()||before.nlink!==1||before.size<2||before.size>65536)fail('Canvas JSON must be bounded ordinary2..65536bytes before read.');
+ if(!before.isFile()||before.isSymbolicLink()||before.nlink!==1||before.size<2||before.size>maximum)fail('Canvas JSON must be bounded ordinary2..65536bytes before read.');
  const fd=fs.openSync(file,fs.constants.O_RDONLY|(fs.constants.O_NOFOLLOW||0));let bytes;
- try{const opened=fs.fstatSync(fd);if(opened.ino!==before.ino||opened.size!==before.size||opened.nlink!==1)fail('Canvas JSON descriptor changed.');const buffer=Buffer.alloc(65537);let count=0,n;while(count<buffer.length&&(n=fs.readSync(fd,buffer,count,buffer.length-count,null)))count+=n;if(count!==before.size||count>65536)fail('Canvas JSON changed/exceeded budget.');const after=fs.fstatSync(fd);if(after.size!==opened.size||after.mtimeMs!==opened.mtimeMs||after.ctimeMs!==opened.ctimeMs)fail('Canvas JSON changed during read.');bytes=buffer.subarray(0,count);}finally{fs.closeSync(fd);}
+ try{const opened=fs.fstatSync(fd);if(opened.ino!==before.ino||opened.size!==before.size||opened.nlink!==1)fail('Canvas JSON descriptor changed.');const buffer=Buffer.alloc(maximum+1);let count=0,n;while(count<buffer.length&&(n=fs.readSync(fd,buffer,count,buffer.length-count,null)))count+=n;if(count!==before.size||count>maximum)fail('Canvas JSON changed/exceeded budget.');const after=fs.fstatSync(fd);if(after.size!==opened.size||after.mtimeMs!==opened.mtimeMs||after.ctimeMs!==opened.ctimeMs)fail('Canvas JSON changed during read.');bytes=buffer.subarray(0,count);}finally{fs.closeSync(fd);}
  const after=fs.lstatSync(file);if(after.ino!==before.ino||after.size!==before.size||after.mtimeMs!==before.mtimeMs||after.ctimeMs!==before.ctimeMs||after.nlink!==1)fail('Canvas JSON path changed.');
  return JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));
 }
@@ -20,7 +21,7 @@ function file(root,value,reference,kind='input',sized=false){
  const cap=sized?536870912:1048576;if(!stat.isFile()||stat.isSymbolicLink()||stat.nlink!==1||stat.size<1||stat.size>cap||sized&&(!Number.isSafeInteger(value.bytes)||value.bytes!==stat.size))fail('Bounded ordinary canvas reference required before hash.');
  reference(value.path,kind,value.sha256);return target;
 }
-function collect({root,task,asset,version,mode,profileFile,lineageFile,reference,tool}){
+function collect({root,task,asset,version,mode,profileFile,lineageFile,reference,tool,capabilities}){
  if(!profileFile&&!lineageFile)return{inputs:[]};
  if(!profileFile||!lineageFile||mode!=='multi-view-four'||![task,asset,version].every(value=>ID.test(value||'')&&value!=='..'))fail('Paired fresh/registered four-view canvas selection required.');
  const state='.hephaera/.cache/tasks/'+task;
@@ -28,8 +29,11 @@ function collect({root,task,asset,version,mode,profileFile,lineageFile,reference
  const profile=json(root,profileFile),lineage=json(root,lineageFile);
  const required=['schemaVersion','id','mode','baseToolchain','executable','files','maxMattingChildren'];fields(profile,Object.hasOwn(profile,'existingRuntimeDependencies')?[...required,'existingRuntimeDependencies']:required,'canvas profile');
  if(profile.schemaVersion!==1||profile.id!=='birefnet-source-canvas-v1'||profile.mode!=='multi-view-four'||profile.maxMattingChildren!==4||!Array.isArray(profile.files)||profile.files.length<1||profile.files.length>32)fail('Explicit bounded source-canvas profile required.');
+ const chained=lineage.schemaVersion===2?require('./bubo-canvas-lineage-v2.cjs').collect({root,task,asset,version,lineage,capabilities,json:(value,maximum)=>json(root,value,maximum),file:(value,kind)=>file(root,value,reference,kind),reference}):null;
+ if(!chained){
  fields(lineage,['schemaVersion','kind','decision','task','asset','sourceVersion','targetVersion','authorization','inputApproval','priorManifest','priorStateRoot','priorStaging','priorAttempts','priorDirectories','priorHistoryCounts','stageLimits'],'canvas lineage');
  if(lineage.schemaVersion!==1||lineage.kind!=='proof-to-model-stage-lineage'||lineage.decision!=='approved'||lineage.task!==task||lineage.asset!==asset||lineage.targetVersion!==version||!ID.test(lineage.sourceVersion||'')||lineage.sourceVersion.toLowerCase()===version.toLowerCase())fail('Canvas lineage scope changed.');
+ }
  const priorState=state+'/proof-to-model/'+asset+'/'+lineage.sourceVersion,priorStaging='.art-staging/proof-to-model/'+asset+'/'+lineage.sourceVersion;
  if(lineage.priorStateRoot!==priorState||lineage.priorStaging!==priorStaging)fail('Lineage must name exact prior roots, never a parent workspace.');
  reference(profileFile);reference(lineageFile);file(root,profile.baseToolchain,reference);file(root,lineage.authorization,reference,'policy');file(root,lineage.inputApproval,reference,'policy');
@@ -44,6 +48,7 @@ function collect({root,task,asset,version,mode,profileFile,lineageFile,reference
  const parents=new Set(),runtimeNames=new Set();for(const dependency of runtimes){fields(dependency,['absolutePath','sha256','bytes'],'existing CUDA dependency');if(process.platform!=='win32'||typeof dependency.absolutePath!=='string'||!HASH.test(dependency.sha256||'')||!Number.isSafeInteger(dependency.bytes)||dependency.bytes<1||dependency.bytes>536870912||!/^([A-Za-z]):\/[^:\\]+\/CUDA\/v13\.2\/bin\/x64\/(cublas64_13|cublasLt64_13|cudart64_13)\.dll$/.test(dependency.absolutePath)||dependency.absolutePath.split('/').slice(1).some(part=>!part||part==='.'||part==='..'||/[.\s]$/.test(part)||/[\x00-\x1f]/.test(part)))fail('Exact existing CUDA13.2 registered tool dependency required.');
   const absolute=path.resolve(dependency.absolutePath),name=path.basename(absolute).toLowerCase();if(runtimeNames.has(name)||profile.files.some(entry=>path.posix.basename(entry.path).toLowerCase()===name))fail('CUDA duplicate/shadow basename refused.');runtimeNames.add(name);parents.add(path.dirname(absolute).toLowerCase());runtime.components(absolute);const stat=fs.lstatSync(absolute);if(!stat.isFile()||stat.isSymbolicLink()||stat.nlink!==1||stat.size!==dependency.bytes)fail('Existing CUDA dependency alias/bytes changed.');tool(absolute,true);if(runtime.hash(absolute)!==dependency.sha256)fail('Existing CUDA dependency hash changed.');
  }if(parents.size>1)fail('Existing CUDA dependencies must share one exact parent.');
- return{inputs:[bundle,priorState,priorStaging]};
+ return{inputs:[...new Set([bundle,priorState,priorStaging,...(chained?.inputs||[])])]};
 }
-module.exports={collect};
+function requireCapability({root,task,lineageFile,capabilities}){if(!lineageFile)return;if(!ID.test(task||'')||task==='..'||!relative(lineageFile).startsWith('.hephaera/.cache/tasks/'+task+'/')||!lineageFile.endsWith('.json'))fail('Early canvas selector must remain exact active-task JSON before body read.');if(json(root,lineageFile).schemaVersion===2)require('./bubo-canvas-lineage-v2.cjs').capability(capabilities);}
+module.exports={collect,requireCapability};

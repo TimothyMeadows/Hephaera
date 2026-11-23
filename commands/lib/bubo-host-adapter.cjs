@@ -84,6 +84,7 @@ function contextFor(workflow, operation, options, info) {
   const canvasProfileFile = workflow === 'proof-to-model' ? options.get('preprocessing-profile') || state?.preprocessingProfileFile : null;
   const canvasLineageFile = workflow === 'proof-to-model' ? options.get('stage-lineage') || state?.stageLineageFile : null;
   if ((canvasProfileFile || canvasLineageFile) && (info.capability?.proofToModel?.canvasPreprocessingProfile !== 'birefnet-source-canvas-v1' || info.capability.proofToModel.stageLineageVersion !== 1)) fail('Installed native publication has not qualified explicit canvas preprocessing/lineage.');
+  if(canvasLineageFile)canvasProfile.requireCapability({root,task,lineageFile:relative(runtime.projectPath(root,canvasLineageFile)),capabilities:info.capability.proofToModel});
   const canvasOpaque = [canvasProfileFile, canvasLineageFile].filter(Boolean).map(value => relative(runtime.projectPath(root, value)));
   if (manifest && !relative(manifest).startsWith(stateRoot + '/')) fail('Manifest must stay in the active canonical task cache.');
   const actionRecipePath = workflow === 'model-to-action' && (options.get('recipe') || state?.recipe);
@@ -193,7 +194,7 @@ function contextFor(workflow, operation, options, info) {
     if (!runtime.within(info.folder, file)) tool(file, true);
   }
   if (!effectInspection && state?.blender) tool(state.blender, true);
-  const canvas = workflow === 'proof-to-model' ? canvasProfile.collect({ root, task, asset: options.get('asset') || state?.asset, version: options.get('version') || state?.version, mode: options.get('mode') || (state?.schemaVersion === 3 ? 'multi-view-four' : null), profileFile: canvasProfileFile && relative(runtime.projectPath(root, canvasProfileFile)), lineageFile: canvasLineageFile && relative(runtime.projectPath(root, canvasLineageFile)), reference, tool }) : { inputs: [] };
+  const canvas = workflow === 'proof-to-model' ? canvasProfile.collect({ root, task, asset: options.get('asset') || state?.asset, version: options.get('version') || state?.version, mode: options.get('mode') || (state?.schemaVersion === 3 ? 'multi-view-four' : null), profileFile: canvasProfileFile && relative(runtime.projectPath(root, canvasProfileFile)), lineageFile: canvasLineageFile && relative(runtime.projectPath(root, canvasLineageFile)), reference, tool, capabilities: info.capability?.proofToModel }) : { inputs: [] };
   for (const file of tools.keys()) if (runtime.within(root, file)) references.delete(relative(file));
   const inputs = [];
   for (const value of canvas.inputs) if (!inputs.includes(value)) inputs.push(value);
